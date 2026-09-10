@@ -379,7 +379,7 @@ Format with clear Markdown headers, bold highlights, code blocks (if applicable)
                 Teacher & Master Educator Layer
               </span>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>
-                Book {chapterNumber}: {chapter.title}
+                {chapter.title.toLowerCase().startsWith('book') ? chapter.title : `Book ${chapterNumber}: ${chapter.title}`}
               </span>
             </div>
             <h2

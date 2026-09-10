@@ -1487,26 +1487,28 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
               overflow: 'hidden',
             }}
           >
-            {/* Left Chat History Sidebar (Only visible in Course Creator) */}
-            <ChatSidebar
-              sessions={courseCreatorSessions}
-              activeSessionId={activeSessionId}
-              onSelectSession={handleSelectSession}
-              onNewChat={handleNewChat}
-              onDeleteSession={handleDeleteSession}
-              onRenameSession={handleRenameSession}
-              onTogglePinSession={handleTogglePinSession}
-              onClearAllSessions={handleClearAllSessions}
-              onExportJSON={handleExportJSON}
-              onImportJSON={handleImportJSON}
-              isOpen={isLeftSidebarOpen}
-              onToggleOpen={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)}
-              isDbPersisted={isDbPersisted}
-              dbHealth={dbHealth}
-              activeProductType="course_creator"
-              onSelectProduct={handleSelectModule}
-              onOpenFunctionList={() => setIsFunctionListOpen(true)}
-            />
+            {/* Left Chat History Sidebar — only visible in home chatroom view with messages */}
+            {courseCreatorTab === 'home' && activeSession && activeSession.messages.length > 0 && (
+              <ChatSidebar
+                sessions={courseCreatorSessions}
+                activeSessionId={activeSessionId}
+                onSelectSession={handleSelectSession}
+                onNewChat={handleNewChat}
+                onDeleteSession={handleDeleteSession}
+                onRenameSession={handleRenameSession}
+                onTogglePinSession={handleTogglePinSession}
+                onClearAllSessions={handleClearAllSessions}
+                onExportJSON={handleExportJSON}
+                onImportJSON={handleImportJSON}
+                isOpen={isLeftSidebarOpen}
+                onToggleOpen={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)}
+                isDbPersisted={isDbPersisted}
+                dbHealth={dbHealth}
+                activeProductType="course_creator"
+                onSelectProduct={handleSelectModule}
+                onOpenFunctionList={() => setIsFunctionListOpen(true)}
+              />
+            )}
 
             {/* Main Course Creator Body */}
             <div
@@ -1541,35 +1543,39 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
               >
                 {/* Left: Sidebar Toggle + Active Course Session Title */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
-                  <button
-                    id="sidebar-toggle-btn"
-                    type="button"
-                    onClick={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)}
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      border: '1px solid var(--border-subtle)',
-                      borderRadius: '0.6rem',
-                      color: isLeftSidebarOpen ? 'var(--accent-primary)' : 'var(--text-main)',
-                      cursor: 'pointer',
-                      padding: '0.42rem 0.5rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                      boxShadow: isLeftSidebarOpen ? '0 0 12px var(--accent-glow)' : 'none',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-                      e.currentTarget.style.borderColor = 'var(--border-focus)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                      e.currentTarget.style.borderColor = 'var(--border-subtle)';
-                    }}
-                    title={isLeftSidebarOpen ? 'Collapse Chat History' : 'Expand Chat History'}
-                  >
-                    <PanelLeft size={16} />
-                  </button>
+                  {/* Sidebar toggle only makes sense in chatroom workspace view */}
+                  {courseCreatorTab === 'home' && activeSession && activeSession.messages.length > 0 && (
+                    <button
+                      id="sidebar-toggle-btn"
+                      type="button"
+                      onClick={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)}
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: '0.6rem',
+                        color: isLeftSidebarOpen ? 'var(--accent-primary)' : 'var(--text-main)',
+                        cursor: 'pointer',
+                        padding: '0.42rem 0.5rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                        boxShadow: isLeftSidebarOpen ? '0 0 12px var(--accent-glow)' : 'none',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+                        e.currentTarget.style.borderColor = 'var(--border-focus)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                        e.currentTarget.style.borderColor = 'var(--border-subtle)';
+                      }}
+                      title={isLeftSidebarOpen ? 'Collapse Chat History' : 'Expand Chat History'}
+                    >
+                      <PanelLeft size={16} />
+                    </button>
+                  )}
+
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0 }}>
                     <div
