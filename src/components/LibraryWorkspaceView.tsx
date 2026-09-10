@@ -36,6 +36,7 @@ import {
   Plus,
   AlertCircle,
   Bot,
+  MoreHorizontal,
 } from 'lucide-react';
 import MarkdownRenderer from './MarkdownRenderer';
 import MasterclassVideoPlayer from './MasterclassVideoPlayer';
@@ -160,6 +161,10 @@ export default function LibraryWorkspaceView({
   const [showAddNewChapterModal, setShowAddNewChapterModal] = useState<boolean>(false);
   const [newChapterTitle, setNewChapterTitle] = useState<string>('');
   const [newChapterContent, setNewChapterContent] = useState<string>('');
+  // Header Dropdown States
+  const [isModuleDropdownOpen, setIsModuleDropdownOpen] = useState<boolean>(false);
+  const [isManageContentMenuOpen, setIsManageContentMenuOpen] = useState<boolean>(false);
+  const [isMoreActionsMenuOpen, setIsMoreActionsMenuOpen] = useState<boolean>(false);
 
 
 
@@ -516,7 +521,7 @@ CRITICAL RULES:
       <div
         id="workspace-sticky-query-context"
         style={{
-          padding: '0.48rem 1.25rem',
+          padding: '0.45rem 1.25rem',
           background: 'var(--header-bg)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
@@ -524,17 +529,18 @@ CRITICAL RULES:
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '0.75rem',
+          gap: '1rem',
           flexShrink: 0,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0, flex: 1 }}>
+        {/* Left: Active Prompt Badge + Query + Book Selector */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1, overflow: 'hidden' }}>
           <div
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.35rem',
-              padding: '0.18rem 0.6rem',
+              padding: '0.2rem 0.65rem',
               borderRadius: '9999px',
               background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%)',
               border: '1px solid rgba(165, 180, 252, 0.35)',
@@ -550,6 +556,7 @@ CRITICAL RULES:
             <Sparkles size={11} color="#c084fc" className="animate-spin" style={{ animationDuration: '4s' }} />
             <span>Active Prompt</span>
           </div>
+
           <div
             style={{
               fontSize: '0.82rem',
@@ -559,26 +566,71 @@ CRITICAL RULES:
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               letterSpacing: '-0.01em',
+              maxWidth: '280px',
             }}
             title={initialUserQuery}
           >
             "{initialUserQuery}"
           </div>
+
+          {/* Book / Topic Selector */}
+          {compiledCourse.chapters.length > 0 && (
+            <>
+              <div style={{ width: '1px', height: '14px', background: 'var(--border-subtle)', margin: '0 0.15rem', flexShrink: 0 }} />
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                <BookOpen size={12} color="#38bdf8" style={{ flexShrink: 0 }} />
+                <select
+                  id="workspace-book-selector"
+                  value={activeChapterIndex}
+                  onChange={(e) => {
+                    const idx = parseInt(e.target.value, 10);
+                    setActiveChapterIndex(idx);
+                    setExpandedChapterId(compiledCourse.chapters[idx]?.id || null);
+                  }}
+                  style={{
+                    height: '26px',
+                    maxWidth: '240px',
+                    padding: '0 0.6rem',
+                    borderRadius: '9999px',
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    border: '1px solid var(--border-medium)',
+                    color: '#ffffff',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    outline: 'none',
+                    cursor: 'pointer',
+                  }}
+                  title="Switch active curriculum book"
+                >
+                  {compiledCourse.chapters.map((ch, cIdx) => {
+                    const rawTitle = ch.title.trim();
+                    const cleanTitle = rawTitle.toLowerCase().startsWith('book') ? rawTitle : `Book ${ch.chapterNumber}: ${rawTitle}`;
+                    return (
+                      <option key={ch.id} value={cIdx} style={{ background: '#0d1220', color: '#ffffff' }}>
+                        {cleanTitle}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            </>
+          )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+        {/* Right: Role Badge + Book/Topic Count with generous padding */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexShrink: 0 }}>
           <div
             style={{
               fontSize: '0.7rem',
               color: '#7dd3fc',
               background: 'rgba(56, 189, 248, 0.12)',
               border: '1px solid rgba(56, 189, 248, 0.3)',
-              padding: '0.18rem 0.65rem',
+              padding: '0.2rem 0.65rem',
               borderRadius: '9999px',
               fontWeight: 700,
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '0.3rem',
+              gap: '0.35rem',
               boxShadow: '0 0 8px rgba(56, 189, 248, 0.15)',
             }}
           >
@@ -591,7 +643,7 @@ CRITICAL RULES:
               color: 'var(--text-subtle)',
               background: 'rgba(255, 255, 255, 0.04)',
               border: '1px solid var(--border-subtle)',
-              padding: '0.18rem 0.55rem',
+              padding: '0.2rem 0.6rem',
               borderRadius: '9999px',
               fontWeight: 600,
             }}
@@ -628,7 +680,7 @@ CRITICAL RULES:
             justifyContent: 'space-between',
             gap: '0.4rem',
             width: '100%',
-            overflowX: 'auto',
+            overflow: 'visible',
             flexWrap: 'nowrap',
             paddingBottom: '0.4rem',
             borderBottom: '1px solid rgba(255,255,255,0.06)',
@@ -636,9 +688,9 @@ CRITICAL RULES:
           }}
           className="no-scrollbar"
         >
-          {/* Left: 1 to 7 Core Learning Modules */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-            {[
+          {/* Left: 1 to 7 Core Learning Modules Dropdown Menu (Exact Manage Content Design) */}
+          {(() => {
+            const allModules = [
               { id: 'reading', label: '1. Reading', icon: BookOpen, color: '#38bdf8' },
               { id: 'explanations', label: '2. Tutor Bot', icon: GraduationCap, color: '#a855f7' },
               { id: 'slides', label: '3. Slide + AI', icon: Presentation, color: '#f472b6' },
@@ -646,102 +698,115 @@ CRITICAL RULES:
               { id: 'coach', label: '5. Intelli Coach', icon: Bot, color: '#10b981' },
               { id: 'exams', label: '6. Exam Board', icon: Award, color: '#fbbf24' },
               { id: 'dictionary', label: '7. Glossary', icon: HelpCircle, color: '#2dd4bf' },
-            ].map((tab) => {
-              const Icon = tab.icon;
-              const isActive =
-                activeWorkspaceTab === tab.id ||
-                (tab.id === 'reading' &&
-                  (activeWorkspaceTab === 'reading' || activeWorkspaceTab === 'structure'));
-              return (
+            ];
+            const currentTabId = activeWorkspaceTab === 'structure' ? 'reading' : activeWorkspaceTab;
+            const activeMod = allModules.find((m) => m.id === currentTabId) || allModules[0];
+            const ActiveIcon = activeMod.icon;
+
+            return (
+              <div style={{ position: 'relative' }}>
                 <button
-                  key={tab.id}
-                  id={`ws-tab-${tab.id}`}
+                  id="workspace-module-dropdown-btn"
                   type="button"
-                  onClick={() => {
-                    setActiveWorkspaceTab(tab.id as any);
-                  }}
+                  onClick={() => setIsModuleDropdownOpen(!isModuleDropdownOpen)}
                   className="action-chip"
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '0.35rem',
-                    padding: '0.32rem 0.72rem',
+                    height: '28px',
+                    padding: '0 0.8rem',
                     borderRadius: '9999px',
-                    background: isActive
-                      ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.28) 0%, rgba(168, 85, 247, 0.22) 100%)'
-                      : 'rgba(255, 255, 255, 0.04)',
-                    border: isActive
-                      ? `1.5px solid ${tab.color}`
-                      : '1px solid var(--border-subtle)',
-                    color: isActive ? '#ffffff' : 'var(--text-muted)',
+                    background: isModuleDropdownOpen ? `${activeMod.color}28` : `${activeMod.color}15`,
+                    border: isModuleDropdownOpen ? `1px solid ${activeMod.color}` : `1px solid ${activeMod.color}60`,
+                    color: activeMod.color,
                     fontSize: '0.74rem',
-                    fontWeight: isActive ? 800 : 600,
+                    fontWeight: 700,
                     cursor: 'pointer',
                     transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                    boxShadow: isActive ? `0 0 12px ${tab.color}40` : 'none',
+                    boxShadow: isModuleDropdownOpen ? `0 0 12px ${activeMod.color}40` : 'none',
                     whiteSpace: 'nowrap',
                   }}
-                  onMouseEnter={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                      e.currentTarget.style.color = 'var(--text-main)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
-                      e.currentTarget.style.color = 'var(--text-muted)';
-                    }
-                  }}
+                  title="Select Learning Module"
                 >
-                  <Icon size={13} color={isActive ? tab.color : 'var(--text-subtle)'} />
-                  <span>{tab.label}</span>
+                  <ActiveIcon size={13} color={activeMod.color} />
+                  <span>{activeMod.label}</span>
+                  <ChevronDown size={10} color={activeMod.color} />
                 </button>
-              );
-            })}
-          </div>
 
-          {/* Right: Book Dropdown Selector, Sync Status, Question Tree, and Version Snapshot */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0 }}>
-            {/* Active Book / Chapter Selector Dropdown */}
-            {compiledCourse.chapters.length > 0 && (
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                <BookOpen size={12} color="#38bdf8" style={{ flexShrink: 0 }} />
-                <select
-                  id="workspace-book-selector"
-                  value={activeChapterIndex}
-                  onChange={(e) => {
-                    const idx = parseInt(e.target.value, 10);
-                    setActiveChapterIndex(idx);
-                    setExpandedChapterId(compiledCourse.chapters[idx]?.id || null);
-                  }}
-                  style={{
-                    height: '28px',
-                    maxWidth: '240px',
-                    padding: '0 0.6rem',
-                    borderRadius: '9999px',
-                    background: 'rgba(255, 255, 255, 0.06)',
-                    border: '1px solid var(--border-medium)',
-                    color: '#ffffff',
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    outline: 'none',
-                    cursor: 'pointer',
-                  }}
-                  title="Switch active curriculum book"
-                >
-                  {compiledCourse.chapters.map((ch, cIdx) => {
-                    const rawTitle = ch.title.trim();
-                    const cleanTitle = rawTitle.toLowerCase().startsWith('book') ? rawTitle : `Book ${ch.chapterNumber}: ${rawTitle}`;
-                    return (
-                      <option key={ch.id} value={cIdx} style={{ background: '#0d1220', color: '#ffffff' }}>
-                        {cleanTitle}
-                      </option>
-                    );
-                  })}
-                </select>
+                {isModuleDropdownOpen && (
+                  <>
+                    <div
+                      style={{ position: 'fixed', inset: 0, zIndex: 99990 }}
+                      onClick={() => setIsModuleDropdownOpen(false)}
+                    />
+                    <div
+                      className="animate-pop-in"
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        top: 'calc(100% + 0.35rem)',
+                        minWidth: '190px',
+                        background: '#0c101e',
+                        border: '1px solid rgba(99, 102, 241, 0.5)',
+                        borderRadius: '0.75rem',
+                        padding: '0.35rem',
+                        boxShadow: '0 20px 45px rgba(0, 0, 0, 0.9), 0 0 25px rgba(99, 102, 241, 0.35)',
+                        zIndex: 99999,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.2rem',
+                      }}
+                    >
+                      {allModules.map((mod) => {
+                        const MIcon = mod.icon;
+                        const isCurrent = currentTabId === mod.id;
+                        return (
+                          <button
+                            key={mod.id}
+                            id={`ws-module-select-${mod.id}`}
+                            type="button"
+                            onClick={() => {
+                              setActiveWorkspaceTab(mod.id as any);
+                              setIsModuleDropdownOpen(false);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.55rem',
+                              padding: '0.45rem 0.7rem',
+                              borderRadius: '0.5rem',
+                              background: isCurrent ? 'rgba(99, 102, 241, 0.25)' : 'transparent',
+                              border: 'none',
+                              color: isCurrent ? '#ffffff' : mod.color,
+                              fontSize: '0.74rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                              transition: 'all 0.15s ease',
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!isCurrent) e.currentTarget.style.background = `${mod.color}18`;
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isCurrent) e.currentTarget.style.background = 'transparent';
+                            }}
+                          >
+                            <MIcon size={13} color={mod.color} />
+                            <span style={{ flex: 1, color: isCurrent ? '#ffffff' : 'var(--text-main)' }}>{mod.label}</span>
+                            {isCurrent && <Check size={11} color={mod.color} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
-            )}
+            );
+          })()}
+
+          {/* Right: Sync Status, Question Tree, and Version Snapshot */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexShrink: 0 }}>
 
             {/* Live Synchronization Status Badge */}
             {hasUnsavedChanges ? (
@@ -909,189 +974,262 @@ CRITICAL RULES:
           }}
           className="no-scrollbar"
         >
-          {/* Left: Authoring & Content Actions */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'nowrap', flexShrink: 0 }}>
-            {/* 1. Edit with AI */}
-            {activeChapter && (
-              <button
-                id="workspace-refine-chapter-btn"
-                type="button"
-                onClick={() => {
-                  setRefiningChapterId((prev) => (prev === activeChapter.id ? null : activeChapter.id));
-                  setTargetSectionTitle(null);
-                }}
-                className="action-chip"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  height: '28px',
-                  padding: '0 0.72rem',
-                  borderRadius: '9999px',
-                  background:
-                    refiningChapterId === activeChapter.id
-                      ? 'rgba(168, 85, 247, 0.3)'
-                      : 'rgba(168, 85, 247, 0.12)',
-                  border:
-                    refiningChapterId === activeChapter.id
-                      ? '1px solid rgba(168, 85, 247, 0.6)'
-                      : '1px solid rgba(168, 85, 247, 0.35)',
-                  color: '#c084fc',
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                  boxShadow: refiningChapterId === activeChapter.id ? '0 0 12px rgba(168, 85, 247, 0.35)' : 'none',
-                }}
-                title="Refine active chapter content with AI"
-              >
-                <Wand2 size={12} color="#c084fc" />
-                <span>Edit with AI</span>
-              </button>
-            )}
-
-            {/* 2. Edit Content (Direct Editor Modal) */}
-            {activeChapter && (
-              <button
-                id="workspace-direct-edit-content-btn"
-                type="button"
-                onClick={() => {
-                  setDirectEditContent(activeChapter.content);
-                  setShowDirectEditorModal(true);
-                }}
-                className="action-chip"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  height: '28px',
-                  padding: '0 0.72rem',
-                  borderRadius: '9999px',
-                  background: 'rgba(56, 189, 248, 0.12)',
-                  border: '1px solid rgba(56, 189, 248, 0.35)',
-                  color: '#7dd3fc',
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                }}
-                title="Directly edit text and code in editor"
-              >
-                <Edit3 size={12} color="#38bdf8" />
-                <span>Edit Content</span>
-              </button>
-            )}
-
-            {/* 3. Add Chapter */}
-            <button
-              id="workspace-add-chapter-btn"
-              type="button"
-              onClick={() => {
-                setNewChapterTitle('');
-                setNewChapterContent('');
-                setShowAddNewChapterModal(true);
-              }}
-              className="action-chip"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.3rem',
-                height: '28px',
-                padding: '0 0.72rem',
-                borderRadius: '9999px',
-                background: 'rgba(99, 102, 241, 0.15)',
-                border: '1px solid rgba(99, 102, 241, 0.4)',
-                color: '#a5b4fc',
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-              }}
-              title="Add a new chapter or book"
-            >
-              <Plus size={12} color="#818cf8" />
-              <span>Add Chapter</span>
-            </button>
-
-            {/* 4. Delete Chapter */}
-            {activeChapter && (
-              <button
-                id="workspace-delete-chapter-btn"
-                type="button"
-                onClick={() => setShowDeleteChapterModal(true)}
-                className="action-chip"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  height: '28px',
-                  padding: '0 0.65rem',
-                  borderRadius: '9999px',
-                  background: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid rgba(239, 68, 68, 0.35)',
-                  color: '#f87171',
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                }}
-                title="Delete active chapter"
-              >
-                <Trash2 size={12} color="#f87171" />
-                <span>Delete</span>
-              </button>
-            )}
-
-            {/* Subtle Divider */}
-            <div style={{ width: '1px', height: '16px', background: 'var(--border-subtle)', margin: '0 0.2rem' }} />
-
-            {/* 5. Download Menu */}
+          {/* Left: Authoring & Content Actions Dropdown + Utility Dropdown */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'nowrap', flexShrink: 0 }}>
+            {/* 1. Manage Content Dropdown Menu */}
             <div style={{ position: 'relative' }}>
               <button
-                id="workspace-download-export-btn"
+                id="workspace-manage-content-menu-btn"
                 type="button"
-                onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                onClick={() => setIsManageContentMenuOpen(!isManageContentMenuOpen)}
                 className="action-chip"
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '0.3rem',
+                  gap: '0.35rem',
                   height: '28px',
-                  padding: '0 0.72rem',
+                  padding: '0 0.8rem',
                   borderRadius: '9999px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid var(--border-subtle)',
-                  color: '#a5b4fc',
-                  fontSize: '0.72rem',
+                  background: isManageContentMenuOpen ? 'rgba(168, 85, 247, 0.28)' : 'rgba(168, 85, 247, 0.15)',
+                  border: isManageContentMenuOpen ? '1px solid rgba(168, 85, 247, 0.6)' : '1px solid rgba(168, 85, 247, 0.4)',
+                  color: '#c084fc',
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
                   cursor: 'pointer',
-                  fontWeight: 600,
                   transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                  boxShadow: isManageContentMenuOpen ? '0 0 12px rgba(168, 85, 247, 0.35)' : 'none',
+                  whiteSpace: 'nowrap',
                 }}
-                title="Download Course Documents (DOCX / Markdown)"
+                title="Manage Content (Edit with AI, Edit Text, Add Chapter, Delete)"
               >
-                <Download size={11} color="#818cf8" />
-                <span>Download</span>
-                <ChevronDown size={9} />
+                <Wand2 size={13} color="#c084fc" />
+                <span>Manage Content</span>
+                <ChevronDown size={10} color="#c084fc" />
               </button>
 
-              {isExportMenuOpen && (
+              {isManageContentMenuOpen && (
                 <>
                   <div
                     style={{ position: 'fixed', inset: 0, zIndex: 99990 }}
-                    onClick={() => setIsExportMenuOpen(false)}
+                    onClick={() => setIsManageContentMenuOpen(false)}
                   />
                   <div
                     className="animate-pop-in"
                     style={{
                       position: 'absolute',
                       left: 0,
-                      top: 'calc(100% + 0.4rem)',
+                      top: 'calc(100% + 0.35rem)',
+                      minWidth: '190px',
+                      background: '#0c101e',
+                      border: '1px solid rgba(99, 102, 241, 0.5)',
+                      borderRadius: '0.75rem',
+                      padding: '0.35rem',
+                      boxShadow: '0 20px 45px rgba(0, 0, 0, 0.9), 0 0 25px rgba(99, 102, 241, 0.35)',
+                      zIndex: 99999,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.2rem',
+                    }}
+                  >
+                    {activeChapter && (
+                      <button
+                        id="workspace-refine-chapter-btn"
+                        type="button"
+                        onClick={() => {
+                          setRefiningChapterId((prev) => (prev === activeChapter.id ? null : activeChapter.id));
+                          setTargetSectionTitle(null);
+                          setIsManageContentMenuOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.55rem',
+                          padding: '0.45rem 0.7rem',
+                          borderRadius: '0.5rem',
+                          background: refiningChapterId === activeChapter.id ? 'rgba(168, 85, 247, 0.25)' : 'transparent',
+                          border: 'none',
+                          color: '#c084fc',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(168, 85, 247, 0.18)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = refiningChapterId === activeChapter.id ? 'rgba(168, 85, 247, 0.25)' : 'transparent';
+                        }}
+                      >
+                        <Wand2 size={13} color="#c084fc" />
+                        <span>Edit with AI</span>
+                      </button>
+                    )}
+
+                    {activeChapter && (
+                      <button
+                        id="workspace-direct-edit-content-btn"
+                        type="button"
+                        onClick={() => {
+                          setDirectEditContent(activeChapter.content);
+                          setShowDirectEditorModal(true);
+                          setIsManageContentMenuOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.55rem',
+                          padding: '0.45rem 0.7rem',
+                          borderRadius: '0.5rem',
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#7dd3fc',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(56, 189, 248, 0.18)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent';
+                        }}
+                      >
+                        <Edit3 size={13} color="#38bdf8" />
+                        <span>Edit Content</span>
+                      </button>
+                    )}
+
+                    <button
+                      id="workspace-add-chapter-btn"
+                      type="button"
+                      onClick={() => {
+                        setNewChapterTitle('');
+                        setNewChapterContent('');
+                        setShowAddNewChapterModal(true);
+                        setIsManageContentMenuOpen(false);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.55rem',
+                        padding: '0.45rem 0.7rem',
+                        borderRadius: '0.5rem',
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#a5b4fc',
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(99, 102, 241, 0.18)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                      }}
+                    >
+                      <Plus size={13} color="#818cf8" />
+                      <span>Add Chapter</span>
+                    </button>
+
+                    <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.08)', margin: '0.2rem 0' }} />
+
+                    {activeChapter && (
+                      <button
+                        id="workspace-delete-chapter-btn"
+                        type="button"
+                        onClick={() => {
+                          setShowDeleteChapterModal(true);
+                          setIsManageContentMenuOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.55rem',
+                          padding: '0.45rem 0.7rem',
+                          borderRadius: '0.5rem',
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#f87171',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(239, 68, 68, 0.18)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent';
+                        }}
+                      >
+                        <Trash2 size={13} color="#f87171" />
+                        <span>Delete Chapter</span>
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Subtle Divider */}
+            <div style={{ width: '1px', height: '16px', background: 'var(--border-subtle)', margin: '0 0.2rem' }} />
+
+            {/* 2. More Actions Dropdown (Download, Speaker, Copy) */}
+            <div style={{ position: 'relative' }}>
+              <button
+                id="workspace-more-actions-btn"
+                type="button"
+                onClick={() => setIsMoreActionsMenuOpen(!isMoreActionsMenuOpen)}
+                className="action-chip"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  height: '28px',
+                  padding: '0 0.72rem',
+                  borderRadius: '9999px',
+                  background: isMoreActionsMenuOpen ? 'rgba(99, 102, 241, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                  border: isMoreActionsMenuOpen ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid var(--border-subtle)',
+                  color: isMoreActionsMenuOpen ? '#a5b4fc' : 'var(--text-muted)',
+                  fontSize: '0.74rem',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                  whiteSpace: 'nowrap',
+                }}
+                title="More Actions (Download, Speaker, Copy)"
+              >
+                <MoreHorizontal size={13} />
+                <span>More Actions</span>
+                <ChevronDown size={10} />
+              </button>
+
+              {isMoreActionsMenuOpen && (
+                <>
+                  <div
+                    style={{ position: 'fixed', inset: 0, zIndex: 99990 }}
+                    onClick={() => setIsMoreActionsMenuOpen(false)}
+                  />
+                  <div
+                    className="animate-pop-in"
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      top: 'calc(100% + 0.35rem)',
                       width: '210px',
                       background: '#0c101e',
-                      border: '1px solid rgba(99, 102, 241, 0.45)',
+                      border: '1px solid rgba(99, 102, 241, 0.5)',
                       borderRadius: '0.75rem',
-                      padding: '0.4rem',
-                      boxShadow: '0 20px 45px rgba(0, 0, 0, 0.9), 0 0 20px rgba(99, 102, 241, 0.25)',
+                      padding: '0.35rem',
+                      boxShadow: '0 20px 45px rgba(0, 0, 0, 0.9), 0 0 25px rgba(99, 102, 241, 0.35)',
                       zIndex: 99999,
                       display: 'flex',
                       flexDirection: 'column',
@@ -1102,13 +1240,13 @@ CRITICAL RULES:
                       type="button"
                       onClick={() => {
                         handleDownloadDocx();
-                        setIsExportMenuOpen(false);
+                        setIsMoreActionsMenuOpen(false);
                       }}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: '0.5rem',
-                        padding: '0.45rem 0.65rem',
+                        padding: '0.42rem 0.65rem',
                         borderRadius: '0.45rem',
                         background: 'transparent',
                         border: 'none',
@@ -1134,13 +1272,13 @@ CRITICAL RULES:
                       type="button"
                       onClick={() => {
                         handleDownloadMarkdown();
-                        setIsExportMenuOpen(false);
+                        setIsMoreActionsMenuOpen(false);
                       }}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: '0.5rem',
-                        padding: '0.45rem 0.65rem',
+                        padding: '0.42rem 0.65rem',
                         borderRadius: '0.45rem',
                         background: 'transparent',
                         border: 'none',
@@ -1163,78 +1301,82 @@ CRITICAL RULES:
                       <Download size={13} color="#38bdf8" />
                       <span>Markdown (.md)</span>
                     </button>
+
+                    <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.08)', margin: '0.2rem 0' }} />
+
+                    {activeChapter && (
+                      <button
+                        id="workspace-speak-btn"
+                        type="button"
+                        onClick={() => {
+                          onSpeak(activeChapter.content, activeChapter.id, workspaceLanguage);
+                          setIsMoreActionsMenuOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.42rem 0.65rem',
+                          borderRadius: '0.45rem',
+                          background: isSpeaking && activeSpeakingId === activeChapter.id ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+                          border: 'none',
+                          color: isSpeaking && activeSpeakingId === activeChapter.id ? 'var(--accent-primary)' : 'var(--text-main)',
+                          fontSize: '0.74rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(99, 102, 241, 0.18)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = isSpeaking && activeSpeakingId === activeChapter.id ? 'rgba(99, 102, 241, 0.2)' : 'transparent';
+                        }}
+                      >
+                        {isSpeaking && activeSpeakingId === activeChapter.id ? <VolumeX size={13} color="var(--accent-primary)" /> : <Volume2 size={13} color="#c084fc" />}
+                        <span>{isSpeaking && activeSpeakingId === activeChapter.id ? 'Stop Reading Aloud' : 'Read Aloud (Speaker)'}</span>
+                      </button>
+                    )}
+
+                    {activeChapter && (
+                      <button
+                        id="workspace-copy-chapter-btn"
+                        type="button"
+                        onClick={() => {
+                          handleCopyChapter();
+                          setIsMoreActionsMenuOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.42rem 0.65rem',
+                          borderRadius: '0.45rem',
+                          background: 'transparent',
+                          border: 'none',
+                          color: copied ? 'var(--success)' : 'var(--text-main)',
+                          fontSize: '0.74rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(52, 211, 153, 0.15)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent';
+                        }}
+                      >
+                        {copied ? <Check size={13} color="var(--success)" /> : <Copy size={13} color="#34d399" />}
+                        <span>{copied ? 'Copied to Clipboard!' : 'Copy Chapter Content'}</span>
+                      </button>
+                    )}
                   </div>
                 </>
               )}
             </div>
-
-            {/* 6. Speaker Button */}
-            {activeChapter && (
-              <button
-                id="workspace-speak-btn"
-                type="button"
-                onClick={() => onSpeak(activeChapter.content, activeChapter.id, workspaceLanguage)}
-                className="action-chip"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  height: '28px',
-                  padding: '0 0.72rem',
-                  borderRadius: '9999px',
-                  background:
-                    isSpeaking && activeSpeakingId === activeChapter.id
-                      ? 'rgba(99, 102, 241, 0.3)'
-                      : 'rgba(255, 255, 255, 0.05)',
-                  border:
-                    isSpeaking && activeSpeakingId === activeChapter.id
-                      ? '1px solid rgba(99, 102, 241, 0.6)'
-                      : '1px solid var(--border-subtle)',
-                  color:
-                    isSpeaking && activeSpeakingId === activeChapter.id
-                      ? 'var(--accent-primary)'
-                      : 'var(--text-muted)',
-                  fontSize: '0.72rem',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                  boxShadow: isSpeaking && activeSpeakingId === activeChapter.id ? '0 0 10px var(--accent-glow)' : 'none',
-                }}
-                title={isSpeaking && activeSpeakingId === activeChapter.id ? 'Stop reading' : 'Read active chapter aloud'}
-              >
-                {isSpeaking && activeSpeakingId === activeChapter.id ? <VolumeX size={11} /> : <Volume2 size={11} />}
-                <span>{isSpeaking && activeSpeakingId === activeChapter.id ? 'Stop' : 'Speaker'}</span>
-              </button>
-            )}
-
-            {/* 7. Copy Button */}
-            {activeChapter && (
-              <button
-                id="workspace-copy-chapter-btn"
-                type="button"
-                onClick={handleCopyChapter}
-                className="action-chip"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  height: '28px',
-                  padding: '0 0.72rem',
-                  borderRadius: '9999px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid var(--border-subtle)',
-                  color: copied ? 'var(--success)' : 'var(--text-muted)',
-                  fontSize: '0.72rem',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                }}
-                title="Copy active chapter content to clipboard"
-              >
-                {copied ? <Check size={11} color="var(--success)" /> : <Copy size={11} />}
-                <span>{copied ? 'Copied' : 'Copy'}</span>
-              </button>
-            )}
           </div>
 
           {/* Right: Department Batching & Persistence */}

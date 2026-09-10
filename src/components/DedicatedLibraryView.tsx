@@ -47,6 +47,7 @@ import {
   Tv,
   File,
   Bot,
+  MoreHorizontal,
 } from 'lucide-react';
 import {
   getAllLibraryCourses,
@@ -171,6 +172,11 @@ export default function DedicatedLibraryView({
   const [showAddNewChapterModal, setShowAddNewChapterModal] = useState<boolean>(false);
   const [newChapterTitle, setNewChapterTitle] = useState<string>('');
   const [newChapterContent, setNewChapterContent] = useState<string>('');
+  // Header Dropdown & Overflow Menu States
+  const [isModuleDropdownOpen, setIsModuleDropdownOpen] = useState<boolean>(false);
+  const [isManageContentMenuOpen, setIsManageContentMenuOpen] = useState<boolean>(false);
+  const [isReaderModuleDropdownOpen, setIsReaderModuleDropdownOpen] = useState<boolean>(false);
+  const [isReaderMoreActionsMenuOpen, setIsReaderMoreActionsMenuOpen] = useState<boolean>(false);
 
   const handleDirectEditSave = async () => {
     if (!selectedCourse || !activeChapter) return;
@@ -2135,51 +2141,122 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                     >
                       {/* Left & Center Sequence: Modules 1-6 -> Structure -> Coach -> Refine -> Save & Version -> Download, Speaker, Copy -> Language */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-                        {/* Core Learning Modules (Clean Names without Numeric Prefixes) */}
-                        {[
-                          { id: 'reading', label: 'Reading Mode', icon: BookOpen, color: '#38bdf8' },
-                          { id: 'explanations', label: 'Tutor Bot', icon: GraduationCap, color: '#a855f7' },
-                          { id: 'slides', label: 'Slide + AI', icon: Presentation, color: '#f472b6' },
-                          { id: 'video', label: 'Video + AI', icon: Tv, color: '#f43f5e' },
-                          { id: 'coach', label: 'Intelli Coach', icon: Bot, color: '#10b981' },
-                          { id: 'exams', label: 'Exam Board', icon: Award, color: '#fbbf24' },
-                          { id: 'dictionary', label: 'Glossary', icon: HelpCircle, color: '#2dd4bf' },
-                          { id: 'structure', label: 'Structure', icon: ShieldCheck, color: '#818cf8' },
-                        ].map((tab) => {
-                          const Icon = tab.icon;
-                          const isActive = activeReaderTab === tab.id;
+                        {/* Core Learning Modules Dropdown Menu (Exact Manage Content Design) */}
+                        {(() => {
+                          const readerModules = [
+                            { id: 'reading', label: '1. Reading', icon: BookOpen, color: '#38bdf8' },
+                            { id: 'explanations', label: '2. Tutor Bot', icon: GraduationCap, color: '#a855f7' },
+                            { id: 'slides', label: '3. Slide + AI', icon: Presentation, color: '#f472b6' },
+                            { id: 'video', label: '4. Video + AI', icon: Tv, color: '#f43f5e' },
+                            { id: 'coach', label: '5. Intelli Coach', icon: Bot, color: '#10b981' },
+                            { id: 'exams', label: '6. Exam Board', icon: Award, color: '#fbbf24' },
+                            { id: 'dictionary', label: '7. Glossary', icon: HelpCircle, color: '#2dd4bf' },
+                            { id: 'structure', label: '8. Structure', icon: ShieldCheck, color: '#818cf8' },
+                          ];
+                          const activeMod = readerModules.find((m) => m.id === activeReaderTab) || readerModules[0];
+                          const ActiveIcon = activeMod.icon;
+
                           return (
-                            <button
-                              key={tab.id}
-                              id={`dedicated-tab-${tab.id}`}
-                              type="button"
-                              onClick={() => setActiveReaderTab(tab.id as any)}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.3rem',
-                                padding: '0.3rem 0.65rem',
-                                borderRadius: '9999px',
-                                background: isActive
-                                  ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(168, 85, 247, 0.2) 100%)'
-                                  : 'rgba(255, 255, 255, 0.04)',
-                                border: isActive
-                                  ? `1.5px solid ${tab.color}`
-                                  : '1px solid rgba(255, 255, 255, 0.08)',
-                                color: isActive ? '#ffffff' : 'var(--text-muted)',
-                                fontSize: '0.72rem',
-                                fontWeight: isActive ? 800 : 500,
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease',
-                                boxShadow: isActive ? `0 0 10px ${tab.color}33` : 'none',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              <Icon size={12} color={isActive ? tab.color : 'var(--text-subtle)'} />
-                              <span>{tab.label}</span>
-                            </button>
+                            <div style={{ position: 'relative' }}>
+                              <button
+                                id="dedicated-reader-module-dropdown-btn"
+                                type="button"
+                                onClick={() => setIsReaderModuleDropdownOpen(!isReaderModuleDropdownOpen)}
+                                className="action-chip"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem',
+                                  height: '28px',
+                                  padding: '0 0.8rem',
+                                  borderRadius: '9999px',
+                                  background: isReaderModuleDropdownOpen ? `${activeMod.color}28` : `${activeMod.color}15`,
+                                  border: isReaderModuleDropdownOpen ? `1px solid ${activeMod.color}` : `1px solid ${activeMod.color}60`,
+                                  color: activeMod.color,
+                                  fontSize: '0.74rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                                  boxShadow: isReaderModuleDropdownOpen ? `0 0 12px ${activeMod.color}40` : 'none',
+                                  whiteSpace: 'nowrap',
+                                }}
+                                title="Select Learning Module"
+                              >
+                                <ActiveIcon size={12} color={activeMod.color} />
+                                <span>{activeMod.label}</span>
+                                <ChevronDown size={10} color={activeMod.color} />
+                              </button>
+
+                              {isReaderModuleDropdownOpen && (
+                                <>
+                                  <div
+                                    style={{ position: 'fixed', inset: 0, zIndex: 998 }}
+                                    onClick={() => setIsReaderModuleDropdownOpen(false)}
+                                  />
+                                  <div
+                                    className="animate-pop-in"
+                                    style={{
+                                      position: 'absolute',
+                                      left: 0,
+                                      top: 'calc(100% + 0.35rem)',
+                                      minWidth: '190px',
+                                      background: '#0c101e',
+                                      border: '1px solid rgba(99, 102, 241, 0.5)',
+                                      borderRadius: '0.75rem',
+                                      padding: '0.35rem',
+                                      boxShadow: '0 20px 45px rgba(0, 0, 0, 0.9), 0 0 25px rgba(99, 102, 241, 0.35)',
+                                      zIndex: 999,
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: '0.2rem',
+                                    }}
+                                  >
+                                    {readerModules.map((m) => {
+                                      const MIcon = m.icon;
+                                      const isCurrent = activeReaderTab === m.id;
+                                      return (
+                                        <button
+                                          key={m.id}
+                                          id={`dedicated-tab-${m.id}`}
+                                          type="button"
+                                          onClick={() => {
+                                            setActiveReaderTab(m.id as any);
+                                            setIsReaderModuleDropdownOpen(false);
+                                          }}
+                                          style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.55rem',
+                                            padding: '0.45rem 0.7rem',
+                                            borderRadius: '0.5rem',
+                                            background: isCurrent ? 'rgba(99, 102, 241, 0.25)' : 'transparent',
+                                            border: 'none',
+                                            color: isCurrent ? '#ffffff' : m.color,
+                                            fontSize: '0.74rem',
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                            textAlign: 'left',
+                                            transition: 'all 0.15s ease',
+                                          }}
+                                          onMouseEnter={(e) => {
+                                            if (!isCurrent) e.currentTarget.style.background = `${m.color}18`;
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            if (!isCurrent) e.currentTarget.style.background = 'transparent';
+                                          }}
+                                        >
+                                          <MIcon size={12} color={m.color} />
+                                          <span style={{ flex: 1, color: isCurrent ? '#ffffff' : 'var(--text-main)' }}>{m.label}</span>
+                                          {isCurrent && <Check size={11} color={m.color} />}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           );
-                        })}
+                        })()}
 
                         {/* Dedicated Full-Screen Focus Toggle */}
 
@@ -2334,52 +2411,52 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                         {/* Section Divider */}
                         <div style={{ width: '1px', height: '18px', background: 'rgba(255, 255, 255, 0.12)', margin: '0 0.15rem' }} />
 
-                        {/* 9. Download, Speaker, & Copy */}
+                        {/* 9. More Actions Dropdown (Download, Speaker, & Copy) */}
                         <div style={{ position: 'relative' }}>
                           <button
-                            id="dedicated-download-export-btn"
+                            id="dedicated-reader-more-actions-btn"
                             type="button"
-                            onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                            onClick={() => setIsReaderMoreActionsMenuOpen(!isReaderMoreActionsMenuOpen)}
                             style={{
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '0.25rem',
+                              justifyContent: 'center',
+                              gap: '0.2rem',
                               height: '28px',
                               padding: '0 0.65rem',
                               borderRadius: '9999px',
-                              background: 'rgba(99, 102, 241, 0.15)',
-                              border: '1px solid rgba(99, 102, 241, 0.35)',
-                              color: '#a5b4fc',
+                              background: isReaderMoreActionsMenuOpen ? 'rgba(99, 102, 241, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                              border: isReaderMoreActionsMenuOpen ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid rgba(255, 255, 255, 0.12)',
+                              color: isReaderMoreActionsMenuOpen ? '#a5b4fc' : 'var(--text-muted)',
                               fontSize: '0.72rem',
                               cursor: 'pointer',
                               fontWeight: 600,
                               transition: 'all 0.15s ease',
                             }}
-                            title="Download Course Documents (DOCX / Markdown)"
+                            title="More Actions (Download, Speaker, Copy)"
                           >
-                            <Download size={11} color="#818cf8" />
-                            <span>Download</span>
+                            <MoreHorizontal size={13} />
                             <ChevronDown size={9} />
                           </button>
 
-                          {isExportMenuOpen && (
+                          {isReaderMoreActionsMenuOpen && (
                             <>
                               <div
                                 style={{ position: 'fixed', inset: 0, zIndex: 998 }}
-                                onClick={() => setIsExportMenuOpen(false)}
+                                onClick={() => setIsReaderMoreActionsMenuOpen(false)}
                               />
                               <div
+                                className="animate-pop-in"
                                 style={{
                                   position: 'absolute',
                                   left: 0,
-                                  top: '100%',
-                                  marginTop: '0.35rem',
-                                  background: 'rgba(15, 23, 42, 0.98)',
-                                  border: '1px solid rgba(99, 102, 241, 0.35)',
-                                  borderRadius: '0.6rem',
+                                  top: 'calc(100% + 0.35rem)',
+                                  width: '210px',
+                                  background: '#0c101e',
+                                  border: '1px solid rgba(99, 102, 241, 0.45)',
+                                  borderRadius: '0.75rem',
                                   padding: '0.35rem',
-                                  minWidth: '150px',
-                                  boxShadow: '0 10px 25px rgba(0, 0, 0, 0.6)',
+                                  boxShadow: '0 20px 45px rgba(0, 0, 0, 0.9), 0 0 20px rgba(99, 102, 241, 0.25)',
                                   zIndex: 999,
                                   display: 'flex',
                                   flexDirection: 'column',
@@ -2389,137 +2466,153 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                                 <button
                                   type="button"
                                   onClick={(e) => {
-                                    setIsExportMenuOpen(false);
+                                    setIsReaderMoreActionsMenuOpen(false);
                                     handleDownloadDocx(selectedCourse, e);
                                   }}
                                   style={{
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: '0.4rem',
-                                    padding: '0.4rem 0.6rem',
-                                    borderRadius: '0.4rem',
-                                    background: 'none',
+                                    gap: '0.45rem',
+                                    padding: '0.42rem 0.65rem',
+                                    borderRadius: '0.45rem',
+                                    background: 'transparent',
                                     border: 'none',
                                     color: 'var(--text-main)',
-                                    fontSize: '0.75rem',
+                                    fontSize: '0.74rem',
+                                    fontWeight: 600,
                                     cursor: 'pointer',
                                     textAlign: 'left',
-                                    fontWeight: 600,
+                                    transition: 'all 0.15s ease',
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'rgba(99, 102, 241, 0.18)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'transparent';
                                   }}
                                 >
-                                  <FileText size={12} color="#38bdf8" />
+                                  <FileText size={13} color="#38bdf8" />
                                   <span>Download DOCX</span>
                                 </button>
+
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    setIsExportMenuOpen(false);
+                                    setIsReaderMoreActionsMenuOpen(false);
                                     handleDownloadMarkdown();
                                   }}
                                   style={{
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: '0.4rem',
-                                    padding: '0.4rem 0.6rem',
-                                    borderRadius: '0.4rem',
-                                    background: 'none',
+                                    gap: '0.45rem',
+                                    padding: '0.42rem 0.65rem',
+                                    borderRadius: '0.45rem',
+                                    background: 'transparent',
                                     border: 'none',
-                                    color: 'var(--text-main)',
-                                    fontSize: '0.75rem',
+                                    color: 'var(--text-muted)',
+                                    fontSize: '0.74rem',
+                                    fontWeight: 600,
                                     cursor: 'pointer',
                                     textAlign: 'left',
-                                    fontWeight: 600,
+                                    transition: 'all 0.15s ease',
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'rgba(168, 85, 247, 0.18)';
+                                    e.currentTarget.style.color = '#ffffff';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'transparent';
+                                    e.currentTarget.style.color = 'var(--text-muted)';
                                   }}
                                 >
-                                  <Download size={12} color="#a855f7" />
+                                  <Download size={13} color="#a855f7" />
                                   <span>Download Markdown</span>
+                                </button>
+
+                                <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.08)', margin: '0.2rem 0' }} />
+
+                                {activeChapter && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setIsReaderMoreActionsMenuOpen(false);
+                                      if (isSpeaking && activeSpeakingId === activeChapter.id) {
+                                        stopAllSpeech();
+                                      } else {
+                                        speak(activeChapter.content, activeChapter.id, libraryLanguage);
+                                      }
+                                    }}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '0.45rem',
+                                      padding: '0.42rem 0.65rem',
+                                      borderRadius: '0.45rem',
+                                      background: 'transparent',
+                                      border: 'none',
+                                      color: isSpeaking && activeSpeakingId === activeChapter.id ? '#f87171' : 'var(--text-main)',
+                                      fontSize: '0.74rem',
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      textAlign: 'left',
+                                      transition: 'all 0.15s ease',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.background = 'rgba(56, 189, 248, 0.15)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.background = 'transparent';
+                                    }}
+                                  >
+                                    {isSpeaking && activeSpeakingId === activeChapter.id ? (
+                                      <>
+                                        <VolumeX size={13} color="#f87171" />
+                                        <span>Stop Audio</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Volume2 size={13} color="#38bdf8" />
+                                        <span>Speaker (Read Aloud)</span>
+                                      </>
+                                    )}
+                                  </button>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsReaderMoreActionsMenuOpen(false);
+                                    handleCopyContent();
+                                  }}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.45rem',
+                                    padding: '0.42rem 0.65rem',
+                                    borderRadius: '0.45rem',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: copyFeedback ? '#34d399' : 'var(--text-main)',
+                                    fontSize: '0.74rem',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    transition: 'all 0.15s ease',
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'rgba(52, 211, 153, 0.15)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'transparent';
+                                  }}
+                                >
+                                  {copyFeedback ? <Check size={13} color="#34d399" /> : <Copy size={13} color="#34d399" />}
+                                  <span>{copyFeedback ? 'Copied!' : 'Copy Markdown'}</span>
                                 </button>
                               </div>
                             </>
                           )}
                         </div>
-
-                        {/* Speaker TTS Read-Aloud */}
-                        <button
-                          id="dedicated-speaker-btn"
-                          type="button"
-                          onClick={() => {
-                            if (activeChapter) {
-                              if (isSpeaking && activeSpeakingId === activeChapter.id) {
-                                stopAllSpeech();
-                              } else {
-                                speak(activeChapter.content, activeChapter.id, libraryLanguage);
-                              }
-                            }
-                          }}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                            height: '28px',
-                            padding: '0 0.65rem',
-                            borderRadius: '9999px',
-                            background:
-                              activeChapter && isSpeaking && activeSpeakingId === activeChapter.id
-                                ? 'rgba(239, 68, 68, 0.25)'
-                                : 'rgba(255, 255, 255, 0.05)',
-                            border:
-                              activeChapter && isSpeaking && activeSpeakingId === activeChapter.id
-                                ? '1px solid rgba(239, 68, 68, 0.5)'
-                                : '1px solid rgba(255, 255, 255, 0.12)',
-                            color:
-                              activeChapter && isSpeaking && activeSpeakingId === activeChapter.id
-                                ? '#f87171'
-                                : 'var(--text-muted)',
-                            fontSize: '0.72rem',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease',
-                          }}
-                          title={activeChapter && isSpeaking && activeSpeakingId === activeChapter.id ? 'Stop audio narration' : 'Listen to chapter narration'}
-                        >
-                          {activeChapter && isSpeaking && activeSpeakingId === activeChapter.id ? (
-                            <>
-                              <VolumeX size={11} color="#f87171" />
-                              <span>Stop</span>
-                            </>
-                          ) : (
-                            <>
-                              <Volume2 size={11} color="#38bdf8" />
-                              <span>Speaker</span>
-                            </>
-                          )}
-                        </button>
-
-                        {/* Copy Markdown Content */}
-                        <button
-                          id="dedicated-copy-content-btn"
-                          type="button"
-                          onClick={handleCopyContent}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                            height: '28px',
-                            padding: '0 0.65rem',
-                            borderRadius: '9999px',
-                            background: copyFeedback
-                              ? 'rgba(16, 185, 129, 0.25)'
-                              : 'rgba(255, 255, 255, 0.05)',
-                            border: copyFeedback
-                              ? '1px solid rgba(16, 185, 129, 0.5)'
-                              : '1px solid rgba(255, 255, 255, 0.12)',
-                            color: copyFeedback ? '#34d399' : 'var(--text-muted)',
-                            fontSize: '0.72rem',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease',
-                          }}
-                          title="Copy raw markdown to clipboard"
-                        >
-                          {copyFeedback ? <Check size={11} color="#34d399" /> : <Copy size={11} color="var(--text-subtle)" />}
-                          <span>{copyFeedback ? 'Copied' : 'Copy'}</span>
-                        </button>
 
                         {/* Section Divider */}
                         <div style={{ width: '1px', height: '18px', background: 'rgba(255, 255, 255, 0.12)', margin: '0 0.15rem' }} />
@@ -4076,19 +4169,9 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                 <span>Back to Workspace</span>
               </button>
 
-              {/* Module Switcher Tabs directly inside Full-Page Header */}
-              <div
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.2rem',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  padding: '0.15rem',
-                  borderRadius: '9999px',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                }}
-              >
-                {[
+              {/* Module Switcher Dropdown directly inside Full-Page Header */}
+              {(() => {
+                const fullPageModules = [
                   { id: 'reading', label: '1. Reading', icon: BookOpen, color: '#38bdf8' },
                   { id: 'explanations', label: '2. Tutor Bot', icon: GraduationCap, color: '#a855f7' },
                   { id: 'slides', label: '3. Slide + AI', icon: Presentation, color: '#f472b6' },
@@ -4097,39 +4180,110 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                   { id: 'exams', label: '6. Exam Board', icon: Award, color: '#fbbf24' },
                   { id: 'dictionary', label: '7. Glossary', icon: HelpCircle, color: '#2dd4bf' },
                   { id: 'structure', label: '8. Structure', icon: ShieldCheck, color: '#818cf8' },
-                ].map((mTab) => {
-                  const Icon = mTab.icon;
-                  const isActive = activeReaderTab === mTab.id;
-                  return (
+                ];
+                const activeMod = fullPageModules.find((m) => m.id === activeReaderTab) || fullPageModules[0];
+                const ActiveIcon = activeMod.icon;
+
+                return (
+                  <div style={{ position: 'relative' }}>
                     <button
-                      key={mTab.id}
+                      id="admin-dedicated-module-dropdown-btn"
                       type="button"
-                      onClick={() => setActiveReaderTab(mTab.id as any)}
+                      onClick={() => setIsModuleDropdownOpen(!isModuleDropdownOpen)}
+                      className="action-chip"
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '0.25rem',
-                        padding: '0.25rem 0.55rem',
+                        gap: '0.35rem',
+                        height: '28px',
+                        padding: '0 0.8rem',
                         borderRadius: '9999px',
-                        background: isActive
-                          ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.3) 0%, rgba(168, 85, 247, 0.3) 100%)'
-                          : 'transparent',
-                        border: isActive ? `1px solid ${mTab.color}` : '1px solid transparent',
-                        color: isActive ? '#ffffff' : 'var(--text-muted)',
-                        fontSize: '0.7rem',
-                        fontWeight: isActive ? 800 : 500,
+                        background: isModuleDropdownOpen ? `${activeMod.color}28` : `${activeMod.color}15`,
+                        border: isModuleDropdownOpen ? `1px solid ${activeMod.color}` : `1px solid ${activeMod.color}60`,
+                        color: activeMod.color,
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
                         cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                        boxShadow: isActive ? `0 0 8px ${mTab.color}40` : 'none',
+                        transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                        boxShadow: isModuleDropdownOpen ? `0 0 12px ${activeMod.color}40` : 'none',
                         whiteSpace: 'nowrap',
                       }}
+                      title="Select Learning Module"
                     >
-                      <Icon size={11} color={isActive ? mTab.color : 'var(--text-subtle)'} />
-                      <span>{mTab.label}</span>
+                      <ActiveIcon size={12} color={activeMod.color} />
+                      <span>{activeMod.label}</span>
+                      <ChevronDown size={10} color={activeMod.color} />
                     </button>
-                  );
-                })}
-              </div>
+
+                    {isModuleDropdownOpen && (
+                      <>
+                        <div
+                          style={{ position: 'fixed', inset: 0, zIndex: 99990 }}
+                          onClick={() => setIsModuleDropdownOpen(false)}
+                        />
+                        <div
+                          className="animate-pop-in"
+                          style={{
+                            position: 'absolute',
+                            left: 0,
+                            top: 'calc(100% + 0.35rem)',
+                            minWidth: '190px',
+                            background: '#0c101e',
+                            border: '1px solid rgba(99, 102, 241, 0.5)',
+                            borderRadius: '0.75rem',
+                            padding: '0.35rem',
+                            boxShadow: '0 20px 45px rgba(0, 0, 0, 0.9), 0 0 25px rgba(99, 102, 241, 0.35)',
+                            zIndex: 99999,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.2rem',
+                          }}
+                        >
+                          {fullPageModules.map((mTab) => {
+                            const Icon = mTab.icon;
+                            const isCurrent = activeReaderTab === mTab.id;
+                            return (
+                              <button
+                                key={mTab.id}
+                                type="button"
+                                onClick={() => {
+                                  setActiveReaderTab(mTab.id as any);
+                                  setIsModuleDropdownOpen(false);
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.55rem',
+                                  padding: '0.45rem 0.7rem',
+                                  borderRadius: '0.5rem',
+                                  background: isCurrent ? 'rgba(99, 102, 241, 0.25)' : 'transparent',
+                                  border: 'none',
+                                  color: isCurrent ? '#ffffff' : mTab.color,
+                                  fontSize: '0.74rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  textAlign: 'left',
+                                  transition: 'all 0.15s ease',
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (!isCurrent) e.currentTarget.style.background = `${mTab.color}18`;
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (!isCurrent) e.currentTarget.style.background = 'transparent';
+                                }}
+                              >
+                                <Icon size={12} color={mTab.color} />
+                                <span style={{ flex: 1, color: isCurrent ? '#ffffff' : 'var(--text-main)' }}>{mTab.label}</span>
+                                {isCurrent && <Check size={11} color={mTab.color} />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
 
               <select
                 value={activeChapterIndex}
@@ -4199,106 +4353,198 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                 )}
               </div>
 
-            {/* Center: Universal Inline Editing Suite (Edit with AI, Edit Content, Delete, Add New) */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setRefiningChapterId(activeChapter.id);
-                  setTargetSectionTitle(null);
-                }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  padding: '0.35rem 0.7rem',
-                  borderRadius: '0.45rem',
-                  background: 'rgba(168, 85, 247, 0.18)',
-                  border: '1px solid rgba(168, 85, 247, 0.45)',
-                  color: '#c084fc',
-                  fontSize: '0.74rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-                title="Refine this module with AI"
-              >
-                <Wand2 size={13} />
-                <span>Edit with AI</span>
-              </button>
+            {/* Center: Universal Inline Editing Suite (Manage Content dropdown) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'nowrap' }}>
+              <div style={{ position: 'relative' }}>
+                <button
+                  id="admin-dedicated-manage-btn"
+                  type="button"
+                  onClick={() => setIsManageContentMenuOpen(!isManageContentMenuOpen)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    height: '28px',
+                    padding: '0 0.8rem',
+                    borderRadius: '9999px',
+                    background: isManageContentMenuOpen ? 'rgba(168, 85, 247, 0.28)' : 'rgba(168, 85, 247, 0.15)',
+                    border: isManageContentMenuOpen ? '1px solid rgba(168, 85, 247, 0.6)' : '1px solid rgba(168, 85, 247, 0.4)',
+                    color: '#c084fc',
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    boxShadow: isManageContentMenuOpen ? '0 0 12px rgba(168, 85, 247, 0.35)' : 'none',
+                    whiteSpace: 'nowrap',
+                  }}
+                  title="Manage Content (Edit with AI, Edit Content, Add Chapter, Delete)"
+                >
+                  <Wand2 size={13} color="#c084fc" />
+                  <span>Manage Content</span>
+                  <ChevronDown size={10} color="#c084fc" />
+                </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setDirectEditContent(activeChapter.content);
-                  setShowDirectEditorModal(true);
-                }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  padding: '0.35rem 0.7rem',
-                  borderRadius: '0.45rem',
-                  background: 'rgba(56, 189, 248, 0.15)',
-                  border: '1px solid rgba(56, 189, 248, 0.4)',
-                  color: '#7dd3fc',
-                  fontSize: '0.74rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-                title="Directly edit text and code"
-              >
-                <Edit3 size={13} />
-                <span>Edit Content</span>
-              </button>
+                {isManageContentMenuOpen && (
+                  <>
+                    <div
+                      style={{ position: 'fixed', inset: 0, zIndex: 99990 }}
+                      onClick={() => setIsManageContentMenuOpen(false)}
+                    />
+                    <div
+                      className="animate-pop-in"
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        top: 'calc(100% + 0.35rem)',
+                        minWidth: '180px',
+                        background: '#0c101e',
+                        border: '1px solid rgba(99, 102, 241, 0.5)',
+                        borderRadius: '0.75rem',
+                        padding: '0.35rem',
+                        boxShadow: '0 20px 45px rgba(0, 0, 0, 0.9), 0 0 25px rgba(99, 102, 241, 0.35)',
+                        zIndex: 99999,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.2rem',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRefiningChapterId(activeChapter.id);
+                          setTargetSectionTitle(null);
+                          setIsManageContentMenuOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.42rem 0.65rem',
+                          borderRadius: '0.45rem',
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#c084fc',
+                          fontSize: '0.74rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(168, 85, 247, 0.18)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent';
+                        }}
+                      >
+                        <Wand2 size={13} color="#c084fc" />
+                        <span>Edit with AI</span>
+                      </button>
 
-              <button
-                type="button"
-                onClick={() => setShowDeleteChapterModal(true)}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  padding: '0.35rem 0.65rem',
-                  borderRadius: '0.45rem',
-                  background: 'rgba(239, 68, 68, 0.15)',
-                  border: '1px solid rgba(239, 68, 68, 0.4)',
-                  color: '#f87171',
-                  fontSize: '0.74rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-                title="Delete this chapter or module"
-              >
-                <Trash2 size={13} />
-                <span>Delete</span>
-              </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDirectEditContent(activeChapter.content);
+                          setShowDirectEditorModal(true);
+                          setIsManageContentMenuOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.42rem 0.65rem',
+                          borderRadius: '0.45rem',
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#7dd3fc',
+                          fontSize: '0.74rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(56, 189, 248, 0.15)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent';
+                        }}
+                      >
+                        <Edit3 size={13} color="#38bdf8" />
+                        <span>Edit Content</span>
+                      </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setNewChapterTitle('');
-                  setNewChapterContent('');
-                  setShowAddNewChapterModal(true);
-                }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  padding: '0.35rem 0.75rem',
-                  borderRadius: '0.45rem',
-                  background: 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)',
-                  border: 'none',
-                  color: '#ffffff',
-                  fontSize: '0.74rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  boxShadow: '0 0 10px rgba(236, 72, 153, 0.4)',
-                }}
-                title="Add a new chapter or module"
-              >
-                <Plus size={13} />
-                <span>Add New</span>
-              </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewChapterTitle('');
+                          setNewChapterContent('');
+                          setShowAddNewChapterModal(true);
+                          setIsManageContentMenuOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.42rem 0.65rem',
+                          borderRadius: '0.45rem',
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#a5b4fc',
+                          fontSize: '0.74rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(99, 102, 241, 0.18)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent';
+                        }}
+                      >
+                        <Plus size={13} color="#818cf8" />
+                        <span>Add Chapter</span>
+                      </button>
+
+                      <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.08)', margin: '0.2rem 0' }} />
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDeleteChapterModal(true);
+                          setIsManageContentMenuOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.42rem 0.65rem',
+                          borderRadius: '0.45rem',
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#f87171',
+                          fontSize: '0.74rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(239, 68, 68, 0.18)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent';
+                        }}
+                      >
+                        <Trash2 size={13} color="#f87171" />
+                        <span>Delete Chapter</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Right: Explicit Save, Versioning & History Controls */}

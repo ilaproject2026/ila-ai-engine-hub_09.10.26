@@ -301,9 +301,7 @@ export default function App() {
     setActiveSessionId(sessionId);
     setError(null);
     stopAllSpeech();
-    if (courseCreatorTab === 'admin_library') {
-      setCourseCreatorTab('home');
-    }
+    setCourseCreatorTab('home');
     if (window.innerWidth < 768) {
       setIsLeftSidebarOpen(false);
     }
@@ -1487,8 +1485,8 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
               overflow: 'hidden',
             }}
           >
-            {/* Left Chat History Sidebar — only visible in home chatroom view with messages */}
-            {courseCreatorTab === 'home' && activeSession && activeSession.messages.length > 0 && (
+            {/* Left Chat History Sidebar — visible in Course Creator except in Admin Library */}
+            {courseCreatorTab !== 'admin_library' && (
               <ChatSidebar
                 sessions={courseCreatorSessions}
                 activeSessionId={activeSessionId}
@@ -1543,8 +1541,8 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
               >
                 {/* Left: Sidebar Toggle + Active Course Session Title */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
-                  {/* Sidebar toggle only makes sense in chatroom workspace view */}
-                  {courseCreatorTab === 'home' && activeSession && activeSession.messages.length > 0 && (
+                  {/* Sidebar Toggle Button (visible in Course Creator except in Admin Library) */}
+                  {courseCreatorTab !== 'admin_library' && (
                     <button
                       id="sidebar-toggle-btn"
                       type="button"
@@ -1644,6 +1642,7 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
                     type="button"
                     onClick={() => {
                       setCourseCreatorTab('home');
+                      setIsLeftSidebarOpen(true);
                       setIsPathDropdownOpen(false);
                     }}
                     style={{
@@ -1691,6 +1690,7 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
                     type="button"
                     onClick={() => {
                       setCourseCreatorTab('admin_library');
+                      setIsLeftSidebarOpen(false);
                       setIsPathDropdownOpen(false);
                     }}
                     style={{
@@ -2189,10 +2189,15 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
                         setActiveSessionId(matchedSession.id);
                       }
                       setCourseCreatorTab('home');
+                      setIsLeftSidebarOpen(true);
                     }}
-                    onBackToChat={() => setCourseCreatorTab('home')}
+                    onBackToChat={() => {
+                      setCourseCreatorTab('home');
+                      setIsLeftSidebarOpen(true);
+                    }}
                     onCreateNewCourse={() => {
                       setCourseCreatorTab('home');
+                      setIsLeftSidebarOpen(true);
                       handleNewChat();
                     }}
                   />
@@ -2223,7 +2228,10 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
                     onOpenSlideAi={() => setCourseCreatorTab('slide_ai')}
                     onOpenVideoAi={() => setCourseCreatorTab('video_ai')}
                     onOpenIntelliCoach={() => setCourseCreatorTab('intelli_coach')}
-                    onOpenAdminLibrary={() => setCourseCreatorTab('admin_library')}
+                    onOpenAdminLibrary={() => {
+                      setCourseCreatorTab('admin_library');
+                      setIsLeftSidebarOpen(false);
+                    }}
                     onOpenChatHome={() => setCourseCreatorTab('home')}
                   />
                 ) : (
