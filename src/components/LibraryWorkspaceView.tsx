@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   BookOpen,
   Bookmark,
@@ -160,6 +160,8 @@ export default function LibraryWorkspaceView({
   const [showAddNewChapterModal, setShowAddNewChapterModal] = useState<boolean>(false);
   const [newChapterTitle, setNewChapterTitle] = useState<string>('');
   const [newChapterContent, setNewChapterContent] = useState<string>('');
+
+
 
   const initialUserQuery = useMemo(() => {
     const userMsg = session.messages?.find((m) => m.role === 'user');
@@ -500,7 +502,6 @@ CRITICAL RULES:
   return (
     <div
       id="library-workspace-view"
-      className="animate-fade-in"
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -604,14 +605,14 @@ CRITICAL RULES:
       <div
         id="workspace-unified-master-toolbar"
         style={{
-          padding: '0.5rem 1.25rem',
+          padding: '0.45rem 1rem',
           background: 'var(--bg-glass-elevated)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
           borderBottom: '1px solid var(--border-subtle)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '0.45rem',
+          gap: '0',
           flexShrink: 0,
           position: 'relative',
           zIndex: 60,
@@ -625,12 +626,13 @@ CRITICAL RULES:
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '0.45rem',
+            gap: '0.4rem',
             width: '100%',
             overflowX: 'auto',
             flexWrap: 'nowrap',
-            paddingBottom: '0.35rem',
-            borderBottom: '1px solid var(--border-subtle)',
+            paddingBottom: '0.4rem',
+            borderBottom: '1px solid rgba(255,255,255,0.06)',
+            minHeight: '36px',
           }}
           className="no-scrollbar"
         >
@@ -657,7 +659,6 @@ CRITICAL RULES:
                   type="button"
                   onClick={() => {
                     setActiveWorkspaceTab(tab.id as any);
-                    setIsModuleFullScreen(true);
                   }}
                   className="action-chip"
                   style={{
@@ -700,8 +701,91 @@ CRITICAL RULES:
             })}
           </div>
 
-          {/* Right: Question Tree, Refine, and Version Snapshot */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+          {/* Right: Book Dropdown Selector, Sync Status, Question Tree, and Version Snapshot */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0 }}>
+            {/* Active Book / Chapter Selector Dropdown */}
+            {compiledCourse.chapters.length > 0 && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                <BookOpen size={12} color="#38bdf8" style={{ flexShrink: 0 }} />
+                <select
+                  id="workspace-book-selector"
+                  value={activeChapterIndex}
+                  onChange={(e) => {
+                    const idx = parseInt(e.target.value, 10);
+                    setActiveChapterIndex(idx);
+                    setExpandedChapterId(compiledCourse.chapters[idx]?.id || null);
+                  }}
+                  style={{
+                    height: '28px',
+                    maxWidth: '240px',
+                    padding: '0 0.6rem',
+                    borderRadius: '9999px',
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    border: '1px solid var(--border-medium)',
+                    color: '#ffffff',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    outline: 'none',
+                    cursor: 'pointer',
+                  }}
+                  title="Switch active curriculum book"
+                >
+                  {compiledCourse.chapters.map((ch, cIdx) => {
+                    const rawTitle = ch.title.trim();
+                    const cleanTitle = rawTitle.toLowerCase().startsWith('book') ? rawTitle : `Book ${ch.chapterNumber}: ${rawTitle}`;
+                    return (
+                      <option key={ch.id} value={cIdx} style={{ background: '#0d1220', color: '#ffffff' }}>
+                        {cleanTitle}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            )}
+
+            {/* Live Synchronization Status Badge */}
+            {hasUnsavedChanges ? (
+              <span
+                style={{
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  color: '#fbbf24',
+                  background: 'rgba(251, 191, 36, 0.14)',
+                  border: '1px solid rgba(251, 191, 36, 0.35)',
+                  padding: '0.18rem 0.55rem',
+                  borderRadius: '9999px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                  whiteSpace: 'nowrap',
+                }}
+                title="Modifications pending. Save to SQLite library or capture a version."
+              >
+                <AlertCircle size={11} />
+                <span>Unsaved Edits</span>
+              </span>
+            ) : (
+              <span
+                style={{
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  color: '#34d399',
+                  background: 'rgba(52, 211, 153, 0.14)',
+                  border: '1px solid rgba(52, 211, 153, 0.3)',
+                  padding: '0.18rem 0.55rem',
+                  borderRadius: '9999px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                  whiteSpace: 'nowrap',
+                }}
+                title="All chapters synchronized with Library"
+              >
+                <Check size={11} />
+                <span>Synced with Library</span>
+              </span>
+            )}
+
             {/* Question Tree Drawer Toggle if questions exist */}
             {onOpenQuestionTree && (totalQuestions || 0) > 0 && (
               <button
@@ -732,46 +816,7 @@ CRITICAL RULES:
               </button>
             )}
 
-            {/* Refine with AI */}
-            {activeChapter && (
-              <button
-                id="workspace-refine-chapter-btn"
-                type="button"
-                onClick={() => {
-                  setRefiningChapterId((prev) => (prev === activeChapter.id ? null : activeChapter.id));
-                  setTargetSectionTitle(null);
-                }}
-                className="action-chip"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  height: '28px',
-                  padding: '0 0.72rem',
-                  borderRadius: '9999px',
-                  background:
-                    refiningChapterId === activeChapter.id
-                      ? 'rgba(168, 85, 247, 0.3)'
-                      : 'rgba(255, 255, 255, 0.05)',
-                  border:
-                    refiningChapterId === activeChapter.id
-                      ? '1px solid rgba(168, 85, 247, 0.6)'
-                      : '1px solid var(--border-subtle)',
-                  color: refiningChapterId === activeChapter.id ? '#c084fc' : 'var(--text-main)',
-                  fontSize: '0.72rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                  boxShadow: refiningChapterId === activeChapter.id ? '0 0 12px rgba(168, 85, 247, 0.35)' : 'none',
-                }}
-                title="Refine active chapter content with AI"
-              >
-                <Wand2 size={12} color="#c084fc" />
-                <span>Refine</span>
-              </button>
-            )}
-
-            {/* Version Snapshot */}
+            {/* Version Snapshot & History */}
             <div style={{ display: 'inline-flex', alignItems: 'center' }}>
               <button
                 id="workspace-save-new-version-btn"
@@ -847,7 +892,9 @@ CRITICAL RULES:
           </div>
         </div>
 
-        {/* ROW 2: Download -> Speaker -> Copy -> Department Selection -> Generate -> Save (Strictly In-Order) */}
+        <div style={{ width: '100%', height: '1px', background: 'var(--border-subtle)', margin: '0.35rem 0' }} />
+
+        {/* ROW 2: Authoring Tools (Edit with AI, Edit Content, Add Chapter, Delete) + Tools (Download, Speaker, Copy) + Department Batching & Save */}
         <div
           style={{
             display: 'flex',
@@ -855,14 +902,150 @@ CRITICAL RULES:
             justifyContent: 'space-between',
             gap: '0.45rem',
             width: '100%',
-            overflowX: 'auto',
+            overflow: 'visible',
             flexWrap: 'nowrap',
+            paddingTop: '0.35rem',
+            minHeight: '36px',
           }}
           className="no-scrollbar"
         >
-          {/* Action Cluster Sequence: Download -> Speaker -> Copy -> Dept -> Generate -> Save */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'nowrap', flexShrink: 0 }}>
-            {/* 1. Download Menu */}
+          {/* Left: Authoring & Content Actions */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'nowrap', flexShrink: 0 }}>
+            {/* 1. Edit with AI */}
+            {activeChapter && (
+              <button
+                id="workspace-refine-chapter-btn"
+                type="button"
+                onClick={() => {
+                  setRefiningChapterId((prev) => (prev === activeChapter.id ? null : activeChapter.id));
+                  setTargetSectionTitle(null);
+                }}
+                className="action-chip"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  height: '28px',
+                  padding: '0 0.72rem',
+                  borderRadius: '9999px',
+                  background:
+                    refiningChapterId === activeChapter.id
+                      ? 'rgba(168, 85, 247, 0.3)'
+                      : 'rgba(168, 85, 247, 0.12)',
+                  border:
+                    refiningChapterId === activeChapter.id
+                      ? '1px solid rgba(168, 85, 247, 0.6)'
+                      : '1px solid rgba(168, 85, 247, 0.35)',
+                  color: '#c084fc',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                  boxShadow: refiningChapterId === activeChapter.id ? '0 0 12px rgba(168, 85, 247, 0.35)' : 'none',
+                }}
+                title="Refine active chapter content with AI"
+              >
+                <Wand2 size={12} color="#c084fc" />
+                <span>Edit with AI</span>
+              </button>
+            )}
+
+            {/* 2. Edit Content (Direct Editor Modal) */}
+            {activeChapter && (
+              <button
+                id="workspace-direct-edit-content-btn"
+                type="button"
+                onClick={() => {
+                  setDirectEditContent(activeChapter.content);
+                  setShowDirectEditorModal(true);
+                }}
+                className="action-chip"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  height: '28px',
+                  padding: '0 0.72rem',
+                  borderRadius: '9999px',
+                  background: 'rgba(56, 189, 248, 0.12)',
+                  border: '1px solid rgba(56, 189, 248, 0.35)',
+                  color: '#7dd3fc',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                }}
+                title="Directly edit text and code in editor"
+              >
+                <Edit3 size={12} color="#38bdf8" />
+                <span>Edit Content</span>
+              </button>
+            )}
+
+            {/* 3. Add Chapter */}
+            <button
+              id="workspace-add-chapter-btn"
+              type="button"
+              onClick={() => {
+                setNewChapterTitle('');
+                setNewChapterContent('');
+                setShowAddNewChapterModal(true);
+              }}
+              className="action-chip"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                height: '28px',
+                padding: '0 0.72rem',
+                borderRadius: '9999px',
+                background: 'rgba(99, 102, 241, 0.15)',
+                border: '1px solid rgba(99, 102, 241, 0.4)',
+                color: '#a5b4fc',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+              }}
+              title="Add a new chapter or book"
+            >
+              <Plus size={12} color="#818cf8" />
+              <span>Add Chapter</span>
+            </button>
+
+            {/* 4. Delete Chapter */}
+            {activeChapter && (
+              <button
+                id="workspace-delete-chapter-btn"
+                type="button"
+                onClick={() => setShowDeleteChapterModal(true)}
+                className="action-chip"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  height: '28px',
+                  padding: '0 0.65rem',
+                  borderRadius: '9999px',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  color: '#f87171',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                }}
+                title="Delete active chapter"
+              >
+                <Trash2 size={12} color="#f87171" />
+                <span>Delete</span>
+              </button>
+            )}
+
+            {/* Subtle Divider */}
+            <div style={{ width: '1px', height: '16px', background: 'var(--border-subtle)', margin: '0 0.2rem' }} />
+
+            {/* 5. Download Menu */}
             <div style={{ position: 'relative' }}>
               <button
                 id="workspace-download-export-btn"
@@ -876,14 +1059,13 @@ CRITICAL RULES:
                   height: '28px',
                   padding: '0 0.72rem',
                   borderRadius: '9999px',
-                  background: 'rgba(99, 102, 241, 0.15)',
-                  border: '1px solid rgba(99, 102, 241, 0.4)',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid var(--border-subtle)',
                   color: '#a5b4fc',
                   fontSize: '0.72rem',
                   cursor: 'pointer',
                   fontWeight: 600,
                   transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                  boxShadow: '0 0 8px rgba(99, 102, 241, 0.15)',
                 }}
                 title="Download Course Documents (DOCX / Markdown)"
               >
@@ -905,13 +1087,11 @@ CRITICAL RULES:
                       left: 0,
                       top: 'calc(100% + 0.4rem)',
                       width: '210px',
-                      background: 'var(--bg-glass-elevated)',
-                      backdropFilter: 'blur(20px)',
-                      WebkitBackdropFilter: 'blur(20px)',
-                      border: '1px solid var(--border-medium)',
+                      background: '#0c101e',
+                      border: '1px solid rgba(99, 102, 241, 0.45)',
                       borderRadius: '0.75rem',
                       padding: '0.4rem',
-                      boxShadow: 'var(--shadow-lg)',
+                      boxShadow: '0 20px 45px rgba(0, 0, 0, 0.9), 0 0 20px rgba(99, 102, 241, 0.25)',
                       zIndex: 99999,
                       display: 'flex',
                       flexDirection: 'column',
@@ -988,7 +1168,7 @@ CRITICAL RULES:
               )}
             </div>
 
-            {/* 2. Speaker Button */}
+            {/* 6. Speaker Button */}
             {activeChapter && (
               <button
                 id="workspace-speak-btn"
@@ -1027,7 +1207,7 @@ CRITICAL RULES:
               </button>
             )}
 
-            {/* 3. Copy Button (Placed near speaker/audio button) */}
+            {/* 7. Copy Button */}
             {activeChapter && (
               <button
                 id="workspace-copy-chapter-btn"
@@ -1055,13 +1235,16 @@ CRITICAL RULES:
                 <span>{copied ? 'Copied' : 'Copy'}</span>
               </button>
             )}
+          </div>
 
-            {/* 4. Department Selection Button (Followed immediately after Copy) */}
+          {/* Right: Department Batching & Persistence */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'nowrap', flexShrink: 0 }}>
+            {/* 8. Department Selection Button */}
             <div style={{ position: 'relative' }}>
               <button
                 id="top-workspace-studied-by-btn"
                 type="button"
-                onClick={() => setIsAudienceMenuOpen(!isAudienceMenuOpen)}
+                onClick={() => setIsAudienceMenuOpen((prev) => !prev)}
                 className="action-chip"
                 style={{
                   display: 'inline-flex',
@@ -1082,7 +1265,7 @@ CRITICAL RULES:
                 title="Select Target Departments & Multi-Generate Adaptations"
               >
                 <UserCheck size={11} color="#38bdf8" />
-                <span>Dept ({selectedDepartments.length})</span>
+                <span>Departments ({selectedDepartments.length})</span>
                 <ChevronDown size={10} />
               </button>
 
@@ -1096,24 +1279,24 @@ CRITICAL RULES:
                     className="animate-pop-in"
                     style={{
                       position: 'absolute',
-                      left: 0,
-                      top: 'calc(100% + 0.4rem)',
+                      right: 0,
+                      top: 'calc(100% + 0.35rem)',
                       width: '320px',
                       maxWidth: '90vw',
-                      background: 'var(--bg-glass-elevated)',
-                      backdropFilter: 'blur(20px)',
-                      WebkitBackdropFilter: 'blur(20px)',
-                      border: '1px solid var(--border-medium)',
-                      borderRadius: '0.85rem',
-                      boxShadow: 'var(--shadow-lg)',
-                      zIndex: 99999,
-                      padding: '0.65rem',
+                      maxHeight: 'min(380px, calc(100vh - 220px))',
+                      background: '#0c101e',
+                      border: '1px solid rgba(99, 102, 241, 0.55)',
+                      borderRadius: '0.75rem',
+                      boxShadow: '0 25px 60px rgba(0, 0, 0, 0.95), 0 0 30px rgba(99, 102, 241, 0.45)',
+                      zIndex: 999999,
+                      padding: '0.6rem',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '0.4rem',
+                      gap: '0.35rem',
+                      overflow: 'hidden',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.2rem 0.4rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.45rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.15rem 0.3rem 0.4rem 0.3rem', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', flexShrink: 0 }}>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                           Target Departments
@@ -1147,7 +1330,7 @@ CRITICAL RULES:
                       </button>
                     </div>
 
-                    <div style={{ maxHeight: '240px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.3rem', paddingRight: '0.2rem' }}>
+                    <div style={{ flex: 1, minHeight: 0, maxHeight: '210px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem', paddingRight: '0.2rem' }}>
                       {LEARNER_CATEGORIES.filter((c) => c.id !== 'all_categories').map((cat) => {
                         const isChecked = selectedDepartments.includes(cat.id);
                         return (
@@ -1169,10 +1352,10 @@ CRITICAL RULES:
                               display: 'flex',
                               alignItems: 'center',
                               gap: '0.5rem',
-                              padding: '0.45rem 0.55rem',
-                              borderRadius: '0.5rem',
-                              background: isChecked ? 'rgba(99, 102, 241, 0.22)' : 'rgba(255, 255, 255, 0.03)',
-                              border: isChecked ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid transparent',
+                              padding: '0.4rem 0.5rem',
+                              borderRadius: '0.45rem',
+                              background: isChecked ? 'rgba(99, 102, 241, 0.24)' : 'rgba(255, 255, 255, 0.03)',
+                              border: isChecked ? '1px solid rgba(99, 102, 241, 0.55)' : '1px solid transparent',
                               cursor: 'pointer',
                               transition: 'all 0.15s ease',
                             }}
@@ -1196,7 +1379,7 @@ CRITICAL RULES:
                       })}
                     </div>
 
-                    <div style={{ paddingTop: '0.45rem', borderTop: '1px solid var(--border-subtle)' }}>
+                    <div style={{ paddingTop: '0.45rem', borderTop: '1px solid rgba(255, 255, 255, 0.08)', flexShrink: 0 }}>
                       <button
                         type="button"
                         onClick={() => {
@@ -1210,8 +1393,8 @@ CRITICAL RULES:
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: '0.35rem',
-                          padding: '0.55rem',
-                          borderRadius: '0.55rem',
+                          padding: '0.5rem',
+                          borderRadius: '0.5rem',
                           background: selectedDepartments.length > 0 ? 'var(--accent-gradient)' : 'rgba(255, 255, 255, 0.05)',
                           border: 'none',
                           color: '#ffffff',
@@ -1231,7 +1414,7 @@ CRITICAL RULES:
               )}
             </div>
 
-            {/* 5. Generate Button (Then Generate) */}
+            {/* 9. Generate Button */}
             <button
               id="workspace-generate-department-courses-btn"
               type="button"
@@ -1260,36 +1443,45 @@ CRITICAL RULES:
               <span>{isBatchGenerating ? 'Generating...' : 'Generate'}</span>
             </button>
 
-            {/* 6. Save Button (At the very end of the sequence) */}
+            {/* 10. Save Course Button */}
             <button
               id="workspace-save-library-btn"
               type="button"
-              onClick={handleSaveToMainLibrary}
+              onClick={handleExplicitSaveToLibrary}
+              disabled={isAutoSaving}
               className="action-chip"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '0.3rem',
                 height: '28px',
-                padding: '0 0.75rem',
+                padding: '0 0.85rem',
                 borderRadius: '9999px',
-                background: savedToLib
+                background: explicitSaveStatus
                   ? 'rgba(16, 185, 129, 0.28)'
-                  : 'linear-gradient(135deg, rgba(99, 102, 241, 0.35) 0%, rgba(168, 85, 247, 0.35) 100%)',
-                border: savedToLib
+                  : hasUnsavedChanges
+                    ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                    : 'linear-gradient(135deg, rgba(99, 102, 241, 0.35) 0%, rgba(168, 85, 247, 0.35) 100%)',
+                border: explicitSaveStatus || hasUnsavedChanges
                   ? '1px solid rgba(16, 185, 129, 0.6)'
                   : '1px solid rgba(165, 180, 252, 0.5)',
-                color: savedToLib ? '#34d399' : '#ffffff',
+                color: '#ffffff',
                 fontSize: '0.72rem',
                 fontWeight: 700,
-                cursor: 'pointer',
-                boxShadow: '0 0 12px rgba(99, 102, 241, 0.3)',
+                cursor: isAutoSaving ? 'not-allowed' : 'pointer',
+                boxShadow: hasUnsavedChanges ? '0 0 12px rgba(16, 185, 129, 0.4)' : '0 0 12px rgba(99, 102, 241, 0.3)',
                 transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
               }}
-              title="Save course to SQLite & IndexedDB"
+              title="Save course changes to SQLite & IndexedDB"
             >
-              {savedToLib ? <Check size={11} /> : <Bookmark size={11} />}
-              <span>{savedToLib ? 'Saved' : 'Save'}</span>
+              {isAutoSaving ? (
+                <Loader2 size={11} className="animate-spin" />
+              ) : explicitSaveStatus ? (
+                <Check size={11} color="#34d399" />
+              ) : (
+                <Bookmark size={11} />
+              )}
+              <span>{explicitSaveStatus || (hasUnsavedChanges ? 'Save Changes' : 'Save')}</span>
             </button>
 
             {/* Feedback banner */}
@@ -1320,281 +1512,246 @@ CRITICAL RULES:
 
       {/* Main Workspace Body: Left Sticky Accordion Index + Center Content Reader */}
       <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
-        {/* Left Sticky Book / Chapter Accordion Navigation Menu */}
-        <aside
-          style={{
-            width: '280px',
-            minWidth: '280px',
-            maxWidth: '280px',
-            height: '100%',
-            background: 'var(--bg-glass-elevated)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            borderRight: '1px solid var(--border-subtle)',
-            display: 'flex',
-            flexDirection: 'column',
-            overflowY: 'auto',
-          }}
-        >
-          {/* Menu Search Box */}
-          <div style={{ padding: '0.75rem 0.9rem', borderBottom: '1px solid var(--border-subtle)' }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                background: 'var(--input-bg)',
-                border: '1px solid var(--border-medium)',
-                borderRadius: '0.6rem',
-                padding: '0.35rem 0.65rem',
-                fontSize: '0.78rem',
-                boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.3)',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <Search size={13} color="var(--text-subtle)" style={{ marginRight: '0.45rem', flexShrink: 0 }} />
-              <input
-                type="text"
-                value={indexSearchTerm}
-                onChange={(e) => setIndexSearchTerm(e.target.value)}
-                placeholder="Search curriculum books & topics..."
+        {/* Left Sticky Book / Chapter Accordion Navigation Menu (Active for reading/structure modes) */}
+        {(activeWorkspaceTab === 'reading' || activeWorkspaceTab === 'structure') && (
+          <aside
+            style={{
+              width: '280px',
+              minWidth: '280px',
+              maxWidth: '280px',
+              height: '100%',
+              background: 'var(--bg-glass-elevated)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              borderRight: '1px solid var(--border-subtle)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflowY: 'auto',
+            }}
+          >
+            {/* Menu Search Box */}
+            <div style={{ padding: '0.75rem 0.9rem', borderBottom: '1px solid var(--border-subtle)' }}>
+              <div
                 style={{
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  color: 'var(--text-main)',
-                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: 'var(--input-bg)',
+                  border: '1px solid var(--border-medium)',
+                  borderRadius: '0.6rem',
+                  padding: '0.35rem 0.65rem',
                   fontSize: '0.78rem',
+                  boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.3)',
+                  transition: 'all 0.2s ease',
                 }}
-              />
+              >
+                <Search size={13} color="var(--text-subtle)" style={{ marginRight: '0.45rem', flexShrink: 0 }} />
+                <input
+                  type="text"
+                  value={indexSearchTerm}
+                  onChange={(e) => setIndexSearchTerm(e.target.value)}
+                  placeholder="Search curriculum books & topics..."
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    color: 'var(--text-main)',
+                    width: '100%',
+                    fontSize: '0.78rem',
+                  }}
+                />
+              </div>
             </div>
-          </div>
 
-          {/* Shrinking/Expanding Accordion Books & Chapters List */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem' }} className="no-scrollbar">
-            <div
-              style={{
-                fontSize: '0.68rem',
-                fontWeight: 800,
-                color: 'var(--text-subtle)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                marginBottom: '0.5rem',
-                paddingLeft: '0.35rem',
-              }}
-            >
-              Curriculum Books ({compiledCourse.chapters.length})
-            </div>
+            {/* Shrinking/Expanding Accordion Books & Chapters List */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem' }} className="no-scrollbar">
+              <div
+                style={{
+                  fontSize: '0.68rem',
+                  fontWeight: 800,
+                  color: 'var(--text-subtle)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  marginBottom: '0.5rem',
+                  paddingLeft: '0.35rem',
+                }}
+              >
+                Curriculum Books ({compiledCourse.chapters.length})
+              </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-              {filteredChapters.map((chap) => {
-                const originalIndex = compiledCourse.chapters.findIndex((c) => c.id === chap.id);
-                const isCurrent = originalIndex === activeChapterIndex;
-                const isExpanded = expandedChapterId === chap.id;
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                {filteredChapters.map((chap) => {
+                  const originalIndex = compiledCourse.chapters.findIndex((c) => c.id === chap.id);
+                  const isCurrent = originalIndex === activeChapterIndex;
+                  const isExpanded = expandedChapterId === chap.id;
 
-                return (
-                  <div
-                    key={chap.id}
-                    className="interactive-card"
-                    style={{
-                      background: isCurrent
-                        ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.22) 0%, rgba(168, 85, 247, 0.16) 100%)'
-                        : 'rgba(255, 255, 255, 0.03)',
-                      border: isCurrent
-                        ? '1.5px solid var(--border-focus)'
-                        : '1px solid var(--border-subtle)',
-                      borderRadius: '0.85rem',
-                      overflow: 'hidden',
-                      transition: 'all 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
-                      boxShadow: isCurrent ? '0 0 16px var(--accent-glow)' : 'none',
-                    }}
-                  >
-                    {/* Chapter Accordion Header Row */}
+                  return (
                     <div
-                      onClick={() => handleToggleAccordion(chap.id, originalIndex)}
+                      key={chap.id}
+                      className="interactive-card"
                       style={{
-                        padding: '0.65rem 0.75rem',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.25rem',
+                        background: isCurrent
+                          ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.22) 0%, rgba(168, 85, 247, 0.16) 100%)'
+                          : 'rgba(255, 255, 255, 0.03)',
+                        border: isCurrent
+                          ? '1.5px solid var(--border-focus)'
+                          : '1px solid var(--border-subtle)',
+                        borderRadius: '0.85rem',
+                        overflow: 'hidden',
+                        transition: 'all 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
+                        boxShadow: isCurrent ? '0 0 16px var(--accent-glow)' : 'none',
                       }}
                     >
+                      {/* Chapter Accordion Header Row */}
                       <div
+                        onClick={() => handleToggleAccordion(chap.id, originalIndex)}
                         style={{
+                          padding: '0.65rem 0.75rem',
+                          cursor: 'pointer',
                           display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
+                          flexDirection: 'column',
+                          gap: '0.25rem',
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                           <span
                             style={{
                               fontSize: '0.68rem',
                               fontWeight: 700,
                               color: isCurrent ? 'var(--accent-primary)' : 'var(--text-subtle)',
+                              letterSpacing: '0.02em',
                             }}
                           >
                             Book {chap.chapterNumber}
                           </span>
-                          {isCurrent && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                             <span
                               style={{
-                                fontSize: '0.6rem',
-                                fontWeight: 700,
-                                padding: '0.05rem 0.35rem',
+                                fontSize: '0.62rem',
+                                color: 'var(--text-subtle)',
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                padding: '0.1rem 0.4rem',
                                 borderRadius: '9999px',
-                                background: 'rgba(10, 185, 129, 0.2)',
-                                color: '#34d399',
                               }}
                             >
-                              Active
+                              {chap.subTopics?.length || 0} Topics
                             </span>
+                            <ChevronDown
+                              size={12}
+                              color="var(--text-subtle)"
+                              style={{
+                                transform: isExpanded ? 'rotate(180deg)' : 'none',
+                                transition: 'transform 0.2s ease',
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: '0.82rem',
+                            fontWeight: 600,
+                            color: isCurrent ? '#ffffff' : 'var(--text-main)',
+                            lineHeight: '1.3',
+                          }}
+                        >
+                          {chap.title.toLowerCase().startsWith('book') ? chap.title : `Book ${chap.chapterNumber}: ${chap.title}`}
+                        </div>
+                      </div>
+
+                      {/* Interactive Hyperlinks Subtopics Tray */}
+                      {isExpanded && (
+                        <div
+                          style={{
+                            padding: '0.4rem 0.75rem 0.65rem 0.75rem',
+                            background: 'rgba(0, 0, 0, 0.25)',
+                            borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.3rem',
+                            animation: 'fadeIn 0.2s ease-out',
+                          }}
+                        >
+                          <div style={{ fontSize: '0.64rem', color: 'var(--text-subtle)', fontWeight: 600 }}>
+                            Subtopics & Sections (Click to scroll)
+                          </div>
+                          {chap.subTopics && chap.subTopics.length > 0 ? (
+                            chap.subTopics.map((st) => (
+                              <div
+                                key={st.id}
+                                onClick={() => handleJumpToSubTopic(st.title, originalIndex)}
+                                style={{
+                                  fontSize: '0.72rem',
+                                  color: isCurrent ? '#c7d2fe' : 'var(--text-muted)',
+                                  padding: '0.25rem 0.45rem',
+                                  borderRadius: '0.35rem',
+                                  background: 'rgba(255, 255, 255, 0.03)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease',
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.background = 'rgba(99, 102, 241, 0.18)';
+                                  e.currentTarget.style.color = '#ffffff';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+                                  e.currentTarget.style.color = isCurrent ? '#c7d2fe' : 'var(--text-muted)';
+                                }}
+                              >
+                                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  <strong style={{ color: 'var(--accent-primary)', marginRight: '0.3rem' }}>
+                                    {st.topicNumber}
+                                  </strong>
+                                  <span>{st.title}</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveChapterIndex(originalIndex);
+                                      setActiveVideoTopicNumber(st.topicNumber);
+                                      setActiveWorkspaceTab('video');
+                                      const reader = document.getElementById('workspace-content-scroll');
+                                      if (reader) reader.scrollTo({ top: 0, behavior: 'smooth' });
+                                    }}
+                                    style={{
+                                      background: 'rgba(236, 72, 153, 0.15)',
+                                      border: '1px solid rgba(236, 72, 153, 0.35)',
+                                      borderRadius: '0.25rem',
+                                      color: '#f472b6',
+                                      fontSize: '0.65rem',
+                                      padding: '0.1rem 0.35rem',
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.2rem',
+                                    }}
+                                    title={`Play Class Video for ${st.topicNumber}`}
+                                  >
+                                    <Video size={10} />
+                                    <span>Video</span>
+                                  </button>
+                                  <ExternalLink size={10} style={{ opacity: 0.45 }} />
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>
+                              1.1 Core Architecture • 1.2 Enterprise Labs
+                            </div>
                           )}
                         </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          {/* Inline Edit Icon next to chapter */}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveChapterIndex(originalIndex);
-                              setRefiningChapterId((prev) => (prev === chap.id ? null : chap.id));
-                              setTargetSectionTitle(null);
-                            }}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              color: refiningChapterId === chap.id ? '#c084fc' : 'var(--text-subtle)',
-                              cursor: 'pointer',
-                              padding: '0.2rem',
-                              borderRadius: '0.25rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                            }}
-                            title="Edit chapter with AI"
-                          >
-                            <Sparkles size={13} />
-                          </button>
-
-                          {/* Accordion Chevron */}
-                          <div
-                            style={{
-                              color: 'var(--text-subtle)',
-                              transition: 'transform 0.25s ease',
-                              transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                            }}
-                          >
-                            <ChevronDown size={14} />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div
-                        style={{
-                          fontSize: '0.82rem',
-                          fontWeight: 600,
-                          color: isCurrent ? '#ffffff' : 'var(--text-main)',
-                          lineHeight: '1.3',
-                        }}
-                      >
-                        {chap.title}
-                      </div>
+                      )}
                     </div>
-
-                    {/* Interactive Hyperlinks Subtopics Tray */}
-                    {isExpanded && (
-                      <div
-                        style={{
-                          padding: '0.4rem 0.75rem 0.65rem 0.75rem',
-                          background: 'rgba(0, 0, 0, 0.25)',
-                          borderTop: '1px solid rgba(255, 255, 255, 0.05)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.3rem',
-                          animation: 'fadeIn 0.2s ease-out',
-                        }}
-                      >
-                        <div style={{ fontSize: '0.64rem', color: 'var(--text-subtle)', fontWeight: 600 }}>
-                          Subtopics & Sections (Click to scroll)
-                        </div>
-                        {chap.subTopics && chap.subTopics.length > 0 ? (
-                          chap.subTopics.map((st) => (
-                            <div
-                              key={st.id}
-                              onClick={() => handleJumpToSubTopic(st.title, originalIndex)}
-                              style={{
-                                fontSize: '0.72rem',
-                                color: isCurrent ? '#c7d2fe' : 'var(--text-muted)',
-                                padding: '0.25rem 0.45rem',
-                                borderRadius: '0.35rem',
-                                background: 'rgba(255, 255, 255, 0.03)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease',
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = 'rgba(99, 102, 241, 0.18)';
-                                e.currentTarget.style.color = '#ffffff';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
-                                e.currentTarget.style.color = isCurrent ? '#c7d2fe' : 'var(--text-muted)';
-                              }}
-                            >
-                              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                <strong style={{ color: 'var(--accent-primary)', marginRight: '0.3rem' }}>
-                                  {st.topicNumber}
-                                </strong>
-                                <span>{st.title}</span>
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setActiveChapterIndex(originalIndex);
-                                    setActiveVideoTopicNumber(st.topicNumber);
-                                    setActiveWorkspaceTab('video');
-                                    const reader = document.getElementById('workspace-content-scroll');
-                                    if (reader) reader.scrollTo({ top: 0, behavior: 'smooth' });
-                                  }}
-                                  style={{
-                                    background: 'rgba(236, 72, 153, 0.15)',
-                                    border: '1px solid rgba(236, 72, 153, 0.35)',
-                                    borderRadius: '0.25rem',
-                                    color: '#f472b6',
-                                    fontSize: '0.65rem',
-                                    padding: '0.1rem 0.35rem',
-                                    cursor: 'pointer',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '0.2rem',
-                                  }}
-                                  title={`Play Class Video for ${st.topicNumber}`}
-                                >
-                                  <Video size={10} />
-                                  <span>Video</span>
-                                </button>
-                                <ExternalLink size={10} style={{ opacity: 0.45 }} />
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>
-                            1.1 Core Architecture • 1.2 Enterprise Labs
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </aside>
+          </aside>
+        )}
 
         {/* Center Content Viewer Pane */}
         <main
@@ -1603,7 +1760,7 @@ CRITICAL RULES:
             flex: 1,
             height: '100%',
             overflowY: 'auto',
-            padding: '1.25rem 2rem 2.5rem 2rem',
+            padding: activeWorkspaceTab === 'reading' ? '1.25rem 2.25rem 2.5rem 2.25rem' : '0.85rem 1.25rem',
             background: 'var(--bg-primary)',
             display: 'flex',
             flexDirection: 'column',
@@ -1752,397 +1909,369 @@ CRITICAL RULES:
                 </div>
               )}
 
-                {/* ======================================================== */}
-                {/* UNIFIED WORKSPACE TAB VIEWS                              */}
-                {/* ======================================================== */}
+              {/* ======================================================== */}
+              {/* UNIFIED WORKSPACE TAB VIEWS                              */}
+              {/* ======================================================== */}
 
-                {/* Tab 1: Course Reading / Primary Textbook Learning Material */}
-                {activeWorkspaceTab === 'reading' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    {/* Chapter Header Card */}
-                    <div
-                      className="glass-panel"
-                      style={{
-                        padding: '1.75rem',
-                        boxShadow: 'var(--shadow-md)',
-                        position: 'relative',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      {/* Breadcrumb & Actions */}
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          marginBottom: '0.85rem',
-                          flexWrap: 'wrap',
-                          gap: '0.6rem',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.76rem', color: 'var(--accent-primary)', fontWeight: 700 }}>
-                          <span style={{ color: 'var(--text-subtle)' }}>{compiledCourse.title}</span>
-                          <span style={{ color: 'var(--border-subtle)' }}>/</span>
-                          <span
-                            style={{
-                              background: 'rgba(99, 102, 241, 0.15)',
-                              border: '1px solid rgba(99, 102, 241, 0.35)',
-                              padding: '0.12rem 0.55rem',
-                              borderRadius: '9999px',
-                              color: '#a5b4fc',
-                            }}
-                          >
-                            Book {activeChapter.chapterNumber} of {compiledCourse.totalChapters}
-                          </span>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                          {/* Class Video Player Trigger */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setActiveWorkspaceTab('video');
-                              setActiveVideoTopicNumber(`${activeChapter.chapterNumber}.1`);
-                            }}
-                            className="action-chip"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.3rem',
-                              padding: '0.3rem 0.75rem',
-                              borderRadius: '9999px',
-                              background: 'rgba(236, 72, 153, 0.18)',
-                              border: '1px solid rgba(236, 72, 153, 0.45)',
-                              color: '#ffffff',
-                              fontSize: '0.74rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              boxShadow: '0 0 10px rgba(236, 72, 153, 0.25)',
-                            }}
-                            title="Watch Interactive Masterclass Video & Lesson Production Script"
-                          >
-                            <Video size={13} color="#f472b6" />
-                            <span>Class Video ({activeChapter.chapterNumber}.1)</span>
-                          </button>
-
-                          {/* In-Place Edit Trigger */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRefiningChapterId((prev) => (prev === activeChapter.id ? null : activeChapter.id));
-                              setTargetSectionTitle(null);
-                            }}
-                            className="action-chip"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.3rem',
-                              padding: '0.3rem 0.65rem',
-                              borderRadius: '9999px',
-                              background: 'rgba(168, 85, 247, 0.16)',
-                              border: '1px solid rgba(168, 85, 247, 0.4)',
-                              color: '#c084fc',
-                              fontSize: '0.74rem',
-                              cursor: 'pointer',
-                              fontWeight: 600,
-                            }}
-                            title="Edit or refine this chapter"
-                          >
-                            <Sparkles size={12} />
-                            <span>Edit</span>
-                          </button>
-
-                          {/* TTS */}
-                          <button
-                            type="button"
-                            onClick={() => onSpeak(activeChapter.content, activeChapter.id, workspaceLanguage)}
-                            className="action-chip"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.3rem',
-                              padding: '0.3rem 0.65rem',
-                              borderRadius: '9999px',
-                              background: 'rgba(255, 255, 255, 0.05)',
-                              border: '1px solid var(--border-subtle)',
-                              color: 'var(--text-muted)',
-                              fontSize: '0.74rem',
-                              cursor: 'pointer',
-                            }}
-                            title="Read aloud"
-                          >
-                            {isSpeaking && activeSpeakingId === activeChapter.id ? <VolumeX size={12} /> : <Volume2 size={12} />}
-                            <span>{isSpeaking && activeSpeakingId === activeChapter.id ? 'Stop' : 'Speak'}</span>
-                          </button>
-
-                          {/* Copy */}
-                          <button
-                            type="button"
-                            onClick={handleCopyChapter}
-                            className="action-chip"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.3rem',
-                              padding: '0.3rem 0.65rem',
-                              borderRadius: '9999px',
-                              background: 'rgba(255, 255, 255, 0.05)',
-                              border: '1px solid var(--border-subtle)',
-                              color: copied ? 'var(--success)' : 'var(--text-muted)',
-                              fontSize: '0.74rem',
-                              cursor: 'pointer',
-                            }}
-                            title="Copy chapter markdown"
-                          >
-                            {copied ? <Check size={12} color="var(--success)" /> : <Copy size={12} />}
-                            <span>{copied ? 'Copied' : 'Copy'}</span>
-                          </button>
-
-                          {/* Download DOCX */}
-                          <button
-                            type="button"
-                            onClick={handleDownloadDocx}
-                            className="action-chip"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.3rem',
-                              padding: '0.3rem 0.65rem',
-                              borderRadius: '9999px',
-                              background: 'rgba(99, 102, 241, 0.15)',
-                              border: '1px solid rgba(99, 102, 241, 0.4)',
-                              color: '#a5b4fc',
-                              fontSize: '0.74rem',
-                              cursor: 'pointer',
-                              fontWeight: 600,
-                            }}
-                            title="Export course to Word Document"
-                          >
-                            <FileText size={12} />
-                            <span>DOCX</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      <h2
-                        style={{
-                          fontSize: '1.75rem',
-                          fontWeight: 800,
-                          color: 'var(--text-main)',
-                          marginBottom: '0.45rem',
-                          letterSpacing: '-0.025em',
-                        }}
-                      >
-                        Book {activeChapter.chapterNumber}: {activeChapter.title}
-                      </h2>
-                      {activeChapter.summary && (
-                        <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
-                          {activeChapter.summary}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* National / International Authorized Curriculum & Framework Reference Card */}
-                    <AuthorizedCurriculumBanner
-                      courseTitle={compiledCourse.title}
-                      content={activeChapter.content}
-                    />
-
-                    {/* Markdown Chapter Content */}
-                    <div
-                      className="glass-panel"
-                      style={{
-                        padding: '2.25rem',
-                        boxShadow: 'var(--shadow-md)',
-                      }}
-                    >
-                      <MarkdownRenderer
-                        content={activeChapter.content}
-                        onEditSection={handleEditSection}
-                        onPlayClassVideo={(topicNum: string) => {
-                          setActiveWorkspaceTab('video');
-                          if (topicNum) setActiveVideoTopicNumber(topicNum);
-                        }}
-                      />
-                    </div>
-
-                    {/* Previous Book & Next Book Navigation Pagination Controls */}
+              {/* Tab 1: Course Reading / Primary Textbook Learning Material */}
+              {activeWorkspaceTab === 'reading' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {/* Chapter Header Card */}
+                  <div
+                    className="glass-panel"
+                    style={{
+                      padding: '1.75rem',
+                      boxShadow: 'var(--shadow-md)',
+                      position: 'relative',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {/* Breadcrumb & Actions */}
                     <div
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        paddingTop: '1.25rem',
-                        paddingBottom: '2.5rem',
+                        marginBottom: '0.85rem',
+                        flexWrap: 'wrap',
+                        gap: '0.6rem',
                       }}
                     >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const nextIdx = Math.max(0, activeChapterIndex - 1);
-                          setActiveChapterIndex(nextIdx);
-                          setExpandedChapterId(compiledCourse.chapters[nextIdx]?.id || null);
-                          const reader = document.getElementById('workspace-content-scroll');
-                          if (reader) reader.scrollTo({ top: 0, behavior: 'smooth' });
-                        }}
-                        disabled={activeChapterIndex === 0}
-                        className="action-chip"
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.45rem',
-                          padding: '0.65rem 1.25rem',
-                          borderRadius: '0.75rem',
-                          background: 'rgba(255, 255, 255, 0.05)',
-                          border: '1px solid var(--border-subtle)',
-                          color: activeChapterIndex === 0 ? 'rgba(255, 255, 255, 0.25)' : 'var(--text-main)',
-                          cursor: activeChapterIndex === 0 ? 'not-allowed' : 'pointer',
-                          fontSize: '0.84rem',
-                          fontWeight: 600,
-                        }}
-                      >
-                        <ChevronLeft size={16} />
-                        <span>Previous Book</span>
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.76rem', color: 'var(--accent-primary)', fontWeight: 700 }}>
+                        <span style={{ color: 'var(--text-subtle)' }}>{compiledCourse.title}</span>
+                        <span style={{ color: 'var(--border-subtle)' }}>/</span>
+                        <span
+                          style={{
+                            background: 'rgba(99, 102, 241, 0.15)',
+                            border: '1px solid rgba(99, 102, 241, 0.35)',
+                            padding: '0.12rem 0.55rem',
+                            borderRadius: '9999px',
+                            color: '#a5b4fc',
+                          }}
+                        >
+                          Book {activeChapter.chapterNumber} of {compiledCourse.totalChapters}
+                        </span>
+                      </div>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const nextIdx = Math.min(compiledCourse.chapters.length - 1, activeChapterIndex + 1);
-                          setActiveChapterIndex(nextIdx);
-                          setExpandedChapterId(compiledCourse.chapters[nextIdx]?.id || null);
-                          const reader = document.getElementById('workspace-content-scroll');
-                          if (reader) reader.scrollTo({ top: 0, behavior: 'smooth' });
-                        }}
-                        disabled={activeChapterIndex >= compiledCourse.chapters.length - 1}
-                        className="action-chip"
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.45rem',
-                          padding: '0.65rem 1.35rem',
-                          borderRadius: '0.75rem',
-                          background: 'var(--accent-gradient)',
-                          border: 'none',
-                          color: '#ffffff',
-                          cursor:
-                            activeChapterIndex >= compiledCourse.chapters.length - 1
-                              ? 'not-allowed'
-                              : 'pointer',
-                          fontSize: '0.84rem',
-                          fontWeight: 700,
-                          opacity: activeChapterIndex >= compiledCourse.chapters.length - 1 ? 0.4 : 1,
-                          boxShadow: '0 0 16px var(--accent-glow)',
-                        }}
-                      >
-                        <span>Next Book</span>
-                        <ChevronRight size={16} />
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        {/* Class Video Player Trigger */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveWorkspaceTab('video');
+                            setActiveVideoTopicNumber(`${activeChapter.chapterNumber}.1`);
+                          }}
+                          className="action-chip"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            padding: '0.3rem 0.75rem',
+                            borderRadius: '9999px',
+                            background: 'rgba(236, 72, 153, 0.18)',
+                            border: '1px solid rgba(236, 72, 153, 0.45)',
+                            color: '#ffffff',
+                            fontSize: '0.74rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            boxShadow: '0 0 10px rgba(236, 72, 153, 0.25)',
+                          }}
+                          title="Watch Interactive Masterclass Video & Lesson Production Script"
+                        >
+                          <Video size={13} color="#f472b6" />
+                          <span>Class Video ({activeChapter.chapterNumber}.1)</span>
+                        </button>
+
+                        {/* In-Place Edit Trigger */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRefiningChapterId((prev) => (prev === activeChapter.id ? null : activeChapter.id));
+                            setTargetSectionTitle(null);
+                          }}
+                          className="action-chip"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            padding: '0.3rem 0.65rem',
+                            borderRadius: '9999px',
+                            background: 'rgba(168, 85, 247, 0.16)',
+                            border: '1px solid rgba(168, 85, 247, 0.4)',
+                            color: '#c084fc',
+                            fontSize: '0.74rem',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                          }}
+                          title="Edit or refine this chapter"
+                        >
+                          <Sparkles size={12} />
+                          <span>Edit</span>
+                        </button>
+
+                        {/* TTS */}
+                        <button
+                          type="button"
+                          onClick={() => onSpeak(activeChapter.content, activeChapter.id, workspaceLanguage)}
+                          className="action-chip"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            padding: '0.3rem 0.65rem',
+                            borderRadius: '9999px',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: '1px solid var(--border-subtle)',
+                            color: 'var(--text-muted)',
+                            fontSize: '0.74rem',
+                            cursor: 'pointer',
+                          }}
+                          title="Read aloud"
+                        >
+                          {isSpeaking && activeSpeakingId === activeChapter.id ? <VolumeX size={12} /> : <Volume2 size={12} />}
+                          <span>{isSpeaking && activeSpeakingId === activeChapter.id ? 'Stop' : 'Speak'}</span>
+                        </button>
+
+                        {/* Copy */}
+                        <button
+                          type="button"
+                          onClick={handleCopyChapter}
+                          className="action-chip"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            padding: '0.3rem 0.65rem',
+                            borderRadius: '9999px',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: '1px solid var(--border-subtle)',
+                            color: copied ? 'var(--success)' : 'var(--text-muted)',
+                            fontSize: '0.74rem',
+                            cursor: 'pointer',
+                          }}
+                          title="Copy chapter markdown"
+                        >
+                          {copied ? <Check size={12} color="var(--success)" /> : <Copy size={12} />}
+                          <span>{copied ? 'Copied' : 'Copy'}</span>
+                        </button>
+
+                        {/* Download DOCX */}
+                        <button
+                          type="button"
+                          onClick={handleDownloadDocx}
+                          className="action-chip"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            padding: '0.3rem 0.65rem',
+                            borderRadius: '9999px',
+                            background: 'rgba(99, 102, 241, 0.15)',
+                            border: '1px solid rgba(99, 102, 241, 0.4)',
+                            color: '#a5b4fc',
+                            fontSize: '0.74rem',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                          }}
+                          title="Export course to Word Document"
+                        >
+                          <FileText size={12} />
+                          <span>DOCX</span>
+                        </button>
+                      </div>
                     </div>
+
+                    <h2
+                      style={{
+                        fontSize: '1.75rem',
+                        fontWeight: 800,
+                        color: 'var(--text-main)',
+                        marginBottom: '0.45rem',
+                        letterSpacing: '-0.025em',
+                      }}
+                    >
+                      Book {activeChapter.chapterNumber}: {activeChapter.title}
+                    </h2>
+                    {activeChapter.summary && (
+                      <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
+                        {activeChapter.summary}
+                      </p>
+                    )}
                   </div>
-                )}
 
-                {/* Tab 2: Authorized Course Structure & Standards */}
-                {activeWorkspaceTab === 'structure' && (
-                  <AuthorizedCourseStructureTab
+                  {/* National / International Authorized Curriculum & Framework Reference Card */}
+                  <AuthorizedCurriculumBanner
                     courseTitle={compiledCourse.title}
-                    chapters={compiledCourse.chapters}
-                    targetAudience={selectedAudience}
-                    initialStandardInfo={compiledCourse.authorizedStructure}
-                    onSaveStandardInfo={(info) => {
-                      const updated = { ...compiledCourse, authorizedStructure: info };
-                      setCompiledCourse(updated);
-                      saveLibraryCourse(updated);
-                    }}
+                    content={activeChapter.content}
                   />
-                )}
 
-                {/* Tab 3: Slide + AI Masterclass */}
-                {activeWorkspaceTab === 'slides' && (
-                  <SlideDecksViewer
+                  {/* Markdown Chapter Content */}
+                  <div
+                    className="glass-panel"
+                    style={{
+                      padding: '2.25rem',
+                      boxShadow: 'var(--shadow-md)',
+                    }}
+                  >
+                    <MarkdownRenderer
+                      content={activeChapter.content}
+                      onEditSection={handleEditSection}
+                      onPlayClassVideo={(topicNum: string) => {
+                        setActiveWorkspaceTab('video');
+                        if (topicNum) setActiveVideoTopicNumber(topicNum);
+                      }}
+                    />
+                  </div>
+
+                  {/* Previous Book & Next Book Navigation Pagination Controls */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingTop: '1.25rem',
+                      paddingBottom: '2.5rem',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextIdx = Math.max(0, activeChapterIndex - 1);
+                        setActiveChapterIndex(nextIdx);
+                        setExpandedChapterId(compiledCourse.chapters[nextIdx]?.id || null);
+                        const reader = document.getElementById('workspace-content-scroll');
+                        if (reader) reader.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      disabled={activeChapterIndex === 0}
+                      className="action-chip"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        padding: '0.65rem 1.25rem',
+                        borderRadius: '0.75rem',
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        border: '1px solid var(--border-subtle)',
+                        color: activeChapterIndex === 0 ? 'rgba(255, 255, 255, 0.25)' : 'var(--text-main)',
+                        cursor: activeChapterIndex === 0 ? 'not-allowed' : 'pointer',
+                        fontSize: '0.84rem',
+                        fontWeight: 600,
+                      }}
+                    >
+                      <ChevronLeft size={16} />
+                      <span>Previous Book</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextIdx = Math.min(compiledCourse.chapters.length - 1, activeChapterIndex + 1);
+                        setActiveChapterIndex(nextIdx);
+                        setExpandedChapterId(compiledCourse.chapters[nextIdx]?.id || null);
+                        const reader = document.getElementById('workspace-content-scroll');
+                        if (reader) reader.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      disabled={activeChapterIndex >= compiledCourse.chapters.length - 1}
+                      className="action-chip"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        padding: '0.65rem 1.35rem',
+                        borderRadius: '0.75rem',
+                        background: 'var(--accent-gradient)',
+                        border: 'none',
+                        color: '#ffffff',
+                        cursor:
+                          activeChapterIndex >= compiledCourse.chapters.length - 1
+                            ? 'not-allowed'
+                            : 'pointer',
+                        fontSize: '0.84rem',
+                        fontWeight: 700,
+                        opacity: activeChapterIndex >= compiledCourse.chapters.length - 1 ? 0.4 : 1,
+                        boxShadow: '0 0 16px var(--accent-glow)',
+                      }}
+                    >
+                      <span>Next Book</span>
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 2: Authorized Course Structure & Standards */}
+              {activeWorkspaceTab === 'structure' && (
+                <AuthorizedCourseStructureTab
+                  courseTitle={compiledCourse.title}
+                  chapters={compiledCourse.chapters}
+                  targetAudience={selectedAudience}
+                  initialStandardInfo={compiledCourse.authorizedStructure}
+                  onSaveStandardInfo={(info) => {
+                    const updated = { ...compiledCourse, authorizedStructure: info };
+                    setCompiledCourse(updated);
+                    saveLibraryCourse(updated);
+                  }}
+                />
+              )}
+
+              {/* Tab 3: Slide + AI Masterclass */}
+              {activeWorkspaceTab === 'slides' && (
+                <SlideDecksViewer
+                  courseTitle={compiledCourse.title}
+                  chapterTitle={activeChapter.title}
+                  chapterNumber={activeChapter.chapterNumber}
+                  chapterContent={activeChapter.content}
+                  activeLanguage={workspaceLanguage}
+                  onLanguageChange={(lang) => {
+                    setWorkspaceLanguage(lang);
+                    localStorage.setItem('ila_active_language', lang);
+                  }}
+                  activeVoiceProfile={workspaceVoiceProfile}
+                  onVoiceProfileChange={(vId) => {
+                    setWorkspaceVoiceProfile(vId);
+                    localStorage.setItem('ila_active_voice_profile', vId);
+                  }}
+                  targetAudience={selectedAudience}
+                  isAdminMode={true}
+                  isStudentMode={false}
+                  onScriptUpdate={(updatedMd) => {
+                    const updatedChapters = compiledCourse.chapters.map((ch) =>
+                      ch.id === activeChapter.id ? { ...ch, content: updatedMd } : ch
+                    );
+                    const updated = { ...compiledCourse, chapters: updatedChapters, updatedAt: Date.now() };
+                    setCompiledCourse(updated);
+                    saveLibraryCourse(updated);
+                  }}
+                  onJumpToReadingTab={() => {
+                    setActiveWorkspaceTab('reading');
+                  }}
+                />
+              )}
+
+              {/* Tab 4: Video Library */}
+              {activeWorkspaceTab === 'video' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <MasterclassVideoPlayer
                     courseTitle={compiledCourse.title}
                     chapterTitle={activeChapter.title}
                     chapterNumber={activeChapter.chapterNumber}
                     chapterContent={activeChapter.content}
+                    initialTopicNumber={activeVideoTopicNumber}
                     activeLanguage={workspaceLanguage}
-                    onLanguageChange={(lang) => {
-                      setWorkspaceLanguage(lang);
-                      localStorage.setItem('ila_active_language', lang);
-                    }}
                     activeVoiceProfile={workspaceVoiceProfile}
-                    onVoiceProfileChange={(vId) => {
-                      setWorkspaceVoiceProfile(vId);
-                      localStorage.setItem('ila_active_voice_profile', vId);
-                    }}
-                    targetAudience={selectedAudience}
-                    isAdminMode={true}
+                    isCompact={false}
                     isStudentMode={false}
-                    onScriptUpdate={(updatedMd) => {
-                      const updatedChapters = compiledCourse.chapters.map((ch) =>
-                        ch.id === activeChapter.id ? { ...ch, content: updatedMd } : ch
-                      );
-                      const updated = { ...compiledCourse, chapters: updatedChapters, updatedAt: Date.now() };
-                      setCompiledCourse(updated);
-                      saveLibraryCourse(updated);
-                    }}
-                    onJumpToReadingTab={() => {
-                      setActiveWorkspaceTab('reading');
-                    }}
-                  />
-                )}
-
-                {/* Tab 4: Video Library */}
-                {activeWorkspaceTab === 'video' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <MasterclassVideoPlayer
-                      courseTitle={compiledCourse.title}
-                      chapterTitle={activeChapter.title}
-                      chapterNumber={activeChapter.chapterNumber}
-                      chapterContent={activeChapter.content}
-                      initialTopicNumber={activeVideoTopicNumber}
-                      activeLanguage={workspaceLanguage}
-                      activeVoiceProfile={workspaceVoiceProfile}
-                      isCompact={false}
-                      isStudentMode={false}
-                      enableCheckpointExam={true}
-                      hasNextChapter={activeChapterIndex < compiledCourse.chapters.length - 1}
-                      onNextChapter={() =>
-                        setActiveChapterIndex((prev) =>
-                          Math.min(compiledCourse.chapters.length - 1, prev + 1)
-                        )
-                      }
-                      hasPreviousChapter={activeChapterIndex > 0}
-                      onPreviousChapter={() =>
-                        setActiveChapterIndex((prev) => Math.max(0, prev - 1))
-                      }
-                      onScriptUpdate={(updatedMd) => {
-                        const updatedChapters = compiledCourse.chapters.map((ch) =>
-                          ch.id === activeChapter.id ? { ...ch, content: updatedMd } : ch
-                        );
-                        const updated = { ...compiledCourse, chapters: updatedChapters, updatedAt: Date.now() };
-                        setCompiledCourse(updated);
-                        saveLibraryCourse(updated);
-                      }}
-                    />
-                  </div>
-                )}
-
-                {/* Tab 4: Explanation Bot / Board (Tutorial Library) */}
-                {activeWorkspaceTab === 'explanations' && (
-                  <ExplanationsBoard
-                    courseTitle={compiledCourse.title}
-                    chapter={activeChapter}
-                    chapterNumber={activeChapter.chapterNumber}
-                    activeLanguage={workspaceLanguage}
-                    targetAudience={selectedAudience}
-                    onOpenSlides={() => setActiveWorkspaceTab('slides')}
-                    onOpenVideo={(topicNumber) => {
-                      setActiveWorkspaceTab('video');
-                      if (topicNumber) setActiveVideoTopicNumber(topicNumber);
-                    }}
-                    onSpeak={onSpeak}
-                    isSpeaking={isSpeaking}
-                    activeSpeakingId={activeSpeakingId}
+                    enableCheckpointExam={true}
+                    hasNextChapter={activeChapterIndex < compiledCourse.chapters.length - 1}
+                    onNextChapter={() =>
+                      setActiveChapterIndex((prev) =>
+                        Math.min(compiledCourse.chapters.length - 1, prev + 1)
+                      )
+                    }
+                    hasPreviousChapter={activeChapterIndex > 0}
+                    onPreviousChapter={() =>
+                      setActiveChapterIndex((prev) => Math.max(0, prev - 1))
+                    }
                     onScriptUpdate={(updatedMd) => {
                       const updatedChapters = compiledCourse.chapters.map((ch) =>
                         ch.id === activeChapter.id ? { ...ch, content: updatedMd } : ch
@@ -2152,80 +2281,96 @@ CRITICAL RULES:
                       saveLibraryCourse(updated);
                     }}
                   />
-                )}
+                </div>
+              )}
 
-                {/* Tab 5: Course Dictionary */}
-                {activeWorkspaceTab === 'dictionary' && (
-                  <CourseDictionary
-                    courseTitle={compiledCourse.title}
-                    chapter={activeChapter}
-                    chapterNumber={activeChapter.chapterNumber}
-                    allChapters={compiledCourse.chapters}
-                    activeLanguage={workspaceLanguage}
-                    onSpeak={onSpeak}
-                    isSpeaking={isSpeaking}
-                    activeSpeakingId={activeSpeakingId}
-                    onScriptUpdate={(updatedMd) => {
-                      const updatedChapters = compiledCourse.chapters.map((ch) =>
-                        ch.id === activeChapter.id ? { ...ch, content: updatedMd } : ch
-                      );
-                      const updated = { ...compiledCourse, chapters: updatedChapters, updatedAt: Date.now() };
-                      setCompiledCourse(updated);
-                      saveLibraryCourse(updated);
-                    }}
-                  />
-                )}
+              {/* Tab 4: Explanation Bot / Board (Tutorial Library) */}
+              {activeWorkspaceTab === 'explanations' && (
+                <ExplanationsBoard
+                  courseTitle={compiledCourse.title}
+                  chapter={activeChapter}
+                  chapterNumber={activeChapter.chapterNumber}
+                  activeLanguage={workspaceLanguage}
+                  targetAudience={selectedAudience}
+                  onOpenSlides={() => setActiveWorkspaceTab('slides')}
+                  onOpenVideo={(topicNumber) => {
+                    setActiveWorkspaceTab('video');
+                    if (topicNumber) setActiveVideoTopicNumber(topicNumber);
+                  }}
+                  onSpeak={onSpeak}
+                  isSpeaking={isSpeaking}
+                  activeSpeakingId={activeSpeakingId}
+                  onScriptUpdate={(updatedMd) => {
+                    const updatedChapters = compiledCourse.chapters.map((ch) =>
+                      ch.id === activeChapter.id ? { ...ch, content: updatedMd } : ch
+                    );
+                    const updated = { ...compiledCourse, chapters: updatedChapters, updatedAt: Date.now() };
+                    setCompiledCourse(updated);
+                    saveLibraryCourse(updated);
+                  }}
+                />
+              )}
 
-                {/* Tab 6: Exams Board */}
-                {activeWorkspaceTab === 'exams' && (
-                  <ExamsBoard
-                    courseTitle={compiledCourse.title}
-                    chapter={activeChapter}
-                    chapterNumber={activeChapter.chapterNumber}
-                    allChapters={compiledCourse.chapters}
-                    onScriptUpdate={(updatedMd) => {
-                      const updatedChapters = compiledCourse.chapters.map((ch) =>
-                        ch.id === activeChapter.id ? { ...ch, content: updatedMd } : ch
-                      );
-                      const updated = { ...compiledCourse, chapters: updatedChapters, updatedAt: Date.now() };
-                      setCompiledCourse(updated);
-                      saveLibraryCourse(updated);
-                    }}
-                  />
-                )}
+              {/* Tab 5: Course Dictionary */}
+              {activeWorkspaceTab === 'dictionary' && (
+                <CourseDictionary
+                  courseTitle={compiledCourse.title}
+                  chapter={activeChapter}
+                  chapterNumber={activeChapter.chapterNumber}
+                  allChapters={compiledCourse.chapters}
+                  activeLanguage={workspaceLanguage}
+                  onSpeak={onSpeak}
+                  isSpeaking={isSpeaking}
+                  activeSpeakingId={activeSpeakingId}
+                  onScriptUpdate={(updatedMd) => {
+                    const updatedChapters = compiledCourse.chapters.map((ch) =>
+                      ch.id === activeChapter.id ? { ...ch, content: updatedMd } : ch
+                    );
+                    const updated = { ...compiledCourse, chapters: updatedChapters, updatedAt: Date.now() };
+                    setCompiledCourse(updated);
+                    saveLibraryCourse(updated);
+                  }}
+                />
+              )}
 
-                {/* Tab 5: Dedicated Interactive IntelliCoach Tutoring & Onboarding View */}
-                {activeWorkspaceTab === 'coach' && (
-                  <IntelliCoachView
-                    initialCourse={compiledCourse}
-                    isEmbedded={true}
-                    onOpenReadingTab={() => setActiveWorkspaceTab('reading')}
-                    onOpenSlideTab={() => setActiveWorkspaceTab('slides')}
-                    onOpenVideoTab={() => setActiveWorkspaceTab('video')}
-                  />
-                )}
-              </div>
-            ) : (
-              <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--text-subtle)' }}>
-                <BookOpen size={48} style={{ opacity: 0.3, margin: '0 auto 1rem' }} />
-                <p>No chapter selected.</p>
-              </div>
-            )}
-          </main>
-        </div>
+              {/* Tab 6: Exams Board */}
+              {activeWorkspaceTab === 'exams' && (
+                <ExamsBoard
+                  courseTitle={compiledCourse.title}
+                  chapter={activeChapter}
+                  chapterNumber={activeChapter.chapterNumber}
+                  allChapters={compiledCourse.chapters}
+                  onScriptUpdate={(updatedMd) => {
+                    const updatedChapters = compiledCourse.chapters.map((ch) =>
+                      ch.id === activeChapter.id ? { ...ch, content: updatedMd } : ch
+                    );
+                    const updated = { ...compiledCourse, chapters: updatedChapters, updatedAt: Date.now() };
+                    setCompiledCourse(updated);
+                    saveLibraryCourse(updated);
+                  }}
+                />
+              )}
 
-      {/* Presentation-Ready Teaching Slides Modal */}
-      {showSlidesModal && activeChapter && (
-        <TeachingSlidesModal
-          courseTitle={compiledCourse.title}
-          chapterTitle={activeChapter.title}
-          chapterNumber={activeChapter.chapterNumber}
-          chapterContent={activeChapter.content}
-          activeLanguage={workspaceLanguage}
-          activeVoiceProfile={workspaceVoiceProfile}
-          onClose={() => setShowSlidesModal(false)}
-        />
-      )}
+              {/* Tab 5: Dedicated Interactive IntelliCoach Tutoring & Onboarding View */}
+              {activeWorkspaceTab === 'coach' && (
+                <IntelliCoachView
+                  initialCourse={compiledCourse}
+                  isEmbedded={true}
+                  onOpenReadingTab={() => setActiveWorkspaceTab('reading')}
+                  onOpenSlideTab={() => setActiveWorkspaceTab('slides')}
+                  onOpenVideoTab={() => setActiveWorkspaceTab('video')}
+                />
+              )}
+            </div>
+          ) : (
+            <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--text-subtle)' }}>
+              <BookOpen size={48} style={{ opacity: 0.3, margin: '0 auto 1rem' }} />
+              <p>No chapter selected.</p>
+            </div>
+          )}
+        </main>
+      </div>
+
 
       {/* Version History & Rollback Modal */}
       {showVersionHistory && (
@@ -2813,673 +2958,6 @@ CRITICAL RULES:
                 Create Chapter
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Dedicated Full-Page Module Workspace (Main Top Header remains active & visible above) */}
-      {isModuleFullScreen && activeChapter && (
-        <div
-          id="module-dedicated-fullpage-view"
-          style={{
-            position: 'fixed',
-            top: '56px',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 90,
-            background: 'var(--bg-primary, #070b14)',
-            display: 'flex',
-            flexDirection: 'column',
-            width: '100vw',
-            height: 'calc(100vh - 56px)',
-            overflow: 'hidden',
-          }}
-        >
-          {/* Full-Page Module Master Header Suite */}
-          <header
-            style={{
-              padding: '0.55rem 1.25rem',
-              background: 'rgba(13, 18, 32, 0.98)',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: '0.6rem',
-              flexShrink: 0,
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)',
-            }}
-          >
-            {/* Left: Back to Workspace Button, Module Switcher & Book Selector */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
-              <button
-                id="dedicated-module-back-btn"
-                type="button"
-                onClick={handleExitDedicatedModulePage}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  padding: '0.35rem 0.8rem',
-                  borderRadius: '9999px',
-                  background: 'rgba(56, 189, 248, 0.18)',
-                  border: '1px solid rgba(56, 189, 248, 0.5)',
-                  color: '#38bdf8',
-                  fontSize: '0.74rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  boxShadow: '0 0 12px rgba(56, 189, 248, 0.3)',
-                  transition: 'all 0.15s ease',
-                }}
-                title="Return to Course Workspace (Auto-saves uncommitted edits to version history)"
-              >
-                <ChevronLeft size={14} />
-                <span>Back to Workspace</span>
-              </button>
-
-              {/* Module Switcher Tabs directly inside Full-Page Header */}
-              <div
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.2rem',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  padding: '0.15rem',
-                  borderRadius: '9999px',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                }}
-              >
-                {[
-                  { id: 'reading', label: '1. Reading', icon: BookOpen, color: '#38bdf8' },
-                  { id: 'explanations', label: '2. Tutor Bot', icon: GraduationCap, color: '#a855f7' },
-                  { id: 'slides', label: '3. Slide + AI', icon: Presentation, color: '#f472b6' },
-                  { id: 'video', label: '4. Video + AI', icon: Video, color: '#f43f5e' },
-                  { id: 'coach', label: '5. Intelli Coach', icon: Bot, color: '#10b981' },
-                  { id: 'exams', label: '6. Exam Board', icon: Award, color: '#fbbf24' },
-                  { id: 'dictionary', label: '7. Glossary', icon: HelpCircle, color: '#2dd4bf' },
-                ].map((mTab) => {
-                  const Icon = mTab.icon;
-                  const isActive =
-                    activeWorkspaceTab === mTab.id ||
-                    (mTab.id === 'reading' && activeWorkspaceTab === 'structure');
-                  return (
-                    <button
-                      key={mTab.id}
-                      type="button"
-                      onClick={() => setActiveWorkspaceTab(mTab.id as any)}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                        padding: '0.25rem 0.55rem',
-                        borderRadius: '9999px',
-                        background: isActive
-                          ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.3) 0%, rgba(168, 85, 247, 0.3) 100%)'
-                          : 'transparent',
-                        border: isActive ? `1px solid ${mTab.color}` : '1px solid transparent',
-                        color: isActive ? '#ffffff' : 'var(--text-muted)',
-                        fontSize: '0.7rem',
-                        fontWeight: isActive ? 800 : 500,
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                        boxShadow: isActive ? `0 0 8px ${mTab.color}40` : 'none',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      <Icon size={11} color={isActive ? mTab.color : 'var(--text-subtle)'} />
-                      <span>{mTab.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <select
-                value={activeChapterIndex}
-                onChange={(e) => {
-                  const idx = parseInt(e.target.value, 10);
-                  setActiveChapterIndex(idx);
-                  setExpandedChapterId(compiledCourse.chapters[idx]?.id || null);
-                }}
-                style={{
-                  height: '30px',
-                  padding: '0 0.65rem',
-                  borderRadius: '0.4rem',
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  color: '#ffffff',
-                  fontSize: '0.74rem',
-                  fontWeight: 700,
-                  outline: 'none',
-                  cursor: 'pointer',
-                }}
-              >
-                {compiledCourse.chapters.map((ch, cIdx) => (
-                  <option key={ch.id} value={cIdx} style={{ background: '#0d1220' }}>
-                    Book {ch.chapterNumber}: {ch.title}
-                  </option>
-                ))}
-              </select>
-
-                {/* Live Synchronization Status Badge */}
-                {hasUnsavedChanges ? (
-                  <span
-                    style={{
-                      fontSize: '0.68rem',
-                      fontWeight: 700,
-                      color: '#fbbf24',
-                      background: 'rgba(251, 191, 36, 0.15)',
-                      border: '1px solid rgba(251, 191, 36, 0.35)',
-                      padding: '0.15rem 0.5rem',
-                      borderRadius: '9999px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.25rem',
-                    }}
-                    title="Unsaved modifications will be automatically captured as a new version snapshot upon exit"
-                  >
-                    <AlertCircle size={11} />
-                    <span>Unsaved Edits (Auto-Snapshot on Exit)</span>
-                  </span>
-                ) : (
-                  <span
-                    style={{
-                      fontSize: '0.68rem',
-                      fontWeight: 700,
-                      color: '#34d399',
-                      background: 'rgba(52, 211, 153, 0.12)',
-                      border: '1px solid rgba(52, 211, 153, 0.3)',
-                      padding: '0.15rem 0.5rem',
-                      borderRadius: '9999px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.25rem',
-                    }}
-                  >
-                    <Check size={11} />
-                    <span>Synced with Library</span>
-                  </span>
-                )}
-              </div>
-
-            {/* Center: Universal Inline Editing Suite (Edit with AI, Edit Content, Delete, Add New) */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setRefiningChapterId(activeChapter.id);
-                  setTargetSectionTitle(null);
-                }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  padding: '0.35rem 0.7rem',
-                  borderRadius: '0.45rem',
-                  background: 'rgba(168, 85, 247, 0.18)',
-                  border: '1px solid rgba(168, 85, 247, 0.45)',
-                  color: '#c084fc',
-                  fontSize: '0.74rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-                title="Refine this module with AI"
-              >
-                <Wand2 size={13} />
-                <span>Edit with AI</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setDirectEditContent(activeChapter.content);
-                  setShowDirectEditorModal(true);
-                }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  padding: '0.35rem 0.7rem',
-                  borderRadius: '0.45rem',
-                  background: 'rgba(56, 189, 248, 0.15)',
-                  border: '1px solid rgba(56, 189, 248, 0.4)',
-                  color: '#7dd3fc',
-                  fontSize: '0.74rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-                title="Directly edit text and code"
-              >
-                <Edit3 size={13} />
-                <span>Edit Content</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowDeleteChapterModal(true)}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  padding: '0.35rem 0.65rem',
-                  borderRadius: '0.45rem',
-                  background: 'rgba(239, 68, 68, 0.15)',
-                  border: '1px solid rgba(239, 68, 68, 0.4)',
-                  color: '#f87171',
-                  fontSize: '0.74rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-                title="Delete this chapter or module"
-              >
-                <Trash2 size={13} />
-                <span>Delete</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setNewChapterTitle('');
-                  setNewChapterContent('');
-                  setShowAddNewChapterModal(true);
-                }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  padding: '0.35rem 0.75rem',
-                  borderRadius: '0.45rem',
-                  background: 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)',
-                  border: 'none',
-                  color: '#ffffff',
-                  fontSize: '0.74rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  boxShadow: '0 0 10px rgba(236, 72, 153, 0.4)',
-                }}
-                title="Add a new chapter or module"
-              >
-                <Plus size={13} />
-                <span>Add New</span>
-              </button>
-            </div>
-
-            {/* Right: Explicit Save, Versioning & History Controls */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-              {/* 1. Explicit Save Button */}
-              <button
-                id="dedicated-explicit-save-btn"
-                type="button"
-                onClick={handleExplicitSaveToLibrary}
-                disabled={isAutoSaving}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  height: '30px',
-                  padding: '0 0.85rem',
-                  borderRadius: '9999px',
-                  background: hasUnsavedChanges
-                    ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-                    : 'rgba(16, 185, 129, 0.2)',
-                  border: hasUnsavedChanges
-                    ? '1px solid #34d399'
-                    : '1px solid rgba(16, 185, 129, 0.4)',
-                  color: '#ffffff',
-                  fontSize: '0.76rem',
-                  fontWeight: 800,
-                  cursor: isAutoSaving ? 'not-allowed' : 'pointer',
-                  boxShadow: hasUnsavedChanges ? '0 0 12px rgba(16, 185, 129, 0.4)' : 'none',
-                  transition: 'all 0.15s ease',
-                }}
-                title="Explicitly save and overwrite course in SQLite library"
-              >
-                {isAutoSaving ? (
-                  <>
-                    <Loader2 size={12} className="animate-spin" />
-                    <span>Saving...</span>
-                  </>
-                ) : (
-                  <>
-                    <Save size={13} />
-                    <span>{explicitSaveStatus || (hasUnsavedChanges ? 'Save Changes' : 'Saved')}</span>
-                  </>
-                )}
-              </button>
-
-              {/* 2. Save New Version Snapshot */}
-              <button
-                id="dedicated-create-version-btn"
-                type="button"
-                onClick={() => handleUpdateSaveNewVersion(false, 'Manual Version Snapshot')}
-                disabled={isAutoSaving}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  height: '30px',
-                  padding: '0 0.75rem',
-                  borderRadius: '9999px',
-                  background: 'rgba(99, 102, 241, 0.2)',
-                  border: '1px solid rgba(99, 102, 241, 0.45)',
-                  color: '#a5b4fc',
-                  fontSize: '0.74rem',
-                  fontWeight: 700,
-                  cursor: isAutoSaving ? 'not-allowed' : 'pointer',
-                }}
-                title="Create a dedicated historical version snapshot"
-              >
-                <Plus size={12} />
-                <span>Save New Version</span>
-              </button>
-
-              {/* 3. Version History Management Button */}
-              <button
-                id="dedicated-version-history-btn"
-                type="button"
-                onClick={() => setShowVersionHistory(true)}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  height: '30px',
-                  padding: '0 0.75rem',
-                  borderRadius: '9999px',
-                  background: 'rgba(168, 85, 247, 0.18)',
-                  border: '1px solid rgba(168, 85, 247, 0.45)',
-                  color: '#c084fc',
-                  fontSize: '0.74rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-                title="Browse and restore saved historical versions"
-              >
-                <History size={12} />
-                <span>Versions ({(compiledCourse?.versions || []).length})</span>
-              </button>
-            </div>
-          </header>
-
-          {/* Full-Page Body Content */}
-          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: '1rem', height: 'calc(100% - 60px)' }}>
-            {(activeWorkspaceTab === 'reading' || activeWorkspaceTab === 'structure') && (
-              <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: '1rem', height: '100%', overflow: 'hidden' }}>
-                {/* Pinned Chapter & Subtopic Index Navigation Sidebar */}
-                <aside
-                  id="fullpage-reading-index-sidebar"
-                  style={{
-                    width: '300px',
-                    minWidth: '260px',
-                    maxWidth: '340px',
-                    flexShrink: 0,
-                    height: '100%',
-                    overflowY: 'auto',
-                    background: 'rgba(12, 18, 32, 0.95)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    borderRadius: '1rem',
-                    padding: '0.85rem',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.65rem',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <BookOpen size={15} color="#38bdf8" />
-                      <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.01em' }}>
-                        Course Index & Outline
-                      </span>
-                    </div>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#38bdf8', background: 'rgba(56, 189, 248, 0.15)', padding: '0.1rem 0.45rem', borderRadius: '9999px' }}>
-                      {compiledCourse.chapters.length} Books
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: 1, overflowY: 'auto' }}>
-                    {compiledCourse.chapters.map((chap, idx) => {
-                      const isCurrent = idx === activeChapterIndex;
-                      const isExpanded = expandedChapterId === chap.id || isCurrent;
-                      return (
-                        <div
-                          key={chap.id}
-                          style={{
-                            background: isCurrent
-                              ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(168, 85, 247, 0.15) 100%)'
-                              : 'rgba(255, 255, 255, 0.02)',
-                            border: isCurrent
-                              ? '1px solid rgba(99, 102, 241, 0.5)'
-                              : '1px solid rgba(255, 255, 255, 0.05)',
-                            borderRadius: '0.75rem',
-                            overflow: 'hidden',
-                            transition: 'all 0.15s ease',
-                          }}
-                        >
-                          <div
-                            onClick={() => {
-                              setActiveChapterIndex(idx);
-                              setExpandedChapterId((prev) => (prev === chap.id ? null : chap.id));
-                            }}
-                            style={{
-                              padding: '0.6rem 0.75rem',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '0.2rem',
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <span style={{ fontSize: '0.66rem', fontWeight: 700, color: isCurrent ? '#38bdf8' : 'var(--text-subtle)' }}>
-                                Book {chap.chapterNumber}
-                              </span>
-                              {isCurrent && (
-                                <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#34d399', background: 'rgba(52, 211, 153, 0.15)', padding: '0.05rem 0.35rem', borderRadius: '9999px' }}>
-                                  Active
-                                </span>
-                              )}
-                            </div>
-                            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: isCurrent ? '#ffffff' : 'var(--text-main)', lineHeight: '1.3' }}>
-                              {chap.title}
-                            </div>
-                          </div>
-
-                          {isExpanded && chap.subTopics && chap.subTopics.length > 0 && (
-                            <div style={{ padding: '0.35rem 0.65rem 0.55rem', background: 'rgba(0,0,0,0.25)', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                              {chap.subTopics.map((st) => (
-                                <div
-                                  key={st.id}
-                                  onClick={() => handleJumpToSubTopic(st.title, idx)}
-                                  style={{
-                                    fontSize: '0.7rem',
-                                    color: isCurrent ? '#c7d2fe' : 'var(--text-muted)',
-                                    padding: '0.2rem 0.4rem',
-                                    borderRadius: '0.35rem',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.35rem',
-                                  }}
-                                >
-                                  <span style={{ color: '#818cf8', fontWeight: 700, fontSize: '0.65rem' }}>{st.topicNumber}</span>
-                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{st.title}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </aside>
-
-                {/* Main Reading Content Area */}
-                <div id="fullpage-reading-content-scroll" style={{ flex: 1, minWidth: 0, height: '100%', overflowY: 'auto', background: 'rgba(12, 18, 32, 0.95)', borderRadius: '1rem', border: '1px solid rgba(255, 255, 255, 0.08)', padding: '2rem' }}>
-                  {/* In-Place AI Refinement Card if active */}
-                  {refiningChapterId === activeChapter.id && (
-                    <div
-                      style={{
-                        marginBottom: '1.5rem',
-                        padding: '1.25rem',
-                        background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%)',
-                        border: '1.5px solid rgba(168, 85, 247, 0.45)',
-                        borderRadius: '0.85rem',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <Wand2 size={16} color="#c084fc" />
-                          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ffffff' }}>
-                            {targetSectionTitle ? `Refine Section: "${targetSectionTitle}" with AI` : 'Refine Full Chapter with AI'}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setRefiningChapterId(null)}
-                          style={{ background: 'transparent', border: 'none', color: 'var(--text-subtle)', cursor: 'pointer' }}
-                        >
-                          <X size={15} />
-                        </button>
-                      </div>
-                      <textarea
-                        value={refineInstruction}
-                        onChange={(e) => setRefineInstruction(e.target.value)}
-                        placeholder="Enter your custom instructions for AI refinement..."
-                        rows={3}
-                        style={{
-                          width: '100%',
-                          background: 'rgba(0, 0, 0, 0.4)',
-                          border: '1px solid rgba(168, 85, 247, 0.3)',
-                          borderRadius: '0.5rem',
-                          padding: '0.65rem 0.75rem',
-                          color: '#ffffff',
-                          fontSize: '0.82rem',
-                          outline: 'none',
-                          resize: 'vertical',
-                          marginBottom: '0.75rem',
-                        }}
-                      />
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                        <button
-                          type="button"
-                          onClick={() => setRefiningChapterId(null)}
-                          style={{ padding: '0.4rem 0.8rem', borderRadius: '0.5rem', background: 'transparent', border: '1px solid rgba(255, 255, 255, 0.15)', color: 'var(--text-muted)', fontSize: '0.76rem', cursor: 'pointer' }}
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleExecuteRefinement(activeChapter)}
-                          disabled={isRefining || !refineInstruction.trim()}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.35rem',
-                            padding: '0.4rem 0.95rem',
-                            borderRadius: '0.5rem',
-                            background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)',
-                            border: 'none',
-                            color: '#ffffff',
-                            fontSize: '0.76rem',
-                            fontWeight: 700,
-                            cursor: isRefining || !refineInstruction.trim() ? 'not-allowed' : 'pointer',
-                          }}
-                        >
-                          {isRefining ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                          <span>{isRefining ? 'Refining...' : 'Execute AI Refinement'}</span>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  <MarkdownRenderer
-                    content={activeChapter.content}
-                    onEditSection={handleEditSection}
-                    onPlayClassVideo={() => setActiveWorkspaceTab('video')}
-                  />
-                </div>
-              </div>
-            )}
-            {activeWorkspaceTab === 'explanations' && (
-              <ExplanationsBoard
-                courseTitle={compiledCourse.title}
-                chapter={activeChapter}
-                chapterNumber={activeChapter.chapterNumber}
-                activeLanguage={workspaceLanguage}
-                targetAudience={selectedAudience}
-                onOpenSlides={() => setActiveWorkspaceTab('slides')}
-                onOpenVideo={(topicNumber) => {
-                  setActiveWorkspaceTab('video');
-                  if (topicNumber) setActiveVideoTopicNumber(topicNumber);
-                }}
-                onSpeak={onSpeak}
-                isSpeaking={isSpeaking}
-                activeSpeakingId={activeSpeakingId}
-                onScriptUpdate={handleModuleScriptUpdate}
-              />
-            )}
-            {activeWorkspaceTab === 'slides' && (
-              <SlideDecksViewer
-                courseTitle={compiledCourse.title}
-                chapterTitle={activeChapter.title}
-                chapterNumber={activeChapter.chapterNumber}
-                chapterContent={activeChapter.content}
-                activeLanguage={workspaceLanguage}
-                activeVoiceProfile={workspaceVoiceProfile}
-                targetAudience={selectedAudience}
-                isAdminMode={true}
-                isStudentMode={false}
-                onScriptUpdate={handleModuleScriptUpdate}
-                onJumpToReadingTab={() => {
-                  setActiveWorkspaceTab('reading');
-                }}
-              />
-            )}
-            {activeWorkspaceTab === 'video' && (
-              <MasterclassVideoPlayer
-                courseTitle={compiledCourse.title}
-                chapterTitle={activeChapter.title}
-                chapterNumber={activeChapter.chapterNumber}
-                chapterContent={activeChapter.content}
-                initialTopicNumber={activeVideoTopicNumber}
-                activeLanguage={workspaceLanguage}
-                activeVoiceProfile={workspaceVoiceProfile}
-                isCompact={false}
-                isStudentMode={false}
-                enableCheckpointExam={true}
-                hasNextChapter={activeChapterIndex < compiledCourse.chapters.length - 1}
-                onNextChapter={() =>
-                  setActiveChapterIndex((prev) =>
-                    Math.min(compiledCourse.chapters.length - 1, prev + 1)
-                  )
-                }
-                hasPreviousChapter={activeChapterIndex > 0}
-                onPreviousChapter={() =>
-                  setActiveChapterIndex((prev) => Math.max(0, prev - 1))
-                }
-                onScriptUpdate={handleModuleScriptUpdate}
-              />
-            )}
-            {activeWorkspaceTab === 'exams' && (
-              <ExamsBoard
-                courseTitle={compiledCourse.title}
-                chapter={activeChapter}
-                chapterNumber={activeChapter.chapterNumber}
-                allChapters={compiledCourse.chapters}
-                onScriptUpdate={handleModuleScriptUpdate}
-              />
-            )}
-            {activeWorkspaceTab === 'dictionary' && (
-              <CourseDictionary
-                courseTitle={compiledCourse.title}
-                chapter={activeChapter}
-                chapterNumber={activeChapter.chapterNumber}
-                allChapters={compiledCourse.chapters}
-                activeLanguage={workspaceLanguage}
-                onSpeak={onSpeak}
-                isSpeaking={isSpeaking}
-                activeSpeakingId={activeSpeakingId}
-                onScriptUpdate={handleModuleScriptUpdate}
-              />
-            )}
           </div>
         </div>
       )}

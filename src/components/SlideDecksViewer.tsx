@@ -977,9 +977,9 @@ export default function SlideDecksViewer({
                 textOverflow: 'ellipsis',
                 maxWidth: '280px',
               }}
-              title={`${courseTitle} • Book ${chapterNumber}: ${chapterTitle}`}
+              title={`${courseTitle} • ${chapterTitle.toLowerCase().startsWith('book') ? chapterTitle : `Book ${chapterNumber}: ${chapterTitle}`}`}
             >
-              Book {chapterNumber}: {chapterTitle}
+              {chapterTitle.toLowerCase().startsWith('book') ? chapterTitle : `Book ${chapterNumber}: ${chapterTitle}`}
             </span>
           </div>
 
@@ -1507,7 +1507,7 @@ export default function SlideDecksViewer({
             >
               <div style={{ marginBottom: '1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#ffffff', margin: '0 0 0.25rem 0' }}>
-                  Book {chapterNumber}: {chapterTitle}
+                  {chapterTitle.toLowerCase().startsWith('book') ? chapterTitle : `Book ${chapterNumber}: ${chapterTitle}`}
                 </h3>
                 <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0 }}>
                   Active Module {currentSlideIndex + 1} of {slides.length} • {activeSlide?.title}
