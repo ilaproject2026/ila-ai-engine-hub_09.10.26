@@ -54,6 +54,7 @@ import {
   SUPPORTED_LANGUAGES,
 } from '../services/speechService';
 import { askIntelliCoach, translateCourseContent } from '../services/geminiService';
+import { recordCourseDownload } from '../services/dbService';
 import MarkdownRenderer from './MarkdownRenderer';
 import LanguageVoiceSelector from './LanguageVoiceSelector';
 
@@ -629,6 +630,7 @@ export default function MasterclassVideoPlayer({
     a.download = `${(chapterTitle || 'Masterclass').replace(/[^a-zA-Z0-9_-]/g, '_')}_${currentLanguage}.srt`;
     a.click();
     URL.revokeObjectURL(url);
+    recordCourseDownload(chapterTitle || 'Masterclass', 'srt');
     setExportNotice(`Downloaded SRT Subtitles file for ${currentLanguage}`);
     setTimeout(() => setExportNotice(null), 3500);
   };
@@ -648,6 +650,7 @@ export default function MasterclassVideoPlayer({
     a.download = `${(chapterTitle || 'Masterclass').replace(/[^a-zA-Z0-9_-]/g, '_')}_studio_manifest.json`;
     a.click();
     URL.revokeObjectURL(url);
+    recordCourseDownload(chapterTitle || 'Masterclass', 'manifest_json');
     setExportNotice('Exported Full Studio Production Manifest (.json)');
     setTimeout(() => setExportNotice(null), 3500);
   };

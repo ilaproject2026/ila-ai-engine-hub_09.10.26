@@ -17,7 +17,6 @@ import {
   MessageSquare,
   Search,
   PanelLeft,
-  Grid,
 } from 'lucide-react';
 import { renderAIProductIcon } from './AIHubDropdown';
 import DocumentUploadZone from './DocumentUploadZone';
@@ -27,6 +26,7 @@ import {
   type AIProductType,
   getAIProductConfig,
 } from '../services/aiHubConfig';
+import TieupResearchEngineView from './TieupResearchEngineView';
 import type { ChatSession, AttachedDocument } from '../services/dbService';
 import { getIlaModelDisplayName } from '../services/geminiService';
 import type { AppTheme } from '../App';
@@ -52,7 +52,6 @@ interface AIHubWorkspaceViewProps {
   onSelectTheme?: (t: AppTheme) => void;
   isSidebarOpen: boolean;
   onToggleSidebar: () => void;
-  onOpenFunctionList?: () => void;
   onOpenActivityTracker?: () => void;
   onOpenCentralDashboard?: () => void;
   onOpenParameterInput?: () => void;
@@ -70,7 +69,6 @@ export default function AIHubWorkspaceView({
   loading,
   isSidebarOpen,
   onToggleSidebar,
-  onOpenFunctionList,
 }: AIHubWorkspaceViewProps) {
   const productConfig = getAIProductConfig(productType);
 
@@ -173,6 +171,20 @@ export default function AIHubWorkspaceView({
       : null;
 
   const messages = currentProductSession?.messages || [];
+
+  if (productType === 'ai_tieup_creator') {
+    return (
+      <TieupResearchEngineView
+        activeSession={currentProductSession || activeSession}
+        sessions={sessions}
+        onSelectSession={onSelectSession}
+        onNewSession={onNewSession}
+        onDeleteSession={onDeleteSession}
+        onSendMessage={onSendMessage}
+        loading={loading}
+      />
+    );
+  }
 
   return (
     <div
@@ -347,22 +359,36 @@ export default function AIHubWorkspaceView({
 
       {/* 2. MAIN WORKSPACE CONTAINER (SIDEBAR HISTORY + CONTENT AREA) */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
-        {/* LEFT QUERY HISTORY DRAWER (Filtered for this product) */}
+        {/* QUERY HISTORY DRAWER (Non-intrusive slide-over overlay so main workspace is 100% full-width) */}
         {isSidebarOpen && (
-          <aside
-            id="hub-product-history-sidebar"
-            style={{
-              width: '280px',
-              minWidth: '280px',
-              maxWidth: '280px',
-              height: '100%',
-              background: 'rgba(10, 15, 26, 0.95)',
-              borderRight: '1px solid var(--border-subtle)',
-              display: 'flex',
-              flexDirection: 'column',
-              zIndex: 20,
-            }}
-          >
+          <>
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                zIndex: 45,
+                background: 'rgba(0, 0, 0, 0.5)',
+                backdropFilter: 'blur(4px)',
+              }}
+              onClick={onToggleSidebar}
+            />
+            <aside
+              id="hub-product-history-sidebar"
+              style={{
+                position: 'absolute',
+                top: 0,
+                bottom: 0,
+                left: 0,
+                width: '300px',
+                height: '100%',
+                background: 'rgba(10, 15, 26, 0.98)',
+                borderRight: '1px solid var(--border-subtle)',
+                boxShadow: '10px 0 30px rgba(0, 0, 0, 0.6)',
+                display: 'flex',
+                flexDirection: 'column',
+                zIndex: 50,
+              }}
+            >
             {/* Header & New Session Button */}
             <div
               style={{
@@ -377,27 +403,6 @@ export default function AIHubWorkspaceView({
                 <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-subtle)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   {productConfig.shortName} History
                 </span>
-                {onOpenFunctionList && (
-                  <button
-                    type="button"
-                    onClick={onOpenFunctionList}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: productConfig.accentColor,
-                      fontSize: '0.68rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.25rem',
-                      padding: 0,
-                    }}
-                  >
-                    <Grid size={11} />
-                    <span>All Functions</span>
-                  </button>
-                )}
               </div>
 
               <button
@@ -551,6 +556,7 @@ export default function AIHubWorkspaceView({
               )}
             </div>
           </aside>
+          </>
         )}
 
         {/* RIGHT DYNAMIC PRODUCT WORKSPACE AREA */}

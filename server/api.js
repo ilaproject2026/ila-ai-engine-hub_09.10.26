@@ -23,7 +23,28 @@ import {
   deleteCategory,
   clearAllCategories,
   getDbStats,
+  getAllPermanentCourses,
+  getPermanentCourseById,
+  savePermanentCourse,
+  deletePermanentCourse,
+  recordCourseDownload,
+  getAllTieupLeads,
+  saveTieupLead,
+  saveTieupLeadsBatch,
+  deleteTieupLead,
+  clearTieupLeads,
+  togglePartnerStatus,
+  getAllPartners,
+  getTieupPolicies,
+  saveTieupPolicies,
+  getAllOutreachLogs,
+  saveOutreachLog,
 } from './db.js';
+import {
+  verifySmtpConnection,
+  sendBatchOutreach,
+  sendOutreachEmail,
+} from './smtpService.js';
 
 /**
  * Helper to read request JSON body
@@ -223,6 +244,53 @@ export async function handleApiRequest(req, res) {
     }
 
     // -------------------------------------------------------------
+    // PERMANENT COURSES ROUTES (LOCKED / MANUAL DELETION ONLY)
+    // -------------------------------------------------------------
+    if (endpoint === '/permanent-courses' && method === 'GET') {
+      const courses = getAllPermanentCourses();
+      sendJson(res, 200, { courses });
+      return true;
+    }
+
+    if (endpoint === '/permanent-courses' && method === 'POST') {
+      const body = await readJsonBody(req);
+      const saved = savePermanentCourse(body);
+      sendJson(res, 200, { success: true, course: saved });
+      return true;
+    }
+
+    const permDownloadMatch = endpoint.match(/^\/permanent-courses\/([^/]+)\/download$/);
+    if (permDownloadMatch && method === 'POST') {
+      const courseId = decodeURIComponent(permDownloadMatch[1]);
+      const body = await readJsonBody(req);
+      recordCourseDownload(courseId, body.format || 'docx');
+      sendJson(res, 200, { success: true });
+      return true;
+    }
+
+    const permCourseMatch = endpoint.match(/^\/permanent-courses\/([^/]+)$/);
+    if (permCourseMatch) {
+      const courseId = decodeURIComponent(permCourseMatch[1]);
+      if (method === 'GET') {
+        const course = getPermanentCourseById(courseId);
+        if (!course) return sendJson(res, 404, { error: 'Permanent course not found' });
+        sendJson(res, 200, { course });
+        return true;
+      }
+      if (method === 'DELETE') {
+        const body = await readJsonBody(req);
+        const success = deletePermanentCourse(courseId, body.manualConfirm === true);
+        if (!success) {
+          return sendJson(res, 403, {
+            error: 'Cannot delete locked permanent course without manual confirmation',
+          });
+        }
+        sendJson(res, 200, { success: true });
+        return true;
+      }
+    }
+
+    // -------------------------------------------------------------
     // CHAT HISTORY ROUTES (LEGACY COMPATIBILITY)
     // -------------------------------------------------------------
     if (endpoint === '/history' && method === 'GET') {
@@ -279,6 +347,131 @@ export async function handleApiRequest(req, res) {
       const id = decodeURIComponent(categoryItemMatch[1]);
       deleteCategory(id);
       sendJson(res, 200, { success: true });
+      return true;
+    }
+
+    // -------------------------------------------------------------
+    // TIE-UP LEADS & RESEARCH REPOSITORY ROUTES
+    // -------------------------------------------------------------
+    if (endpoint === '/tieup-leads' && method === 'GET') {
+      const sessionId = parsedUrl.searchParams.get('sessionId') || null;
+      const leads = getAllTieupLeads(sessionId);
+      sendJson(res, 200, { leads });
+      return true;
+    }
+
+    if (endpoint === '/tieup-leads' && method === 'POST') {
+      const body = await readJsonBody(req);
+      const saved = saveTieupLead(body);
+      sendJson(res, 200, { success: true, lead: saved });
+      return true;
+    }
+
+    if (endpoint === '/tieup-leads/batch' && method === 'POST') {
+      const body = await readJsonBody(req);
+      const leadsList = Array.isArray(body) ? body : body.leads || [];
+      const sessionId = body.sessionId || null;
+      const saved = saveTieupLeadsBatch(leadsList, sessionId);
+      sendJson(res, 200, { success: true, count: saved.length, leads: saved });
+      return true;
+    }
+
+    if (endpoint === '/tieup-leads' && method === 'DELETE') {
+      const sessionId = parsedUrl.searchParams.get('sessionId') || null;
+      clearTieupLeads(sessionId);
+      sendJson(res, 200, { success: true });
+      return true;
+    }
+
+    const tieupLeadPartnerMatch = endpoint.match(/^\/tieup-leads\/([^/]+)\/partner$/);
+    if (tieupLeadPartnerMatch && (method === 'PUT' || method === 'POST')) {
+      const id = decodeURIComponent(tieupLeadPartnerMatch[1]);
+      const body = await readJsonBody(req);
+      const isPartner = body.isPartner !== undefined ? Boolean(body.isPartner) : true;
+      const updated = togglePartnerStatus(id, isPartner);
+      sendJson(res, 200, { success: true, lead: updated });
+      return true;
+    }
+
+    if (endpoint === '/tieup-partners' && method === 'GET') {
+      const partners = getAllPartners();
+      sendJson(res, 200, { partners });
+      return true;
+    }
+
+    if (endpoint === '/tieup-policies' && method === 'GET') {
+      const policies = getTieupPolicies();
+      sendJson(res, 200, { policies });
+      return true;
+    }
+
+    if (endpoint === '/tieup-policies' && method === 'POST') {
+      const body = await readJsonBody(req);
+      const saved = saveTieupPolicies(body);
+      sendJson(res, 200, { success: true, policies: saved });
+      return true;
+    }
+
+    const tieupLeadMatch = endpoint.match(/^\/tieup-leads\/([^/]+)$/);
+    if (tieupLeadMatch && method === 'DELETE') {
+      const id = decodeURIComponent(tieupLeadMatch[1]);
+      deleteTieupLead(id);
+      sendJson(res, 200, { success: true });
+      return true;
+    }
+
+    // -------------------------------------------------------------
+    // OUTREACH TRACKER & ANTI-SPAM STATUS LOGS
+    // -------------------------------------------------------------
+    if (endpoint === '/tieup-outreach-logs' && method === 'GET') {
+      const logs = getAllOutreachLogs();
+      sendJson(res, 200, { logs });
+      return true;
+    }
+
+    if (endpoint === '/tieup-outreach-logs' && method === 'POST') {
+      const body = await readJsonBody(req);
+      const saved = saveOutreachLog(body);
+      sendJson(res, 200, { success: true, log: saved });
+      return true;
+    }
+
+    // -------------------------------------------------------------
+    // GMAIL SMTP TRANSPORTER & BULK OUTREACH DISPATCH
+    // -------------------------------------------------------------
+    if (endpoint === '/outreach/verify-smtp' && method === 'POST') {
+      const body = await readJsonBody(req);
+      const result = await verifySmtpConnection({
+        user: body.senderEmail || body.user,
+        pass: body.appPassword || body.pass,
+      });
+      sendJson(res, 200, result);
+      return true;
+    }
+
+    if (endpoint === '/outreach/dispatch-smtp' && method === 'POST') {
+      const body = await readJsonBody(req);
+      const result = await sendBatchOutreach({
+        senderEmail: body.senderEmail,
+        appPassword: body.appPassword,
+        subjectTemplate: body.subject,
+        bodyTemplate: body.bodyTemplate,
+        leads: body.leads || [],
+      });
+      sendJson(res, 200, result);
+      return true;
+    }
+
+    if (endpoint === '/outreach/send-single-smtp' && method === 'POST') {
+      const body = await readJsonBody(req);
+      const result = await sendOutreachEmail({
+        from: body.senderEmail,
+        to: body.recipientEmail,
+        subject: body.subject,
+        text: body.body,
+        appPassword: body.appPassword,
+      });
+      sendJson(res, 200, result);
       return true;
     }
 

@@ -1,4 +1,15 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import {
+  getPermanentCourses,
+  saveToPermanentStore,
+  convertPermanentCourseToSession,
+  convertPermanentToLibraryCourse,
+  deletePermanentCourse,
+  recordCourseDownload,
+  type PermanentCourseItem,
+} from './permanentCourseStore';
+
+export * from './permanentCourseStore';
 
 export interface AttachedDocument {
   id: string;
@@ -137,6 +148,110 @@ export const LEARNER_CATEGORIES: LearnerCategoryOption[] = [
 
 import type { AIProductType } from './aiHubConfig';
 
+export interface PartnershipTermsDetails {
+  commissionStructure?: string;
+  revenueSharePercent?: number;
+  perStudentIncentiveEuro?: number;
+  intakeCycles?: string[];
+  admissionPrerequisites?: string[];
+  languageRequirements?: string[];
+  creditRecognition?: string;
+  validityYears?: number;
+  terminationNoticeDays?: number;
+  bilateralMOUPreview?: string;
+  accreditationStatus?: string;
+}
+
+export interface OurPartnershipPolicies {
+  id?: string;
+  minCommissionPercent: number;
+  targetCommissionPercent: number;
+  partnershipCriteria: string;
+  studentRequirementsGuidelines: string;
+  termsExpectations: string;
+  preferredPaymentTerms?: string;
+  updatedAt?: number;
+}
+
+export interface TieupLeadItem {
+  id: string;
+  sessionId?: string;
+  name: string;
+  category: string;
+  subCategory: string;
+  country: string;
+  region?: string;
+  locationMain: string;
+  locationSub?: string;
+  contactPerson: string;
+  contactTitle: string;
+  contactEmail: string;
+  contactPhone?: string;
+  antiSpamStatus: 'verified' | 'flagged_generic' | 'bounced' | 'blocked';
+  antiSpamNotes?: string;
+  termsSummary: string;
+  partnershipTerms?: PartnershipTermsDetails | string;
+  websiteUrl: string;
+  isPartner?: boolean;
+  compatibilityScore?: number;
+  matchingCriteria?: string[] | string;
+  commissionPercent?: number;
+  directSourcePageUrl?: string;
+  studentRequirements?: string;
+  institutionCriteria?: string;
+  termsOfPartnership?: string;
+  minIeltsScore?: number;
+  germanLevelRequired?: string;
+  tuitionFeeYearly?: string;
+  tuitionAmountEur?: number;
+  scholarshipAvailable?: boolean;
+  scholarshipDetails?: string;
+  courseList?: string[];
+  mouDocumentUrl?: string;
+  selected?: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface TieupSavedList {
+  id: string;
+  name: string;
+  description?: string;
+  sourceTab?: string;
+  leadIds: string[];
+  leadsSnapshot: TieupLeadItem[];
+  createdAt: number;
+}
+
+export interface OutreachStatusLogItem {
+  id: string;
+  leadId?: string;
+  institutionName: string;
+  recipientEmail: string;
+  recipientName?: string;
+  senderEmail?: string;
+  subject: string;
+  status: 'delivered' | 'opened' | 'replied' | 'flagged_generic' | 'bounced' | 'blocked';
+  flagReason?: string;
+  spamScore: number;
+  phase?: 'outreach' | 'followup' | 'meeting' | 'pushed_partner';
+  sentAt?: number;
+  lastFollowupAt?: number | null;
+  followupCount?: number;
+  meetingScheduledAt?: string;
+  meetingLink?: string;
+  meetingAgenda?: string;
+  meetingNotes?: string;
+  responseExcerpt?: string;
+  responseSentiment?: 'interested' | 'negotiation' | 'declined' | 'meeting_requested' | string;
+  responseReceivedAt?: number | null;
+  aiSuggestedReply?: string;
+  aiSuggestedSubject?: string;
+  retryCount?: number;
+  leadDataSnapshot?: TieupLeadItem | null;
+  lastChecked: number;
+}
+
 export interface ChatSession {
   id: string;
   title: string;
@@ -152,6 +267,9 @@ export interface ChatSession {
   studiedBy?: string; // e.g. "Doctor", "Engineer", "IT Professional", etc.
   targetAudience?: string;
   authorizedStructure?: any;
+  isPermanent?: boolean;
+  locked?: boolean;
+  tieupLeads?: TieupLeadItem[];
 }
 
 // Sub-topic within a chapter in the Library (e.g. 1.1, 1.2)
@@ -239,9 +357,17 @@ export interface AdminLibraryCourseData {
 // Course stored in the dedicated Library
 export interface LibraryCourse {
   id: string;
+  courseId?: string;
+  courseName?: string;
   title: string;
   subtitle: string;
   category?: string;
+  subCategory?: string;
+  deliveryPath?: string;
+  batch?: string;
+  slot?: string;
+  batchSlot?: string;
+  librarySyncPayload?: any;
   overview: string;
   totalChapters: number;
   chapters: CourseChapter[];
@@ -259,6 +385,11 @@ export interface LibraryCourse {
   adminCourseData?: AdminLibraryCourseData;
   slideAiCourseData?: SlideAiCourseData;
   intelliCoachCourseData?: IntelliCoachCourseData;
+  isPermanent?: boolean;
+  locked?: boolean;
+  lastDownloadedAt?: number;
+  downloadCount?: number;
+  metadata?: any;
 }
 
 // Backwards-compatible ChatHistoryItem for single interactions
@@ -692,6 +823,20 @@ export async function saveChatSession(session: ChatSession): Promise<ChatSession
     // Ignore backup failure
   }
 
+  // 3. Auto-sync to In-Code Permanent Store if session contains course content
+  if (
+    finalSaved.coursePlan ||
+    finalSaved.autonomousPlan ||
+    (finalSaved.messages && finalSaved.messages.some((m) => m.content && m.content.includes('### 1.')))
+  ) {
+    try {
+      const compiled = compileCourseFromChatSession(finalSaved);
+      await saveToPermanentStore(compiled, finalSaved, { reason: 'generation' });
+    } catch {
+      // ignore
+    }
+  }
+
   return finalSaved;
 }
 
@@ -705,6 +850,40 @@ export async function getAllChatSessions(): Promise<ChatSession[]> {
     if (!res && sessions.length === 0) {
       const idb = await getLocalIDB();
       sessions = await idb.getAllFromIndex(SESSIONS_STORE, 'by-updated');
+    }
+
+    // 3. Merge In-Code Permanent Courses (ensures courses are NEVER wiped on refresh)
+    try {
+      const permCourses = await getPermanentCourses();
+      for (const pCourse of permCourses) {
+        const synthSession = convertPermanentCourseToSession(pCourse);
+        const matchIndex = sessions.findIndex(
+          (s) => s.id === pCourse.sourceSessionId || s.id === pCourse.id || s.id === `session_perm_${pCourse.id}`
+        );
+        if (matchIndex === -1) {
+          sessions.push(synthSession);
+        } else {
+          // Guarantee locked, permanent flags, and full course curriculum content are preserved
+          const existing = sessions[matchIndex];
+          sessions[matchIndex] = {
+            ...synthSession,
+            ...existing,
+            isPermanent: true,
+            locked: true,
+            messages:
+              existing.messages && existing.messages.length >= synthSession.messages.length
+                ? existing.messages
+                : synthSession.messages,
+            coursePlan:
+              existing.coursePlan && existing.coursePlan.modules?.length
+                ? existing.coursePlan
+                : synthSession.coursePlan,
+            autonomousPlan: existing.autonomousPlan || synthSession.autonomousPlan,
+          };
+        }
+      }
+    } catch (pErr) {
+      console.warn('[dbService] Permanent courses session merge notice:', pErr);
     }
 
     // Sanitize any legacy session titles that might contain long raw prompt text
@@ -742,7 +921,21 @@ export async function getChatSessionById(id: string): Promise<ChatSession | unde
   }
 }
 
-export async function deleteChatSession(id: string): Promise<void> {
+export async function deleteChatSession(id: string, options?: { confirmManualDelete?: boolean }): Promise<void> {
+  const session = await getChatSessionById(id);
+  if (session?.locked && !options?.confirmManualDelete) {
+    console.warn(`[dbService] Refusing to delete locked permanent session '${id}' without confirmManualDelete: true.`);
+    return;
+  }
+
+  if (options?.confirmManualDelete) {
+    try {
+      await deletePermanentCourse(id, { confirmManualDelete: true });
+    } catch {
+      // ignore
+    }
+  }
+
   // 1. SQLite file DB
   await fetchApi<{ success: boolean }>(`/sessions/${encodeURIComponent(id)}`, {
     method: 'DELETE',
@@ -900,6 +1093,14 @@ export function compileCourseFromChatSession(
 
   // Gather all assistant messages (modules)
   const assistantMessages = session.messages.filter((m) => m.role === 'assistant');
+
+  // If session has no assistant messages, check if it matches a permanent course in permanent store
+  if (assistantMessages.length === 0) {
+    const permCourses = PRESEEDED_ENTERPRISE_AI_COURSE;
+    if (session.id.includes('perm_') || session.title.includes('Enterprise AI')) {
+      return convertPermanentToLibraryCourse(permCourses);
+    }
+  }
 
   // 1. Derive smartest authoritative title
   let derivedTitle = '';
@@ -1132,6 +1333,13 @@ export async function saveLibraryCourse(course: LibraryCourse): Promise<LibraryC
     await idb.put(LIBRARY_STORE, finalSaved);
   } catch {
     // ignore
+  }
+
+  // 3. Save to In-Code Permanent Store immediately to survive any refresh
+  try {
+    await saveToPermanentStore(finalSaved, undefined, { reason: 'generation' });
+  } catch (pErr) {
+    console.warn('[dbService] saveToPermanentStore notice:', pErr);
   }
 
   // Real-time Master-Slave Synchronization notification
@@ -1416,6 +1624,37 @@ export async function getAllLibraryCourses(): Promise<LibraryCourse[]> {
       courses = await idb.getAllFromIndex(LIBRARY_STORE, 'by-updated');
     }
 
+    // 3. Merge In-Code Permanent Courses into Library (ensures courses are NEVER wiped on refresh)
+    try {
+      const permCourses = await getPermanentCourses();
+      for (const pCourse of permCourses) {
+        const synthLib = convertPermanentToLibraryCourse(pCourse);
+        const matchIndex = courses.findIndex((c) => c.id === pCourse.id || c.id === pCourse.courseId);
+        if (matchIndex === -1) {
+          courses.push(synthLib);
+        } else {
+          const existing = courses[matchIndex];
+          courses[matchIndex] = {
+            ...synthLib,
+            ...existing,
+            isPermanent: true,
+            locked: true,
+            chapters:
+              existing.chapters && existing.chapters.length >= synthLib.chapters.length
+                ? existing.chapters
+                : synthLib.chapters,
+            slideDecks:
+              existing.slideDecks && Object.keys(existing.slideDecks).length > 0
+                ? existing.slideDecks
+                : synthLib.slideDecks,
+            slideAiCourseData: existing.slideAiCourseData || synthLib.slideAiCourseData,
+          };
+        }
+      }
+    } catch (pErr) {
+      console.warn('[dbService] Permanent courses library merge notice:', pErr);
+    }
+
     // Sanitize any legacy course titles that might contain long raw prompt text
     courses = courses.map((course) => {
       if (course.title && (course.title.startsWith('Please ') || course.title.startsWith('Can you ') || course.title.length > 60)) {
@@ -1453,7 +1692,21 @@ export async function getLibraryCourseById(id: string): Promise<LibraryCourse | 
 /**
  * Deletes a course from the Library.
  */
-export async function deleteLibraryCourse(id: string): Promise<void> {
+export async function deleteLibraryCourse(id: string, options?: { confirmManualDelete?: boolean }): Promise<void> {
+  const course = await getLibraryCourseById(id);
+  if (course?.locked && !options?.confirmManualDelete) {
+    console.warn(`[dbService] Refusing to delete locked permanent course '${id}' without confirmManualDelete: true.`);
+    return;
+  }
+
+  if (options?.confirmManualDelete) {
+    try {
+      await deletePermanentCourse(id, { confirmManualDelete: true });
+    } catch {
+      // ignore
+    }
+  }
+
   // 1. SQLite file DB
   await fetchApi<{ success: boolean }>(`/courses/${encodeURIComponent(id)}`, {
     method: 'DELETE',
@@ -1795,3 +2048,280 @@ export async function clearAllCategories(): Promise<void> {
     window.dispatchEvent(new CustomEvent('ila_categories_updated', { detail: { cleared: true } }));
   }
 }
+
+/* =========================================================================
+   TIE-UP CREATOR & RESEARCH REPOSITORY CLIENT OPERATIONS
+   ========================================================================= */
+
+export async function fetchTieupLeads(sessionId?: string): Promise<TieupLeadItem[]> {
+  const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : '';
+  const res = await fetchApi<{ leads: TieupLeadItem[] }>(`/tieup-leads${query}`);
+  if (res?.leads && res.leads.length > 0) {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(`ila_tieup_leads_${sessionId || 'all'}`, JSON.stringify(res.leads));
+    }
+    return res.leads;
+  }
+
+  // Fallback from localStorage
+  if (typeof localStorage !== 'undefined') {
+    const cached = localStorage.getItem(`ila_tieup_leads_${sessionId || 'all'}`);
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch {
+        // ignore
+      }
+    }
+  }
+  return res?.leads || [];
+}
+
+export async function saveTieupLead(lead: Partial<TieupLeadItem>): Promise<TieupLeadItem> {
+  const res = await fetchApi<{ success: boolean; lead: TieupLeadItem }>('/tieup-leads', {
+    method: 'POST',
+    body: JSON.stringify(lead),
+  });
+  const saved = res?.lead || (lead as TieupLeadItem);
+  return saved;
+}
+
+export async function saveTieupLeadsBatch(leads: TieupLeadItem[], sessionId?: string): Promise<TieupLeadItem[]> {
+  const res = await fetchApi<{ success: boolean; leads: TieupLeadItem[] }>('/tieup-leads/batch', {
+    method: 'POST',
+    body: JSON.stringify({ leads, sessionId }),
+  });
+  const result = res?.leads || leads;
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(`ila_tieup_leads_${sessionId || 'all'}`, JSON.stringify(result));
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('ila_tieup_leads_updated', { detail: { count: result.length, sessionId } }));
+  }
+  return result;
+}
+
+export async function deleteTieupLead(id: string): Promise<boolean> {
+  const res = await fetchApi<{ success: boolean }>(`/tieup-leads/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  return res?.success ?? true;
+}
+
+export async function clearTieupLeads(sessionId?: string): Promise<boolean> {
+  const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : '';
+  const res = await fetchApi<{ success: boolean }>(`/tieup-leads${query}`, {
+    method: 'DELETE',
+  });
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem(`ila_tieup_leads_${sessionId || 'all'}`);
+  }
+  return res?.success ?? true;
+}
+
+export async function fetchTieupSavedLists(): Promise<TieupSavedList[]> {
+  try {
+    if (typeof localStorage === 'undefined') return [];
+    const raw = localStorage.getItem('ila_tieup_saved_lists');
+    return raw ? JSON.parse(raw) : [];
+  } catch (err) {
+    console.error('Failed to load tieup saved lists:', err);
+    return [];
+  }
+}
+
+export async function saveTieupSavedList(list: TieupSavedList): Promise<TieupSavedList[]> {
+  try {
+    const existing = await fetchTieupSavedLists();
+    const filtered = existing.filter((l) => l.id !== list.id);
+    const updated = [list, ...filtered];
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('ila_tieup_saved_lists', JSON.stringify(updated));
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ila_tieup_saved_lists_updated', { detail: updated }));
+    }
+    return updated;
+  } catch (err) {
+    console.error('Failed to save tieup saved list:', err);
+    return [];
+  }
+}
+
+export async function deleteTieupSavedList(listId: string): Promise<TieupSavedList[]> {
+  try {
+    const existing = await fetchTieupSavedLists();
+    const updated = existing.filter((l) => l.id !== listId);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('ila_tieup_saved_lists', JSON.stringify(updated));
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ila_tieup_saved_lists_updated', { detail: updated }));
+    }
+    return updated;
+  } catch (err) {
+    console.error('Failed to delete tieup saved list:', err);
+    return [];
+  }
+}
+
+export async function toggleLeadPartnerStatus(id: string, isPartner: boolean = true): Promise<TieupLeadItem | null> {
+  const res = await fetchApi<{ success: boolean; lead: TieupLeadItem }>(`/tieup-leads/${encodeURIComponent(id)}/partner`, {
+    method: 'POST',
+    body: JSON.stringify({ isPartner }),
+  });
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('ila_tieup_partners_updated', { detail: { id, isPartner } }));
+  }
+  return res?.lead || null;
+}
+
+export async function fetchTieupPartners(): Promise<TieupLeadItem[]> {
+  const res = await fetchApi<{ partners: TieupLeadItem[] }>('/tieup-partners');
+  return res?.partners || [];
+}
+
+export async function fetchTieupPolicies(): Promise<OurPartnershipPolicies> {
+  const defaultPolicies: OurPartnershipPolicies = {
+    id: 'default_policies',
+    minCommissionPercent: 15,
+    targetCommissionPercent: 20,
+    partnershipCriteria: 'State-accredited institution or licensed educational service provider; direct admissions/partnership liaison inbox; transparent student processing; non-exclusive mutual partnership.',
+    studentRequirementsGuidelines: 'Minimum IELTS 6.5 / TOEFL 85+ / Duolingo 115; B2 German for bilingual tracks; APS certificate for relevant jurisdictions; minimum German GPA equivalent 2.5.',
+    termsExpectations: 'Standard bilateral Memorandum of Understanding (MoU); quarterly commission payment cycles (50% on visa clearance, 50% on semester 1 enrollment); 3-year renewable validity with 90-day review period.',
+    preferredPaymentTerms: 'Net 30 days via direct SEPA/SWIFT wire transfer upon official student enrollment census date.',
+    updatedAt: Date.now(),
+  };
+
+  const res = await fetchApi<{ policies: OurPartnershipPolicies }>('/tieup-policies');
+  if (res?.policies) {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('ila_tieup_policies', JSON.stringify(res.policies));
+    }
+    return res.policies;
+  }
+
+  if (typeof localStorage !== 'undefined') {
+    const cached = localStorage.getItem('ila_tieup_policies');
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  return defaultPolicies;
+}
+
+export async function saveTieupPolicies(policies: OurPartnershipPolicies): Promise<OurPartnershipPolicies> {
+  const res = await fetchApi<{ success: boolean; policies: OurPartnershipPolicies }>('/tieup-policies', {
+    method: 'POST',
+    body: JSON.stringify(policies),
+  });
+  const saved = res?.policies || policies;
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('ila_tieup_policies', JSON.stringify(saved));
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('ila_tieup_policies_updated', { detail: saved }));
+  }
+  return saved;
+}
+
+/* =========================================================================
+   OUTREACH TRACKER & ANTI-SPAM STATUS LOG OPERATIONS
+   ========================================================================= */
+
+export async function fetchOutreachLogs(): Promise<OutreachStatusLogItem[]> {
+  const res = await fetchApi<{ logs: OutreachStatusLogItem[] }>('/tieup-outreach-logs');
+  return res?.logs || [];
+}
+
+export async function saveOutreachLog(log: Partial<OutreachStatusLogItem>): Promise<OutreachStatusLogItem> {
+  const res = await fetchApi<{ success: boolean; log: OutreachStatusLogItem }>('/tieup-outreach-logs', {
+    method: 'POST',
+    body: JSON.stringify(log),
+  });
+  return res?.log || (log as OutreachStatusLogItem);
+}
+
+/* =========================================================================
+   GMAIL SMTP TRANSPORTER & BULK OUTREACH DISPATCH
+   ========================================================================= */
+
+export interface SmtpVerifyResult {
+  success: boolean;
+  message?: string;
+  error?: string;
+  connected?: boolean;
+  simulated?: boolean;
+}
+
+export interface SmtpDispatchResult {
+  success: boolean;
+  total: number;
+  deliveredCount: number;
+  simulatedCount: number;
+  failedCount: number;
+  senderEmail: string;
+  results: Array<{
+    leadId: string;
+    recipientEmail: string;
+    institutionName: string;
+    success: boolean;
+    isSimulated?: boolean;
+    messageId?: string;
+    error?: string;
+    log?: OutreachStatusLogItem;
+  }>;
+  logs: OutreachStatusLogItem[];
+}
+
+export async function verifyGmailSmtp(senderEmail?: string, appPassword?: string): Promise<SmtpVerifyResult> {
+  const res = await fetchApi<SmtpVerifyResult>('/outreach/verify-smtp', {
+    method: 'POST',
+    body: JSON.stringify({ senderEmail, appPassword }),
+  });
+  return res || { success: false, error: 'Failed to contact backend SMTP verification service.' };
+}
+
+export async function dispatchSmtpBulkOutreach(params: {
+  senderEmail: string;
+  appPassword?: string;
+  subject: string;
+  bodyTemplate: string;
+  leads: TieupLeadItem[];
+}): Promise<SmtpDispatchResult> {
+  const res = await fetchApi<SmtpDispatchResult>('/outreach/dispatch-smtp', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+  return res || {
+    success: false,
+    total: params.leads.length,
+    deliveredCount: 0,
+    simulatedCount: 0,
+    failedCount: params.leads.length,
+    senderEmail: params.senderEmail,
+    results: [],
+    logs: [],
+  };
+}
+
+export async function dispatchSingleSmtpOutreach(params: {
+  senderEmail: string;
+  appPassword?: string;
+  recipientEmail: string;
+  subject: string;
+  body: string;
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const res = await fetchApi<{ success: boolean; messageId?: string; error?: string }>('/outreach/send-single-smtp', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+  return res || { success: false, error: 'Failed to dispatch email via SMTP service.' };
+}
+
+

@@ -164,7 +164,7 @@ export default function AIParameterListModal({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            background: 'rgba(15, 23, 42, 0.5)',
+            background: 'var(--modal-header-bg)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
@@ -189,7 +189,7 @@ export default function AIParameterListModal({
                     fontSize: '1.2rem',
                     fontWeight: 800,
                     letterSpacing: '-0.02em',
-                    color: '#ffffff',
+                    color: 'var(--text-main)',
                     margin: 0,
                   }}
                 >
