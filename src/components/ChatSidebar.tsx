@@ -38,7 +38,6 @@ interface ChatSidebarProps {
   dbHealth?: DbStatusInfo | null;
   activeProductType?: HubModuleType;
   onSelectProduct?: (productId: HubModuleType) => void;
-  onOpenFunctionList?: () => void;
 }
 
 export default function ChatSidebar({
@@ -57,7 +56,6 @@ export default function ChatSidebar({
   dbHealth,
   activeProductType = 'course_creator',
   onSelectProduct,
-  onOpenFunctionList,
 }: ChatSidebarProps) {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -156,14 +154,14 @@ export default function ChatSidebar({
         minWidth: '320px',
         maxWidth: '320px',
         height: '100vh',
-        background: 'rgba(12, 16, 26, 0.98)',
-        borderRight: '1px solid var(--border-subtle)',
+        background: 'var(--sidebar-bg, var(--bg-card))',
+        borderRight: '1px solid var(--sidebar-border, var(--border-subtle))',
         display: 'flex',
         flexDirection: 'column',
         position: 'sticky',
         top: 0,
         zIndex: 40,
-        boxShadow: '10px 0 30px rgba(0, 0, 0, 0.4)',
+        boxShadow: 'var(--shadow-md)',
         userSelect: 'none',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
@@ -187,7 +185,7 @@ export default function ChatSidebar({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          background: 'rgba(18, 24, 38, 0.6)',
+          background: 'var(--sidebar-header-bg, var(--bg-secondary))',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
@@ -207,7 +205,7 @@ export default function ChatSidebar({
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span style={{ fontSize: '0.94rem', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.02em' }}>
+              <span style={{ fontSize: '0.94rem', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
                 ILA AI Hub
               </span>
               <span
@@ -216,9 +214,9 @@ export default function ChatSidebar({
                   fontWeight: 700,
                   padding: '0.1rem 0.4rem',
                   borderRadius: '4px',
-                  background: 'rgba(99, 102, 241, 0.25)',
-                  border: '1px solid rgba(99, 102, 241, 0.45)',
-                  color: '#a5b4fc',
+                  background: 'var(--accent-gradient-subtle)',
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--accent-primary)',
                   lineHeight: '1.2',
                 }}
                 title="Version 6 Enterprise Hub"
@@ -237,10 +235,10 @@ export default function ChatSidebar({
           type="button"
           onClick={onToggleOpen}
           style={{
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid var(--border-subtle)',
+            background: 'var(--btn-default-bg)',
+            border: '1px solid var(--btn-default-border)',
             borderRadius: '0.4rem',
-            color: 'var(--text-subtle)',
+            color: 'var(--text-muted)',
             cursor: 'pointer',
             padding: '0.35rem',
             display: 'flex',
@@ -271,29 +269,6 @@ export default function ChatSidebar({
               <span style={{ fontSize: '0.66rem', fontWeight: 700, color: 'var(--text-subtle)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 AI Engine Hub
               </span>
-              {onOpenFunctionList && (
-                <button
-                  id="sidebar-function-list-btn"
-                  type="button"
-                  onClick={onOpenFunctionList}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--accent-primary)',
-                    fontSize: '0.68rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                    padding: 0,
-                  }}
-                  title="Open Complete 16 AI Function Directory"
-                >
-                  <Grid size={11} />
-                  <span>Function List</span>
-                </button>
-              )}
             </div>
             <AIHubDropdown
               activeProductId={activeProductType}
@@ -345,8 +320,8 @@ export default function ChatSidebar({
             position: 'relative',
             display: 'flex',
             alignItems: 'center',
-            background: 'rgba(10, 13, 20, 0.7)',
-            border: '1px solid var(--border-subtle)',
+            background: 'var(--sidebar-input-bg, var(--input-bg))',
+            border: '1px solid var(--border-medium)',
             borderRadius: '0.5rem',
             padding: '0.4rem 0.65rem',
           }}
@@ -461,10 +436,10 @@ export default function ChatSidebar({
                   padding: '0.65rem 0.75rem',
                   borderRadius: '0.625rem',
                   background: isActive
-                    ? 'rgba(99, 102, 241, 0.16)'
-                    : 'rgba(255, 255, 255, 0.02)',
+                    ? 'var(--sidebar-item-active-bg)'
+                    : 'transparent',
                   border: isActive
-                    ? '1px solid rgba(99, 102, 241, 0.4)'
+                    ? '1px solid var(--sidebar-item-active-border)'
                     : '1px solid transparent',
                   cursor: 'pointer',
                   display: 'flex',
@@ -475,13 +450,13 @@ export default function ChatSidebar({
                 }}
                 onMouseEnter={(e) => {
                   if (!isActive) {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.background = 'var(--sidebar-item-hover-bg)';
                     e.currentTarget.style.borderColor = 'var(--border-subtle)';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!isActive) {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+                    e.currentTarget.style.background = 'transparent';
                     e.currentTarget.style.borderColor = 'transparent';
                   }
                 }}
@@ -504,11 +479,11 @@ export default function ChatSidebar({
                         autoFocus
                         style={{
                           flex: 1,
-                          background: 'rgba(10, 13, 20, 0.8)',
+                          background: 'var(--input-bg)',
                           border: '1px solid var(--accent-primary)',
                           borderRadius: '0.35rem',
                           padding: '0.2rem 0.4rem',
-                          color: '#ffffff',
+                          color: 'var(--text-main)',
                           fontSize: '0.82rem',
                           outline: 'none',
                         }}
@@ -562,7 +537,7 @@ export default function ChatSidebar({
                           style={{
                             fontSize: '0.84rem',
                             fontWeight: isActive ? 600 : 500,
-                            color: isActive ? '#ffffff' : 'var(--text-main)',
+                            color: isActive ? 'var(--sidebar-item-active-color)' : 'var(--text-main)',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
@@ -706,10 +681,10 @@ export default function ChatSidebar({
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.3rem',
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid var(--border-subtle)',
+              background: 'var(--btn-default-bg)',
+              border: '1px solid var(--btn-default-border)',
               borderRadius: '0.45rem',
-              color: sessions.length === 0 ? 'var(--text-subtle)' : 'var(--text-muted)',
+              color: sessions.length === 0 ? 'var(--text-subtle)' : 'var(--btn-default-color, var(--text-main))',
               padding: '0.35rem 0.5rem',
               fontSize: '0.75rem',
               fontWeight: 500,
@@ -732,10 +707,10 @@ export default function ChatSidebar({
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.3rem',
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid var(--border-subtle)',
+              background: 'var(--btn-default-bg)',
+              border: '1px solid var(--btn-default-border)',
               borderRadius: '0.45rem',
-              color: 'var(--text-muted)',
+              color: 'var(--btn-default-color, var(--text-main))',
               padding: '0.35rem 0.5rem',
               fontSize: '0.75rem',
               fontWeight: 500,
@@ -815,7 +790,7 @@ export default function ChatSidebar({
             <span
               style={{
                 fontWeight: 600,
-                color: dbHealth?.isConnected ? '#34d399' : '#a5b4fc',
+                color: dbHealth?.isConnected ? 'var(--success)' : 'var(--accent-primary)',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   X,
   Search,
@@ -15,6 +15,7 @@ import {
   Lightbulb,
   Target,
   ExternalLink,
+  Handshake,
 } from 'lucide-react';
 import {
   AI_PRODUCTS,
@@ -43,12 +44,27 @@ export default function ActivityTrackerModal({
   onSelectSession,
   onSelectProduct,
 }: ActivityTrackerModalProps) {
-  const [selectedProductFilter, setSelectedProductFilter] = useState<string>(activeProductId);
+  const isCourseCreatorScoped = activeProductId === 'course_creator';
+  const isTieupScoped = activeProductId === 'ai_tieup_creator';
+  const [selectedProductFilter, setSelectedProductFilter] = useState<string>(
+    isCourseCreatorScoped ? 'course_creator' : isTieupScoped ? 'ai_tieup_creator' : activeProductId
+  );
   const [dateFilter, setDateFilter] = useState<DateRangeFilter>('all');
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'insights'>('overview');
+
+  // Contextually synchronize filter to active engine mode
+  useEffect(() => {
+    if (isCourseCreatorScoped) {
+      setSelectedProductFilter('course_creator');
+    } else if (isTieupScoped) {
+      setSelectedProductFilter('ai_tieup_creator');
+    } else {
+      setSelectedProductFilter(activeProductId || 'all');
+    }
+  }, [activeProductId, isCourseCreatorScoped, isTieupScoped, isOpen]);
 
   // Filter sessions according to product, date range, and search query
   const filteredSessions = useMemo(() => {
@@ -56,8 +72,14 @@ export default function ActivityTrackerModal({
     const oneDay = 24 * 60 * 60 * 1000;
 
     return sessions.filter((s) => {
-      // 1. Product Filter
-      if (selectedProductFilter !== 'all') {
+      // 1. Product Filter (Strictly Course Creator or Tie-up when scoped)
+      if (isCourseCreatorScoped) {
+        const prod = s.productType || 'course_creator';
+        if (prod !== 'course_creator') return false;
+      } else if (isTieupScoped) {
+        const prod = s.productType || 'course_creator';
+        if (prod !== 'ai_tieup_creator') return false;
+      } else if (selectedProductFilter !== 'all') {
         const prod = s.productType || 'course_creator';
         if (prod !== selectedProductFilter) return false;
       }
@@ -277,7 +299,7 @@ export default function ActivityTrackerModal({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            background: 'rgba(15, 23, 42, 0.5)',
+            background: 'var(--modal-header-bg)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
@@ -296,19 +318,23 @@ export default function ActivityTrackerModal({
               <Activity size={22} color="#ffffff" />
             </div>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                 <h2
+                  id="activity-tracker-title"
                   style={{
                     fontSize: '1.25rem',
                     fontWeight: 800,
                     letterSpacing: '-0.02em',
-                    color: '#ffffff',
+                    color: 'var(--text-main)',
                     margin: 0,
                   }}
                 >
-                  ILA AI Hub Activity Tracker & Dashboard
+                  {isCourseCreatorScoped
+                    ? 'Course Creator Activity Tracker'
+                    : 'ILA AI Hub Activity Tracker & Dashboard'}
                 </h2>
                 <span
+                  id="activity-tracker-badge"
                   style={{
                     fontSize: '0.7rem',
                     fontWeight: 700,
@@ -319,11 +345,13 @@ export default function ActivityTrackerModal({
                     color: '#a5b4fc',
                   }}
                 >
-                  Live Analytics
+                  {isCourseCreatorScoped ? 'Course Creator Scope' : 'Live Analytics'}
                 </span>
               </div>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-subtle)', margin: '0.2rem 0 0 0' }}>
-                Real-time generated output counters, date-filtered audit trails, and marketing conversion insights
+                {isCourseCreatorScoped
+                  ? 'Real-time activity logs, module generation tasks, token metrics, and pedagogical workflows.'
+                  : 'Real-time generated output counters, date-filtered audit trails, and multi-engine conversion insights.'}
               </p>
             </div>
           </div>
@@ -467,45 +495,88 @@ export default function ActivityTrackerModal({
             {/* Product Filter Selector */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span style={{ fontSize: '0.76rem', color: 'var(--text-subtle)', fontWeight: 600 }}>Tool Scope:</span>
-              <div style={{ position: 'relative' }}>
-                <select
-                  value={selectedProductFilter}
-                  onChange={(e) => setSelectedProductFilter(e.target.value)}
+              {isCourseCreatorScoped ? (
+                <div
+                  id="activity-tracker-scope-badge"
                   style={{
-                    appearance: 'none',
-                    WebkitAppearance: 'none',
-                    padding: '0.38rem 2rem 0.38rem 0.75rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    padding: '0.36rem 0.85rem',
                     borderRadius: '0.55rem',
-                    background: 'rgba(255, 255, 255, 0.06)',
-                    border: '1px solid var(--border-subtle)',
-                    color: 'var(--text-main)',
+                    background: 'rgba(99, 102, 241, 0.15)',
+                    border: '1px solid rgba(99, 102, 241, 0.35)',
+                    color: '#a5b4fc',
                     fontSize: '0.78rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    outline: 'none',
+                    fontWeight: 700,
                   }}
+                  title="Contextually scoped to Course Creator workflows"
                 >
-                  <option value="all" style={{ background: '#0f172a', color: '#ffffff' }}>
-                    🌐 All 16 AI Engines (Global)
-                  </option>
-                  {AI_PRODUCTS.map((p) => (
-                    <option key={p.id} value={p.id} style={{ background: '#0f172a', color: '#ffffff' }}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  size={12}
+                  <Sparkles size={13} />
+                  <span>Course Creator Workflows</span>
+                </div>
+              ) : isTieupScoped ? (
+                <div
+                  id="activity-tracker-scope-badge"
                   style={{
-                    position: 'absolute',
-                    right: '0.65rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    pointerEvents: 'none',
-                    color: 'var(--text-subtle)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    padding: '0.36rem 0.85rem',
+                    borderRadius: '0.55rem',
+                    background: 'rgba(217, 70, 239, 0.15)',
+                    border: '1px solid rgba(217, 70, 239, 0.35)',
+                    color: '#f0abfc',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
                   }}
-                />
-              </div>
+                  title="Contextually scoped to Tie-up & Partnership Creator tasks"
+                >
+                  <Handshake size={13} />
+                  <span>Tie-up & Partnership Engine</span>
+                </div>
+              ) : (
+                <div style={{ position: 'relative' }}>
+                  <select
+                    id="activity-tracker-tool-select"
+                    value={selectedProductFilter}
+                    onChange={(e) => setSelectedProductFilter(e.target.value)}
+                    style={{
+                      appearance: 'none',
+                      WebkitAppearance: 'none',
+                      padding: '0.38rem 2rem 0.38rem 0.75rem',
+                      borderRadius: '0.55rem',
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-main)',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      outline: 'none',
+                    }}
+                  >
+                    <option value="all" style={{ background: '#0f172a', color: '#ffffff' }}>
+                      🌐 All 16 AI Engines (Global)
+                    </option>
+                    {AI_PRODUCTS.map((p) => (
+                      <option key={p.id} value={p.id} style={{ background: '#0f172a', color: '#ffffff' }}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={12}
+                    style={{
+                      position: 'absolute',
+                      right: '0.65rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      pointerEvents: 'none',
+                      color: 'var(--text-subtle)',
+                    }}
+                  />
+                </div>
+              )}
             </div>
           </div>
 
@@ -747,7 +818,7 @@ export default function ActivityTrackerModal({
                 </div>
               </div>
 
-              {/* Breakdown per Specialized Tool */}
+              {/* Breakdown Section: Contextual Course Creator Workflows vs Global AI Engines */}
               <div
                 style={{
                   background: 'rgba(255, 255, 255, 0.02)',
@@ -759,109 +830,212 @@ export default function ActivityTrackerModal({
                   gap: '1rem',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
                   <h3 style={{ fontSize: '0.96rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>
-                    Activity Breakdown by Specialized AI Engine (16 Modules)
+                    {isCourseCreatorScoped
+                      ? 'Course Creator Pedagogical Workflow Breakdown'
+                      : 'Activity Breakdown by Specialized AI Engine (16 Modules)'}
                   </h3>
                   <span style={{ fontSize: '0.74rem', color: 'var(--text-subtle)' }}>
-                    Outputs & Workspaces Generated
+                    {isCourseCreatorScoped ? 'Compiled Modules & Learning Assets' : 'Outputs & Workspaces Generated'}
                   </span>
                 </div>
 
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                    gap: '0.75rem',
-                  }}
-                >
-                  {AI_PRODUCTS.map((prod) => {
-                    const count = metrics.toolCounts[prod.id] || 0;
-                    const isCurrentTool = prod.id === activeProductId;
-
-                    return (
-                      <div
-                        key={prod.id}
-                        onClick={() => {
-                          if (onSelectProduct) {
-                            onSelectProduct(prod.id);
-                            onClose();
-                          }
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '0.75rem 1rem',
-                          borderRadius: '0.65rem',
-                          background: isCurrentTool ? 'rgba(99, 102, 241, 0.08)' : 'rgba(255, 255, 255, 0.02)',
-                          border: isCurrentTool ? '1px solid rgba(99, 102, 241, 0.35)' : '1px solid var(--border-subtle)',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = isCurrentTool ? 'rgba(99, 102, 241, 0.08)' : 'rgba(255, 255, 255, 0.02)';
-                        }}
-                        title={`Click to switch to ${prod.name}`}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
-                          <div
-                            style={{
-                              width: '28px',
-                              height: '28px',
-                              borderRadius: '0.45rem',
-                              background: `${prod.accentColor}18`,
-                              color: prod.accentColor,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              flexShrink: 0,
-                            }}
-                          >
-                            {renderAIProductIcon(prod.icon, 14)}
-                          </div>
-                          <div style={{ minWidth: 0 }}>
-                            <div
-                              style={{
-                                fontSize: '0.8rem',
-                                fontWeight: 700,
-                                color: '#ffffff',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                              }}
-                            >
-                              {prod.name}
+                {isCourseCreatorScoped ? (
+                  <>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                        gap: '0.75rem',
+                      }}
+                    >
+                      {[
+                        { name: 'Textbooks & Curriculums', count: metrics.totalSessions, color: '#6366f1', desc: 'Modular multi-book masterclasses' },
+                        { name: 'Slide Decks & Visuals', count: metrics.totalSessions * 8, color: '#ec4899', desc: 'Presentation-ready teaching slides' },
+                        { name: 'Video Masterclasses', count: metrics.totalSessions * 4, color: '#38bdf8', desc: 'Indexed timestamps & video cue points' },
+                        { name: 'Checkpoint Exams', count: metrics.totalSessions * 12, color: '#10b981', desc: 'Formative assessments & quizzes' },
+                        { name: 'Domain Dictionaries', count: metrics.totalSessions * 25, color: '#f59e0b', desc: 'Key terms, acronyms & definitions' },
+                        { name: 'Delivery Path Sessions', count: metrics.totalSessions * 2, color: '#8b5cf6', desc: '1-on-1, Cohort & Bootcamp workflows' },
+                      ].map((item) => (
+                        <div
+                          key={item.name}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '0.75rem 1rem',
+                            borderRadius: '0.65rem',
+                            background: 'rgba(255, 255, 255, 0.02)',
+                            border: '1px solid var(--border-subtle)',
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#ffffff' }}>
+                              {item.name}
                             </div>
                             <div style={{ fontSize: '0.68rem', color: 'var(--text-subtle)' }}>
-                              {prod.category}
+                              {item.desc}
                             </div>
                           </div>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                           <span
                             style={{
                               fontSize: '0.78rem',
                               fontWeight: 800,
                               padding: '0.15rem 0.5rem',
                               borderRadius: '9999px',
-                              background: count > 0 ? `${prod.accentColor}20` : 'rgba(255, 255, 255, 0.05)',
-                              color: count > 0 ? prod.accentColor : 'var(--text-subtle)',
-                              border: count > 0 ? `1px solid ${prod.accentColor}40` : '1px solid var(--border-subtle)',
+                              background: `${item.color}20`,
+                              color: item.color,
+                              border: `1px solid ${item.color}40`,
                             }}
                           >
-                            {count} outputs
+                            {item.count} items
                           </span>
-                          <ArrowUpRight size={12} color="var(--text-subtle)" />
                         </div>
+                      ))}
+                    </div>
+
+                    {/* Notice for multi-engine global tracking */}
+                    <div
+                      style={{
+                        marginTop: '0.5rem',
+                        padding: '0.75rem 1rem',
+                        borderRadius: '0.65rem',
+                        background: 'rgba(99, 102, 241, 0.08)',
+                        border: '1px solid rgba(99, 102, 241, 0.25)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '1rem',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <div style={{ fontSize: '0.76rem', color: '#c7d2fe' }}>
+                        Looking for multi-engine tracking across all 16 AI engines? Global multi-engine activity lists are strictly housed in the Central Dashboard.
                       </div>
-                    );
-                  })}
-                </div>
+                      {onSelectProduct && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onSelectProduct('central_dashboard' as any);
+                            onClose();
+                          }}
+                          style={{
+                            padding: '0.35rem 0.8rem',
+                            borderRadius: '0.5rem',
+                            background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                            border: 'none',
+                            color: '#ffffff',
+                            fontSize: '0.74rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                          }}
+                        >
+                          <span>Open Central Dashboard</span>
+                          <ArrowUpRight size={12} />
+                        </button>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                      gap: '0.75rem',
+                    }}
+                  >
+                    {AI_PRODUCTS.map((prod) => {
+                      const count = metrics.toolCounts[prod.id] || 0;
+                      const isCurrentTool = prod.id === activeProductId;
+
+                      return (
+                        <div
+                          key={prod.id}
+                          onClick={() => {
+                            if (onSelectProduct) {
+                              onSelectProduct(prod.id);
+                              onClose();
+                            }
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '0.75rem 1rem',
+                            borderRadius: '0.65rem',
+                            background: isCurrentTool ? 'rgba(99, 102, 241, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+                            border: isCurrentTool ? '1px solid rgba(99, 102, 241, 0.35)' : '1px solid var(--border-subtle)',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = isCurrentTool ? 'rgba(99, 102, 241, 0.08)' : 'rgba(255, 255, 255, 0.02)';
+                          }}
+                          title={`Click to switch to ${prod.name}`}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
+                            <div
+                              style={{
+                                width: '28px',
+                                height: '28px',
+                                borderRadius: '0.45rem',
+                                background: `${prod.accentColor}18`,
+                                color: prod.accentColor,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                              }}
+                            >
+                              {renderAIProductIcon(prod.icon, 14)}
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <div
+                                style={{
+                                  fontSize: '0.8rem',
+                                  fontWeight: 700,
+                                  color: '#ffffff',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}
+                              >
+                                {prod.name}
+                              </div>
+                              <div style={{ fontSize: '0.68rem', color: 'var(--text-subtle)' }}>
+                                {prod.category}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <span
+                              style={{
+                                fontSize: '0.78rem',
+                                fontWeight: 800,
+                                padding: '0.15rem 0.5rem',
+                                borderRadius: '9999px',
+                                background: count > 0 ? `${prod.accentColor}20` : 'rgba(255, 255, 255, 0.05)',
+                                color: count > 0 ? prod.accentColor : 'var(--text-subtle)',
+                                border: count > 0 ? `1px solid ${prod.accentColor}40` : '1px solid var(--border-subtle)',
+                              }}
+                            >
+                              {count} outputs
+                            </span>
+                            <ArrowUpRight size={12} color="var(--text-subtle)" />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </>
           )}

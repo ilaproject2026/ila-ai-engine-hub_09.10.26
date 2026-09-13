@@ -1,6 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import ChatSidebar from './components/ChatSidebar';
-import SearchBox from './components/SearchBox';
+import ChatHomeView from './components/ChatHomeView';
+import SearchBox, { type CourseInputParams } from './components/SearchBox';
+import {
+  prepareCourseLibrarySyncPayload,
+  dispatchCourseToLibrarySync,
+} from './services/courseLibrarySyncService';
 import QuestionTreeDrawer from './components/QuestionTreeDrawer';
 import LibraryWorkspaceView from './components/LibraryWorkspaceView';
 import DedicatedLibraryView from './components/DedicatedLibraryView';
@@ -41,6 +46,15 @@ import {
   Briefcase,
   BookOpen,
   ArrowRight,
+  LayoutDashboard,
+  GraduationCap,
+  Plus,
+  FolderOpen,
+  Database,
+  Handshake,
+  SendHorizontal,
+  Award,
+  Settings,
 } from 'lucide-react';
 import {
   getAllChatSessions,
@@ -55,6 +69,7 @@ import {
   isStoragePersisted,
   getDbHealthInfo,
   saveLibraryCourse,
+  saveToPermanentStore,
   compileCourseFromChatSession,
   extractSmartCourseTitle,
   extractCourseTitleFromContent,
@@ -77,13 +92,25 @@ import {
 import { useVoice } from './hooks/useVoice';
 import AIHubDropdown, { type HubModuleType } from './components/AIHubDropdown';
 import AIHubWorkspaceView from './components/AIHubWorkspaceView';
-import FunctionListModal from './components/FunctionListModal';
+import TieupResearchEngineView from './components/TieupResearchEngineView';
+import ResourcesDataHubView from './components/ResourcesDataHubView';
 import ActivityTrackerModal from './components/ActivityTrackerModal';
 import CentralDashboardView from './components/CentralDashboardView';
 import AIUnifiedParameterModal from './components/AIUnifiedParameterModal';
+import WorkspaceSettingsDropdown from './components/WorkspaceSettingsDropdown';
 import { type AIProductType, getAIProductConfig } from './services/aiHubConfig';
 
-export type AppTheme = 'obsidian' | 'sunny-day' | 'sapphire' | 'emerald' | 'amber';
+export type PrimaryNavView =
+  | 'course_creator'
+  | 'tieup_creator'
+  | 'library'
+  | 'student_paths'
+  | 'chat_home'
+  | 'resources'
+  | 'central_dashboard'
+  | 'ai_tool';
+
+export type AppTheme = 'standard' | 'sunny-day' | 'obsidian' | 'sapphire' | 'emerald' | 'amber';
 
 export type CourseCreatorTabType =
   | 'home'
@@ -109,20 +136,28 @@ interface ThemeOption {
 
 const THEME_OPTIONS: ThemeOption[] = [
   {
+    id: 'standard',
+    name: 'Standard Light',
+    badge: 'Default',
+    icon: Sun,
+    color: '#2563eb',
+    description: 'Clean minimalist white and slate theme with high-contrast text',
+  },
+  {
+    id: 'sunny-day',
+    name: 'Sunny Daylight',
+    badge: 'Anti-Glare',
+    icon: Sun,
+    color: '#f59e0b',
+    description: 'Anti-reflection high-contrast daylight mode for outdoor sunlight visibility',
+  },
+  {
     id: 'obsidian',
     name: 'Midnight Cyber',
     badge: 'Dark',
     icon: Moon,
     color: '#818cf8',
-    description: 'Deep obsidian dark mode with neon indigo accents',
-  },
-  {
-    id: 'sunny-day',
-    name: 'Sunny Day',
-    badge: 'Anti-Glare',
-    icon: Sun,
-    color: '#f59e0b',
-    description: 'Anti-reflection high-contrast daylight mode for outdoor sunlight visibility',
+    description: 'Deep obsidian dark mode with indigo accents',
   },
   {
     id: 'sapphire',
@@ -151,15 +186,26 @@ const THEME_OPTIONS: ThemeOption[] = [
 ];
 
 export default function App() {
-  // Theme State: Persisted to localStorage and applied to data-theme attribute
+  // Theme State: Persisted to localStorage and applied to data-theme attribute (default to clean light mode)
   const [theme, setTheme] = useState<AppTheme>(() => {
-    return (localStorage.getItem('ila_app_theme') as AppTheme) || 'obsidian';
+    return (localStorage.getItem('ila_app_theme') as AppTheme) || 'standard';
   });
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState<boolean>(false);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('ila_app_theme', theme);
+
+    // Initial restore for font scale and workspace preferences
+    const savedScale = localStorage.getItem('ila_font_scale');
+    if (savedScale) {
+      document.documentElement.style.fontSize = `${savedScale}%`;
+      document.documentElement.style.setProperty('--workspace-font-scale', `${savedScale}%`);
+    }
+    const savedContrast = localStorage.getItem('ila_high_contrast');
+    if (savedContrast === 'true') {
+      document.documentElement.setAttribute('data-high-contrast', 'true');
+    }
   }, [theme]);
 
   // Active Hub Module: 'course_creator' is default studio home page!
@@ -171,9 +217,48 @@ export default function App() {
     localStorage.setItem('ila_active_module', activeModule);
   }, [activeModule]);
 
+  // Primary Navigation View State: 'course_creator' | 'tieup_creator' | 'library' | 'student_paths' | 'central_dashboard' | 'ai_tool'
+  const [primaryNavView, setPrimaryNavView] = useState<PrimaryNavView>(() => {
+    const savedModule = localStorage.getItem('ila_active_module') as HubModuleType;
+    if (savedModule === 'ai_tieup_creator') return 'tieup_creator';
+    if (savedModule === 'central_dashboard') return 'central_dashboard';
+    const savedNav = localStorage.getItem('ila_primary_nav_view') as PrimaryNavView;
+    if (savedNav === 'tieup_creator' || savedNav === 'library' || savedNav === 'student_paths' || savedNav === 'resources') {
+      return savedNav;
+    }
+    return 'course_creator';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('ila_primary_nav_view', primaryNavView);
+  }, [primaryNavView]);
+
   // Course Creator Internal Sub-Tab State: 'home' | 'admin_library' | 'slide_ai' | 'video_ai' | 'intelli_coach' | 'one_on_one_online' | 'group_online' | 'camp_online' | 'camp_offline' | 'sports_online' | 'sports_offline'
   const [courseCreatorTab, setCourseCreatorTab] = useState<CourseCreatorTabType>('home');
-  const [isPathDropdownOpen, setIsPathDropdownOpen] = useState<boolean>(false);
+  const [isDeliveryPathsMenuOpen, setIsDeliveryPathsMenuOpen] = useState<boolean>(false);
+  const [selectedPathMode, setSelectedPathMode] = useState<LearningPathMode>('one_on_one_online');
+  const deliveryPathsDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Auto-close / click-outside handler for Delivery Paths dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (
+        deliveryPathsDropdownRef.current &&
+        !deliveryPathsDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsDeliveryPathsMenuOpen(false);
+      }
+    };
+
+    if (isDeliveryPathsMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside, true);
+      document.addEventListener('touchstart', handleClickOutside, true);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside, true);
+      document.removeEventListener('touchstart', handleClickOutside, true);
+    };
+  }, [isDeliveryPathsMenuOpen]);
 
   // Left Chat Sidebar State
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -185,7 +270,6 @@ export default function App() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isBulkPlannerActive, setIsBulkPlannerActive] = useState<boolean>(false);
-  const [isFunctionListOpen, setIsFunctionListOpen] = useState<boolean>(false);
   const [isActivityTrackerOpen, setIsActivityTrackerOpen] = useState<boolean>(false);
   const [isParameterModalOpen, setIsParameterModalOpen] = useState<boolean>(false);
   const [parameterModalTab, setParameterModalTab] = useState<'list' | 'input'>('list');
@@ -195,10 +279,54 @@ export default function App() {
     setIsParameterModalOpen(true);
   };
 
-  // Strictly isolated Course Creator sessions: only show sessions that belong to course_creator (or legacy unassigned)
+  // Unified Course Creator sessions: include course_creator, unassigned, and ila_chat sessions
   const courseCreatorSessions = useMemo(() => {
-    return sessions.filter((s) => s.productType === 'course_creator' || !s.productType);
+    return sessions.filter((s) => s.productType === 'course_creator' || !s.productType || s.productType === 'ila_chat');
   }, [sessions]);
+
+  // Conversational sessions
+  const chatSessions = useMemo(() => {
+    return sessions.filter((s) => s.productType === 'ila_chat');
+  }, [sessions]);
+
+  // Active session for Course Creator
+  const activeCourseSession = useMemo(() => {
+    const matched = courseCreatorSessions.find((s) => s.id === activeSessionId);
+    return matched || courseCreatorSessions[0] || null;
+  }, [courseCreatorSessions, activeSessionId]);
+
+  // Active session for Chat Home
+  const activeChatSession = useMemo(() => {
+    const matched = chatSessions.find((s) => s.id === activeSessionId);
+    return matched || chatSessions[0] || null;
+  }, [chatSessions, activeSessionId]);
+
+  // Active session for Tie-up & Partnership Creator (Strict Isolation)
+  const activeTieupSession = useMemo(() => {
+    const tieupSessions = sessions.filter((s) => s.productType === 'ai_tieup_creator');
+    const matched = tieupSessions.find((s) => s.id === activeSessionId);
+    return matched || tieupSessions[0] || null;
+  }, [sessions, activeSessionId]);
+
+  // Tie-up Creator Sub-Navigation & Policies State (Persistent)
+  const [tieupActiveTab, setTieupActiveTab] = useState<'chat_home' | 'resources' | 'process' | 'partners'>(() => {
+    const saved = localStorage.getItem('ila_tieup_active_tab');
+    if (saved === 'resources' || saved === 'process' || saved === 'partners' || saved === 'chat_home') {
+      return saved;
+    }
+    return 'chat_home';
+  });
+  const [isTieupPolicyModalOpen, setIsTieupPolicyModalOpen] = useState<boolean>(false);
+  const [tieupCounts, setTieupCounts] = useState<{ resources: number; process: number; partners: number }>({
+    resources: 0,
+    process: 0,
+    partners: 0,
+  });
+
+  const handleSelectTieupTab = (tab: 'chat_home' | 'resources' | 'process' | 'partners') => {
+    setTieupActiveTab(tab);
+    localStorage.setItem('ila_tieup_active_tab', tab);
+  };
 
   // Global Multi-Language & Open-Source Voice Profile States
   const [globalLanguage] = useState<string>(() => {
@@ -248,19 +376,59 @@ export default function App() {
         const loaded = await getAllChatSessions();
         if (isMounted) {
           setSessions(loaded);
+          const isTieup = activeModule === 'ai_tieup_creator' || primaryNavView === 'tieup_creator';
           const isCourse = activeModule === 'course_creator' || activeModule === 'central_dashboard';
-          const match = loaded.find((s) =>
-            isCourse ? s.productType === 'course_creator' || !s.productType : s.productType === activeModule
-          );
-          if (match) {
-            setActiveSessionId(match.id);
-          } else if (loaded.length > 0) {
-            setActiveSessionId(loaded[0].id);
+          const lastActiveId = localStorage.getItem('ila_last_active_course_id') || localStorage.getItem('ila_last_saved_session_id');
+          const lastActiveMatch = loaded.find((s) => s.id === lastActiveId);
+
+          if (isTieup) {
+            const tieupMatch =
+              (lastActiveMatch?.productType === 'ai_tieup_creator' && lastActiveMatch) ||
+              loaded.find((s) => s.productType === 'ai_tieup_creator');
+            if (tieupMatch) {
+              setActiveSessionId(tieupMatch.id);
+            } else {
+              const fresh = createNewSessionObject('Tie-up & Partnership Workspace', 'ai_tieup_creator');
+              await saveChatSession(fresh);
+              setSessions((prev) => [fresh, ...prev]);
+              setActiveSessionId(fresh.id);
+            }
           } else {
-            const fresh = createNewSessionObject('New Course Workspace', 'course_creator');
-            await saveChatSession(fresh);
-            setSessions([fresh]);
-            setActiveSessionId(fresh.id);
+            const hasRealContent =
+              lastActiveMatch &&
+              lastActiveMatch.messages &&
+              lastActiveMatch.messages.some((m) => m.role === 'assistant' && m.content && m.content.length > 100);
+
+            if (lastActiveMatch && (isCourse ? (hasRealContent && (lastActiveMatch.productType === 'course_creator' || !lastActiveMatch.productType)) : lastActiveMatch.productType === activeModule)) {
+              setActiveSessionId(lastActiveMatch.id);
+            } else {
+              // Prefer rich permanent session with content so testing features immediately have full data
+              const richCourseMatch = loaded.find((s) =>
+                (s.productType === 'course_creator' || !s.productType) &&
+                (s.isPermanent || s.id.includes('perm_')) &&
+                s.messages?.length > 0
+              );
+              const richMatch = richCourseMatch || loaded.find((s) =>
+                isCourse
+                  ? (s.productType === 'course_creator' || !s.productType) && (s.messages?.length > 0)
+                  : s.productType === activeModule
+              );
+              const match = richMatch || loaded.find((s) =>
+                isCourse ? s.productType === 'course_creator' || !s.productType : s.productType === activeModule
+              );
+
+              if (match) {
+                setActiveSessionId(match.id);
+                localStorage.setItem('ila_last_active_course_id', match.id);
+              } else if (loaded.length > 0) {
+                setActiveSessionId(loaded[0].id);
+              } else {
+                const fresh = createNewSessionObject('New Course Workspace', 'course_creator');
+                await saveChatSession(fresh);
+                setSessions([fresh]);
+                setActiveSessionId(fresh.id);
+              }
+            }
           }
         }
       } catch (err) {
@@ -299,6 +467,7 @@ export default function App() {
   // Handle session selection
   const handleSelectSession = (sessionId: string) => {
     setActiveSessionId(sessionId);
+    localStorage.setItem('ila_last_active_course_id', sessionId);
     setError(null);
     stopAllSpeech();
     if (courseCreatorTab === 'admin_library') {
@@ -309,32 +478,196 @@ export default function App() {
     }
   };
 
-  // Switch Module in AI Hub
+  // Switch Module in AI Hub / Primary Views
   const handleSelectModule = async (mod: HubModuleType) => {
+    setIsDeliveryPathsMenuOpen(false);
     setActiveModule(mod);
     localStorage.setItem('ila_active_module', mod);
     stopAllSpeech();
     setError(null);
 
     if (mod === 'central_dashboard') {
+      setPrimaryNavView('central_dashboard');
       return;
     }
 
+    if (mod === 'ai_tieup_creator') {
+      setPrimaryNavView('tieup_creator');
+      localStorage.setItem('ila_primary_nav_view', 'tieup_creator');
+      const tieupMatch = sessions.find((s) => s.productType === 'ai_tieup_creator');
+      if (tieupMatch) {
+        setActiveSessionId(tieupMatch.id);
+        localStorage.setItem('ila_last_active_course_id', tieupMatch.id);
+      } else {
+        const fresh = createNewSessionObject('Tie-up & Partnership Workspace', 'ai_tieup_creator');
+        const saved = await saveChatSession(fresh);
+        setSessions((prev) => [saved, ...prev]);
+        setActiveSessionId(saved.id);
+        localStorage.setItem('ila_last_active_course_id', saved.id);
+      }
+      return;
+    }
+
+    if (mod === 'course_creator') {
+      setPrimaryNavView('course_creator');
+      localStorage.setItem('ila_primary_nav_view', 'course_creator');
+    } else {
+      setPrimaryNavView('chat_home');
+      localStorage.setItem('ila_primary_nav_view', 'chat_home');
+    }
+
     const isCourse = mod === 'course_creator';
+    const isChat = mod === 'ila_chat';
     const existing = sessions.find((s) =>
-      isCourse ? s.productType === 'course_creator' || !s.productType : s.productType === mod
+      isCourse
+        ? s.productType === 'course_creator' || !s.productType
+        : s.productType === mod
     );
     if (existing) {
       setActiveSessionId(existing.id);
+      localStorage.setItem('ila_last_active_course_id', existing.id);
     } else {
       const config = isCourse ? null : getAIProductConfig(mod as AIProductType);
       const title = isCourse
         ? 'New Course Workspace'
+        : isChat
+        ? 'New Chat'
         : `New ${config?.shortName || mod} Query`;
       const fresh = createNewSessionObject(title, isCourse ? 'course_creator' : (mod as AIProductType));
-      await saveChatSession(fresh);
-      setSessions((prev) => [fresh, ...prev]);
-      setActiveSessionId(fresh.id);
+      const saved = await saveChatSession(fresh);
+      setSessions((prev) => [saved, ...prev]);
+      setActiveSessionId(saved.id);
+      localStorage.setItem('ila_last_active_course_id', saved.id);
+    }
+  };
+
+  // Create a brand new course session in Course Creator
+  const handleNewCourse = async () => {
+    const fresh = createNewSessionObject('New Course Workspace', 'course_creator');
+    await saveChatSession(fresh);
+    setSessions((prev) => [fresh, ...prev]);
+    setActiveSessionId(fresh.id);
+    setAttachedDocuments([]);
+    setError(null);
+    stopAllSpeech();
+    setCourseCreatorTab('home');
+  };
+
+  // Create a brand new chat session in Chat Home
+  const handleNewChatSession = async () => {
+    const newSession = createNewSessionObject('New Chat', 'ila_chat');
+    await saveChatSession(newSession);
+    setSessions((prev) => [newSession, ...prev]);
+    setActiveSessionId(newSession.id);
+    setAttachedDocuments([]);
+    setError(null);
+    stopAllSpeech();
+  };
+
+  // Convert a conversational chat session into a structured course and jump to Course Creator
+  const handleConvertChatToCourse = async (chatSession: ChatSession) => {
+    const courseTitle = extractSmartCourseTitle(chatSession.title || 'Masterclass Course', 'Masterclass Course');
+    const courseSession: ChatSession = {
+      ...chatSession,
+      id: `course_${Date.now()}`,
+      title: courseTitle,
+      productType: 'course_creator',
+      updatedAt: Date.now(),
+    };
+    await saveChatSession(courseSession);
+    setSessions((prev) => [courseSession, ...prev]);
+    setActiveSessionId(courseSession.id);
+    setPrimaryNavView('course_creator');
+    setActiveModule('course_creator');
+  };
+
+  // Dedicated Chat Home Message Handler
+  const handleSendChatMessage = async (
+    queryText: string,
+    docs: AttachedDocument[] = []
+  ) => {
+    const cleanQuery = queryText.trim();
+    if (!cleanQuery || loading) return;
+
+    setLoading(true);
+    setError(null);
+
+    const userMessage: ChatMessage = {
+      id: `msg_user_${Date.now()}`,
+      role: 'user',
+      content: cleanQuery,
+      timestamp: Date.now(),
+      documents: docs.length > 0 ? [...docs] : undefined,
+    };
+
+    let targetSession = chatSessions.find((s) => s.id === activeSessionId);
+    if (!targetSession) {
+      targetSession = createNewSessionObject(
+        cleanQuery.length > 40 ? cleanQuery.slice(0, 40) + '...' : cleanQuery,
+        'ila_chat'
+      );
+      await saveChatSession(targetSession);
+      setSessions((prev) => [targetSession, ...prev]);
+    }
+
+    const title =
+      targetSession.messages.length === 0 ||
+      targetSession.title === "New Ila's With You Query" ||
+      targetSession.title === 'New Chat'
+        ? cleanQuery.length > 40
+          ? cleanQuery.slice(0, 40) + '...'
+          : cleanQuery
+        : targetSession.title;
+
+    const sessionWithUser: ChatSession = {
+      ...targetSession,
+      title,
+      productType: 'ila_chat',
+      messages: [...targetSession.messages, userMessage],
+      updatedAt: Date.now(),
+    };
+
+    setSessions((prev) =>
+      prev.map((s) => (s.id === sessionWithUser.id ? sessionWithUser : s))
+    );
+    setActiveSessionId(sessionWithUser.id);
+    await saveChatSession(sessionWithUser);
+
+    try {
+      const startTime = Date.now();
+      const aiResponse = await generateAIHubResponse(
+        'ila_chat',
+        cleanQuery,
+        sessionWithUser.messages,
+        docs,
+        sessionWithUser.productParams || {}
+      );
+
+      const assistantMessage: ChatMessage = {
+        id: `msg_assistant_${Date.now()}`,
+        role: 'assistant',
+        content: aiResponse,
+        timestamp: Date.now(),
+        model: ILA_MODEL,
+        modelDisplayName: getIlaModelDisplayName(),
+        responseTimeMs: Date.now() - startTime,
+      };
+
+      const finalSession: ChatSession = {
+        ...sessionWithUser,
+        messages: [...sessionWithUser.messages, assistantMessage],
+        updatedAt: Date.now(),
+      };
+
+      setSessions((prev) =>
+        prev.map((s) => (s.id === finalSession.id ? finalSession : s))
+      );
+      await saveChatSession(finalSession);
+    } catch (err: any) {
+      console.error('Chat Home generation error:', err);
+      setError(err?.message || 'Failed to generate response');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -469,10 +802,19 @@ export default function App() {
     }
   };
 
-  // Delete chat session
+  // Delete chat session (Manual Deletion Only for locked permanent courses)
   const handleDeleteSession = async (sessionId: string) => {
     stopAllSpeech();
-    await deleteChatSession(sessionId);
+    const session = sessions.find((s) => s.id === sessionId);
+    if (session?.locked || session?.isPermanent) {
+      const confirmed = window.confirm(
+        `"${session.title || 'This course'}" is locked in permanent storage to protect token work.\n\nAre you sure you want to permanently delete this course?`
+      );
+      if (!confirmed) return;
+      await deleteChatSession(sessionId, { confirmManualDelete: true });
+    } else {
+      await deleteChatSession(sessionId);
+    }
     const updated = sessions.filter((s) => s.id !== sessionId);
     setSessions(updated);
 
@@ -615,7 +957,12 @@ export default function App() {
   };
 
   // Autonomous Bulk Task Decomposition & Step-by-Step Execution Engine
-  const executeAutonomousCoursePlan = async (query: string, docs: AttachedDocument[], targetAudience?: string) => {
+  const executeAutonomousCoursePlan = async (
+    query: string,
+    docs: AttachedDocument[],
+    targetAudience?: string,
+    courseParams?: CourseInputParams
+  ) => {
     const cleanQuery = query.trim();
     if (!cleanQuery || loading) return;
 
@@ -638,7 +985,7 @@ export default function App() {
       targetSession = createNewSessionObject('New Course Workspace');
     }
 
-    let smartTitle = extractSmartCourseTitle(cleanQuery, 'Enterprise Masterclass');
+    let smartTitle = courseParams?.courseName?.trim() || extractSmartCourseTitle(cleanQuery, 'Enterprise Masterclass');
 
     // 1. Task Decomposition: Create initial steps
     const initialSteps: AutonomousTaskStep[] = [
@@ -855,7 +1202,21 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
       try {
         const compiled = compileCourseFromChatSession(currentSession, smartTitle);
         compiled.studiedBy = audience;
+        if (courseParams) {
+          compiled.courseId = courseParams.courseId;
+          compiled.courseName = courseParams.courseName;
+          compiled.title = courseParams.courseName || compiled.title;
+          compiled.category = courseParams.category;
+          compiled.subCategory = courseParams.subCategory;
+          compiled.deliveryPath = courseParams.deliveryPath;
+          compiled.batch = courseParams.batch;
+          compiled.slot = courseParams.slot;
+          compiled.batchSlot = courseParams.batchSlot;
+          compiled.librarySyncPayload = prepareCourseLibrarySyncPayload(courseParams);
+          await dispatchCourseToLibrarySync(compiled.librarySyncPayload);
+        }
         await saveLibraryCourse(compiled);
+        await saveToPermanentStore(compiled, currentSession, { reason: 'generation' });
 
         // If All Categories / Batch Generate was selected, create tailored department course blocks
         if (audience.toLowerCase().includes('all') || audience.toLowerCase().includes('batch')) {
@@ -915,7 +1276,12 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
   };
 
   // Send message handler (Multi-turn generation or Autonomous Planner with ILA AI)
-  const handleSendMessage = async (query: string, docs: AttachedDocument[], targetAudience?: string) => {
+  const handleSendMessage = async (
+    query: string,
+    docs: AttachedDocument[],
+    targetAudience?: string,
+    courseParams?: CourseInputParams
+  ) => {
     const cleanQuery = query.trim();
     if (!cleanQuery || loading) return;
 
@@ -933,7 +1299,7 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
         cleanQuery.length > 50);
 
     if (isExplicitBulkRequest) {
-      await executeAutonomousCoursePlan(cleanQuery, docs, audience);
+      await executeAutonomousCoursePlan(cleanQuery, docs, audience, courseParams);
       return;
     }
 
@@ -955,15 +1321,16 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
       targetSession = createNewSessionObject('New Course Workspace');
     }
 
-    // Auto-set title from first prompt if default or long title
-    let newTitle = targetSession.title;
+    // Auto-set title from courseParams or first prompt
+    let newTitle = courseParams?.courseName?.trim() || targetSession.title;
     if (
-      targetSession.messages.length === 0 ||
-      targetSession.title === 'New Course Workspace' ||
-      targetSession.title === 'Untitled Course' ||
-      targetSession.title.startsWith('Please ') ||
-      targetSession.title.startsWith('Can you ') ||
-      targetSession.title.length > 55
+      !courseParams?.courseName?.trim() &&
+      (targetSession.messages.length === 0 ||
+        targetSession.title === 'New Course Workspace' ||
+        targetSession.title === 'Untitled Course' ||
+        targetSession.title.startsWith('Please ') ||
+        targetSession.title.startsWith('Can you ') ||
+        targetSession.title.length > 55)
     ) {
       newTitle = extractSmartCourseTitle(cleanQuery, 'Course Workspace');
     }
@@ -1050,6 +1417,28 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
       // Save permanently to SQLite
       await saveChatSession(finalSession);
 
+      // Also compile and synchronize with Library Navigation
+      try {
+        const compiled = compileCourseFromChatSession(finalSession, finalTitle);
+        compiled.studiedBy = audience;
+        if (courseParams) {
+          compiled.courseId = courseParams.courseId;
+          compiled.courseName = courseParams.courseName;
+          compiled.title = courseParams.courseName || compiled.title;
+          compiled.category = courseParams.category;
+          compiled.subCategory = courseParams.subCategory;
+          compiled.deliveryPath = courseParams.deliveryPath;
+          compiled.batch = courseParams.batch;
+          compiled.slot = courseParams.slot;
+          compiled.batchSlot = courseParams.batchSlot;
+          compiled.librarySyncPayload = prepareCourseLibrarySyncPayload(courseParams);
+          await dispatchCourseToLibrarySync(compiled.librarySyncPayload);
+        }
+        await saveLibraryCourse(compiled);
+      } catch (cErr) {
+        console.warn('Single-turn library compilation notice:', cErr);
+      }
+
       // Update state
       setSessions((prev) =>
         prev.map((s) => (s.id === finalSession.id ? finalSession : s))
@@ -1087,7 +1476,7 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
         overflow: 'hidden',
         background: 'var(--bg-primary)',
         color: 'var(--text-main)',
-        fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+        fontFamily: "var(--font-sans)",
       }}
     >
       {/* 1. TOP GLOBAL NAVIGATION & SYSTEM HEADER */}
@@ -1106,7 +1495,7 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
           WebkitBackdropFilter: 'blur(20px)',
           zIndex: 100,
           flexShrink: 0,
-          boxShadow: '0 4px 20px -5px rgba(0, 0, 0, 0.5)',
+          boxShadow: 'var(--shadow-sm)',
         }}
       >
         {/* Left: Essential Brand Logo & Title */}
@@ -1136,7 +1525,7 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
               style={{
                 fontSize: '1.05rem',
                 fontWeight: 800,
-                color: '#ffffff',
+                color: 'var(--text-main)',
                 letterSpacing: '-0.02em',
                 margin: 0,
                 overflow: 'hidden',
@@ -1153,9 +1542,8 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
             </div>
           </div>
         </div>
-
-        {/* Right: Engine Selector Dropdown + Consolidated Global Utility Buttons + Theme Switcher */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+        {/* Right: Engine Selector + Dashboard + Consolidated Global Utility Buttons + Theme Switcher (Same across all views) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
           {/* Module Selector Dropdown */}
           <AIHubDropdown
             activeProductId={activeModule}
@@ -1163,44 +1551,49 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
             variant="navbar"
           />
 
-          {/* 1. Core Utility Button: Function List */}
+          {/* Global Dashboard Button */}
           <button
-            id="global-function-list-btn"
+            id="global-dashboard-btn"
             type="button"
-            onClick={() => setIsFunctionListOpen(true)}
+            onClick={() => {
+              setPrimaryNavView('central_dashboard');
+              setActiveModule('central_dashboard');
+              setIsDeliveryPathsMenuOpen(false);
+            }}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.4rem',
               padding: '0.38rem 0.85rem',
               borderRadius: '9999px',
-              background: 'rgba(99, 102, 241, 0.12)',
-              border: '1px solid rgba(99, 102, 241, 0.35)',
-              color: '#a5b4fc',
+              background: primaryNavView === 'central_dashboard' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'var(--btn-dashboard-bg)',
+              border: primaryNavView === 'central_dashboard' ? 'none' : '1px solid var(--btn-dashboard-border)',
+              color: primaryNavView === 'central_dashboard' ? '#ffffff' : 'var(--btn-dashboard-color)',
               fontSize: '0.78rem',
               fontWeight: 700,
               cursor: 'pointer',
+              boxShadow: primaryNavView === 'central_dashboard' ? '0 2px 14px rgba(245, 158, 11, 0.45)' : 'var(--btn-default-shadow, none)',
               transition: 'all 0.2s ease',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(99, 102, 241, 0.25)';
-              e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.6)';
-              e.currentTarget.style.color = '#ffffff';
-              e.currentTarget.style.boxShadow = '0 0 12px rgba(99, 102, 241, 0.35)';
+              if (primaryNavView !== 'central_dashboard') {
+                e.currentTarget.style.background = 'var(--btn-dashboard-hover-bg)';
+                e.currentTarget.style.borderColor = 'var(--btn-dashboard-hover-border)';
+              }
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(99, 102, 241, 0.12)';
-              e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.35)';
-              e.currentTarget.style.color = '#a5b4fc';
-              e.currentTarget.style.boxShadow = 'none';
+              if (primaryNavView !== 'central_dashboard') {
+                e.currentTarget.style.background = 'var(--btn-dashboard-bg)';
+                e.currentTarget.style.borderColor = 'var(--btn-dashboard-border)';
+              }
             }}
-            title="Open Full ILA AI Hub Function List (16 Specialized Engines)"
+            title="Open Central Dashboard: Global overview & platform analytics"
           >
-            <Grid size={13} />
-            <span>Function List</span>
+            <LayoutDashboard size={13} />
+            <span>Dashboard</span>
           </button>
 
-          {/* 2. Core Utility Button: Activity Tracker */}
+          {/* Core Utility Button: Activity Tracker */}
           <button
             id="global-activity-tracker-btn"
             type="button"
@@ -1211,33 +1604,30 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
               gap: '0.4rem',
               padding: '0.38rem 0.85rem',
               borderRadius: '9999px',
-              background: 'rgba(99, 102, 241, 0.12)',
-              border: '1px solid rgba(99, 102, 241, 0.35)',
-              color: '#a5b4fc',
+              background: 'var(--btn-activity-bg)',
+              border: '1px solid var(--btn-activity-border)',
+              color: 'var(--btn-activity-color)',
               fontSize: '0.78rem',
               fontWeight: 700,
               cursor: 'pointer',
+              boxShadow: 'var(--btn-default-shadow, none)',
               transition: 'all 0.2s ease',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(99, 102, 241, 0.25)';
-              e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.6)';
-              e.currentTarget.style.color = '#ffffff';
-              e.currentTarget.style.boxShadow = '0 0 12px rgba(99, 102, 241, 0.35)';
+              e.currentTarget.style.background = 'var(--btn-activity-hover-bg)';
+              e.currentTarget.style.borderColor = 'var(--btn-activity-hover-border)';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(99, 102, 241, 0.12)';
-              e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.35)';
-              e.currentTarget.style.color = '#a5b4fc';
-              e.currentTarget.style.boxShadow = 'none';
+              e.currentTarget.style.background = 'var(--btn-activity-bg)';
+              e.currentTarget.style.borderColor = 'var(--btn-activity-border)';
             }}
             title="Open Activity Tracker & Live Performance Analytics Dashboard"
           >
-            <Activity size={13} color="#818cf8" />
+            <Activity size={13} color="var(--btn-activity-color)" />
             <span>Activity Tracker</span>
           </button>
 
-          {/* 3. Consolidated Unified Parameter Button */}
+          {/* Consolidated Unified Parameter Button */}
           <button
             id="global-parameter-btn"
             type="button"
@@ -1248,29 +1638,26 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
               gap: '0.4rem',
               padding: '0.38rem 0.85rem',
               borderRadius: '9999px',
-              background: 'rgba(56, 189, 248, 0.12)',
-              border: '1px solid rgba(56, 189, 248, 0.35)',
-              color: '#7dd3fc',
+              background: 'var(--btn-param-bg)',
+              border: '1px solid var(--btn-param-border)',
+              color: 'var(--btn-param-color)',
               fontSize: '0.78rem',
               fontWeight: 700,
               cursor: 'pointer',
+              boxShadow: 'var(--btn-default-shadow, none)',
               transition: 'all 0.2s ease',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(56, 189, 248, 0.25)';
-              e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.6)';
-              e.currentTarget.style.color = '#ffffff';
-              e.currentTarget.style.boxShadow = '0 0 12px rgba(56, 189, 248, 0.35)';
+              e.currentTarget.style.background = 'var(--btn-param-hover-bg)';
+              e.currentTarget.style.borderColor = 'var(--btn-param-hover-border)';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(56, 189, 248, 0.12)';
-              e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.35)';
-              e.currentTarget.style.color = '#7dd3fc';
-              e.currentTarget.style.boxShadow = 'none';
+              e.currentTarget.style.background = 'var(--btn-param-bg)';
+              e.currentTarget.style.borderColor = 'var(--btn-param-border)';
             }}
             title="Open AI Parameters Hub: Review Active Rules & Setup Voice Directives"
           >
-            <Sliders size={13} color="#38bdf8" />
+            <Sliders size={13} color="var(--btn-param-color)" />
             <span>Parameter</span>
           </button>
 
@@ -1286,13 +1673,26 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
                 gap: '0.4rem',
                 padding: '0.35rem 0.85rem',
                 borderRadius: '9999px',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid var(--border-subtle)',
-                color: 'var(--text-main)',
+                background: isThemeMenuOpen ? 'var(--dropdown-item-selected)' : 'var(--btn-default-bg)',
+                border: isThemeMenuOpen ? '1px solid var(--border-focus)' : '1px solid var(--btn-default-border)',
+                color: 'var(--btn-default-color, var(--text-main))',
                 fontSize: '0.78rem',
                 fontWeight: 700,
                 cursor: 'pointer',
+                boxShadow: 'var(--btn-default-shadow, none)',
                 transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                if (!isThemeMenuOpen) {
+                  e.currentTarget.style.background = 'var(--btn-default-hover-bg)';
+                  e.currentTarget.style.borderColor = 'var(--btn-default-hover-border)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isThemeMenuOpen) {
+                  e.currentTarget.style.background = 'var(--btn-default-bg)';
+                  e.currentTarget.style.borderColor = 'var(--btn-default-border)';
+                }
               }}
               title="Select Color Palette & Sunlight Anti-Glare Mode"
             >
@@ -1305,7 +1705,7 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
               ) : theme === 'emerald' ? (
                 <Sparkles size={14} color="#34d399" />
               ) : (
-                <Palette size={14} color="#fbbf24" />
+                <Palette size={14} color="#2563eb" />
               )}
               <span>
                 {THEME_OPTIONS.find((t) => t.id === theme)?.name || 'Theme'}
@@ -1320,17 +1720,17 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
                   onClick={() => setIsThemeMenuOpen(false)}
                 />
                 <div
-                  className="animate-fade-in"
+                  className="animate-fade-in dropdown-menu-popover"
                   style={{
                     position: 'absolute',
                     right: 0,
                     top: 'calc(100% + 0.4rem)',
                     width: '260px',
-                    background: 'var(--bg-secondary)',
-                    border: '1px solid var(--border-subtle)',
+                    background: 'var(--dropdown-bg)',
+                    border: '1px solid var(--dropdown-border)',
                     borderRadius: '0.85rem',
                     padding: '0.4rem',
-                    boxShadow: '0 15px 35px -5px rgba(0, 0, 0, 0.5), 0 0 15px var(--accent-glow)',
+                    boxShadow: 'var(--dropdown-shadow)',
                     zIndex: 95,
                     display: 'flex',
                     flexDirection: 'column',
@@ -1368,12 +1768,22 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
                           justifyContent: 'space-between',
                           padding: '0.45rem 0.65rem',
                           borderRadius: '0.55rem',
-                          background: isSelected ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
-                          border: isSelected ? '1px solid var(--border-focus)' : '1px solid transparent',
-                          color: isSelected ? 'var(--text-main)' : 'var(--text-muted)',
+                          background: isSelected ? 'var(--dropdown-item-selected)' : 'transparent',
+                          border: isSelected ? '1px solid var(--dropdown-item-selected-border)' : '1px solid transparent',
+                          color: isSelected ? 'var(--accent-primary)' : 'var(--text-main)',
                           cursor: 'pointer',
                           transition: 'all 0.15s ease',
                           textAlign: 'left',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isSelected) {
+                            e.currentTarget.style.background = 'var(--dropdown-item-hover)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isSelected) {
+                            e.currentTarget.style.background = 'transparent';
+                          }
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -1382,7 +1792,8 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
                               width: '22px',
                               height: '22px',
                               borderRadius: '50%',
-                              background: isSelected ? t.color : 'rgba(255, 255, 255, 0.06)',
+                              background: isSelected ? t.color : 'var(--bg-tertiary)',
+                              border: isSelected ? 'none' : '1px solid var(--border-subtle)',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
@@ -1408,8 +1819,991 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
               </>
             )}
           </div>
+
+          {/* Dedicated Engine Hub Settings & Display Customization Button */}
+          <WorkspaceSettingsDropdown
+            theme={theme}
+            onSelectTheme={setTheme}
+          />
         </div>
       </header>
+
+      {/* 2. SECONDARY SUB-NAVIGATION LINE (Right-Aligned Functional Controls for Active Engine) */}
+      <div
+        id="secondary-subnav-bar"
+        style={{
+          height: '46px',
+          padding: '0 1.5rem',
+          borderBottom: '1px solid var(--border-subtle)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '1rem',
+          background: 'var(--header-bg)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          zIndex: 90,
+          flexShrink: 0,
+        }}
+      >
+        {/* Left Side: Sidebar Toggle + Active Course Title / Tool Indicator */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0 }}>
+          {activeModule === 'course_creator' ? (
+            <>
+              <button
+                id="course-creator-sidebar-toggle-btn"
+                type="button"
+                onClick={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '0.55rem',
+                  background: isLeftSidebarOpen ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid var(--border-subtle)',
+                  color: isLeftSidebarOpen ? 'var(--accent-primary)' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  transition: 'all 0.2s ease',
+                }}
+                title={isLeftSidebarOpen ? 'Collapse Chat Sidebar' : 'Expand Chat Sidebar'}
+              >
+                <PanelLeft size={15} />
+              </button>
+
+              {activeCourseSession?.title && activeCourseSession.title !== 'New Course Workspace' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
+                  <BookOpen size={14} color="var(--accent-primary)" />
+                  <span
+                    style={{
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      color: 'var(--text-main)',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      maxWidth: '340px',
+                      letterSpacing: '-0.01em',
+                    }}
+                    title={activeCourseSession.title}
+                  >
+                    {activeCourseSession.title}
+                  </span>
+                </div>
+              )}
+
+              {courseCreatorTab !== 'home' && (
+                <button
+                  type="button"
+                  onClick={() => setCourseCreatorTab('home')}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    padding: '0.28rem 0.75rem',
+                    borderRadius: '9999px',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid var(--border-medium)',
+                    color: 'var(--text-main)',
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                  title="Return to main Course Creator workspace"
+                >
+                  <span>← Studio Workspace</span>
+                </button>
+              )}
+            </>
+          ) : activeModule === 'ai_tieup_creator' || primaryNavView === 'tieup_creator' ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Handshake size={15} color="var(--accent-primary)" />
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                Tie-up & Partnership Creator
+              </span>
+              <span
+                style={{
+                  fontSize: '0.62rem',
+                  fontWeight: 700,
+                  padding: '0.1rem 0.5rem',
+                  borderRadius: '9999px',
+                  background: 'var(--accent-gradient-subtle)',
+                  border: '1px solid var(--border-medium)',
+                  color: 'var(--accent-primary)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                Research & Outreach
+              </span>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Sparkles size={14} color="var(--accent-primary)" />
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                {getAIProductConfig(activeModule as AIProductType)?.name || 'AI Assistant'}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Right Corner: Module-Specific Menus (Right-Aligned) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {activeModule === 'course_creator' ? (
+            /* Course Creator Mode: Course Creator | Library | Delivery Paths */
+            <nav
+              id="primary-core-navbar"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                background: 'var(--subnav-track-bg)',
+                border: '1px solid var(--subnav-track-border)',
+                borderRadius: '9999px',
+                padding: '0.22rem',
+                gap: '0.25rem',
+                boxShadow: 'var(--subnav-track-shadow)',
+              }}
+            >
+              {/* 1. Course Creator */}
+              <button
+                id="nav-course-creator-btn"
+                type="button"
+                onClick={() => {
+                  setPrimaryNavView('course_creator');
+                  setActiveModule('course_creator');
+                  setCourseCreatorTab('home');
+                  setIsDeliveryPathsMenuOpen(false);
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.42rem',
+                  padding: '0.34rem 0.95rem',
+                  borderRadius: '9999px',
+                  background:
+                    primaryNavView === 'course_creator' && courseCreatorTab === 'home'
+                      ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)'
+                      : 'transparent',
+                  border: 'none',
+                  color:
+                    primaryNavView === 'course_creator' && courseCreatorTab === 'home'
+                      ? '#ffffff'
+                      : 'var(--text-muted)',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow:
+                    primaryNavView === 'course_creator' && courseCreatorTab === 'home'
+                      ? '0 2px 14px rgba(99, 102, 241, 0.45)'
+                      : 'none',
+                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                }}
+                title="Course Creator: Master authoring studio & chat history workspace"
+              >
+                <GraduationCap size={14} />
+                <span>Course Creator</span>
+              </button>
+
+              {/* 2. Library */}
+              <button
+                id="nav-library-btn"
+                type="button"
+                onClick={() => {
+                  setPrimaryNavView('library');
+                  setIsDeliveryPathsMenuOpen(false);
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.42rem',
+                  padding: '0.34rem 0.95rem',
+                  borderRadius: '9999px',
+                  background:
+                    primaryNavView === 'library'
+                      ? 'linear-gradient(135deg, #38bdf8 0%, #6366f1 100%)'
+                      : 'transparent',
+                  border: 'none',
+                  color: primaryNavView === 'library' ? '#ffffff' : 'var(--text-muted)',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow:
+                    primaryNavView === 'library'
+                      ? '0 2px 14px rgba(56, 189, 248, 0.45)'
+                      : 'none',
+                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                }}
+                title="Library: Dedicated curriculum reader & catalog"
+              >
+                <BookOpen size={14} />
+                <span>Library</span>
+              </button>
+
+              {/* 3. Delivery Paths (Migrated from Delivery Mode with complete options) */}
+              <div ref={deliveryPathsDropdownRef} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                <button
+                  id="nav-delivery-paths-btn"
+                  type="button"
+                  onClick={() => setIsDeliveryPathsMenuOpen(!isDeliveryPathsMenuOpen)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.42rem',
+                    padding: '0.34rem 0.85rem',
+                    borderRadius: '9999px',
+                    background:
+                      primaryNavView === 'student_paths' || courseCreatorTab !== 'home'
+                        ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                        : 'transparent',
+                    border: 'none',
+                    color:
+                      primaryNavView === 'student_paths' || courseCreatorTab !== 'home'
+                        ? '#ffffff'
+                        : 'var(--text-muted)',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow:
+                      primaryNavView === 'student_paths' || courseCreatorTab !== 'home'
+                        ? '0 2px 14px rgba(16, 185, 129, 0.45)'
+                        : 'none',
+                    transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                  }}
+                  title="Delivery Paths: Select specialized delivery mode or teaching studio"
+                >
+                  <Compass size={14} />
+                  <span>
+                    {courseCreatorTab === 'slide_ai'
+                      ? 'Slide + AI'
+                      : courseCreatorTab === 'video_ai'
+                      ? 'Video + AI'
+                      : courseCreatorTab === 'intelli_coach'
+                      ? 'Intelli Coach'
+                      : courseCreatorTab === 'one_on_one_online'
+                      ? '1-on-1 Online'
+                      : courseCreatorTab === 'group_online'
+                      ? 'Group Online'
+                      : courseCreatorTab === 'camp_online'
+                      ? 'Camp Online'
+                      : courseCreatorTab === 'camp_offline'
+                      ? 'Camp Offline'
+                      : courseCreatorTab === 'sports_online'
+                      ? 'Sports Online'
+                      : courseCreatorTab === 'sports_offline'
+                      ? 'Sports Offline'
+                      : 'Delivery Paths'}
+                  </span>
+                  <ChevronDown
+                    size={12}
+                    style={{
+                      transform: isDeliveryPathsMenuOpen ? 'rotate(180deg)' : 'none',
+                      transition: 'transform 0.2s ease',
+                    }}
+                  />
+                </button>
+
+                {/* Delivery Paths Dropdown Menu */}
+                {isDeliveryPathsMenuOpen && (
+                  <>
+                    <div
+                      id="delivery-paths-backdrop"
+                      style={{ position: 'fixed', inset: 0, zIndex: 90 }}
+                      onClick={() => setIsDeliveryPathsMenuOpen(false)}
+                    />
+                    <div
+                      id="delivery-paths-dropdown-menu"
+                      className="animate-pop-in"
+                      style={{
+                        position: 'absolute',
+                        right: 0,
+                        top: 'calc(100% + 0.5rem)',
+                        width: '320px',
+                        maxHeight: '480px',
+                        overflowY: 'auto',
+                        background: 'var(--dropdown-bg)',
+                        backdropFilter: 'blur(24px)',
+                        WebkitBackdropFilter: 'blur(24px)',
+                        border: '1px solid var(--dropdown-border)',
+                        borderRadius: '0.95rem',
+                        padding: '0.5rem',
+                        boxShadow: 'var(--dropdown-shadow)',
+                        zIndex: 95,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.25rem',
+                      }}
+                    >
+                      <div
+                        style={{
+                          padding: '0.35rem 0.65rem 0.2rem 0.65rem',
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          color: 'var(--text-subtle)',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                        }}
+                      >
+                        AI Teaching & Studio Tools
+                      </div>
+
+                      <button
+                        id="path-menu-slide-ai-btn"
+                        type="button"
+                        onClick={() => {
+                          setPrimaryNavView('course_creator');
+                          setCourseCreatorTab('slide_ai');
+                          setIsDeliveryPathsMenuOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.6rem',
+                          padding: '0.45rem 0.65rem',
+                          borderRadius: '0.55rem',
+                          background: courseCreatorTab === 'slide_ai' ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+                          border: courseCreatorTab === 'slide_ai' ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid transparent',
+                          color: courseCreatorTab === 'slide_ai' ? '#38bdf8' : 'var(--text-main)',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <Presentation size={14} color="#38bdf8" />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700 }}>Slide + AI</div>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Interactive Slide Decks & TTS Narration</div>
+                        </div>
+                        {courseCreatorTab === 'slide_ai' && <Check size={13} color="#38bdf8" />}
+                      </button>
+
+                      <button
+                        id="path-menu-video-ai-btn"
+                        type="button"
+                        onClick={() => {
+                          setPrimaryNavView('course_creator');
+                          setCourseCreatorTab('video_ai');
+                          setIsDeliveryPathsMenuOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.6rem',
+                          padding: '0.45rem 0.65rem',
+                          borderRadius: '0.55rem',
+                          background: courseCreatorTab === 'video_ai' ? 'rgba(236, 72, 153, 0.15)' : 'transparent',
+                          border: courseCreatorTab === 'video_ai' ? '1px solid rgba(236, 72, 153, 0.4)' : '1px solid transparent',
+                          color: courseCreatorTab === 'video_ai' ? '#ec4899' : 'var(--text-main)',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <Tv size={14} color="#ec4899" />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700 }}>Video + AI</div>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Studio Video Masterclasses & Playback</div>
+                        </div>
+                        {courseCreatorTab === 'video_ai' && <Check size={13} color="#ec4899" />}
+                      </button>
+
+                      <button
+                        id="path-menu-intelli-coach-btn"
+                        type="button"
+                        onClick={() => {
+                          setPrimaryNavView('course_creator');
+                          setCourseCreatorTab('intelli_coach');
+                          setIsDeliveryPathsMenuOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.6rem',
+                          padding: '0.45rem 0.65rem',
+                          borderRadius: '0.55rem',
+                          background: courseCreatorTab === 'intelli_coach' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                          border: courseCreatorTab === 'intelli_coach' ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid transparent',
+                          color: courseCreatorTab === 'intelli_coach' ? '#10b981' : 'var(--text-main)',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <Bot size={14} color="#10b981" />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700 }}>Intelli Coach</div>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Tutoring Diagnostics & Blueprints</div>
+                        </div>
+                        {courseCreatorTab === 'intelli_coach' && <Check size={13} color="#10b981" />}
+                      </button>
+
+                      <div
+                        style={{
+                          padding: '0.45rem 0.65rem 0.2rem 0.65rem',
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          color: 'var(--text-subtle)',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          borderTop: '1px solid var(--border-subtle)',
+                          marginTop: '0.2rem',
+                        }}
+                      >
+                        Learning Delivery Formats
+                      </div>
+
+                      <button
+                        id="path-menu-1on1-btn"
+                        type="button"
+                        onClick={() => {
+                          setSelectedPathMode('one_on_one_online');
+                          setPrimaryNavView('student_paths');
+                          setCourseCreatorTab('one_on_one_online');
+                          setIsDeliveryPathsMenuOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.6rem',
+                          padding: '0.42rem 0.65rem',
+                          borderRadius: '0.55rem',
+                          background: courseCreatorTab === 'one_on_one_online' ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                          border: courseCreatorTab === 'one_on_one_online' ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid transparent',
+                          color: courseCreatorTab === 'one_on_one_online' ? '#818cf8' : 'var(--text-main)',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <UserCheck size={14} color="#818cf8" />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700 }}>1-on-1 Online</div>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Private Mentorship & Live Diagnostics</div>
+                        </div>
+                        {courseCreatorTab === 'one_on_one_online' && <Check size={13} color="#818cf8" />}
+                      </button>
+
+                      <button
+                        id="path-menu-group-btn"
+                        type="button"
+                        onClick={() => {
+                          setSelectedPathMode('group_online');
+                          setPrimaryNavView('student_paths');
+                          setCourseCreatorTab('group_online');
+                          setIsDeliveryPathsMenuOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.6rem',
+                          padding: '0.42rem 0.65rem',
+                          borderRadius: '0.55rem',
+                          background: courseCreatorTab === 'group_online' ? 'rgba(14, 165, 233, 0.15)' : 'transparent',
+                          border: courseCreatorTab === 'group_online' ? '1px solid rgba(14, 165, 233, 0.4)' : '1px solid transparent',
+                          color: courseCreatorTab === 'group_online' ? '#38bdf8' : 'var(--text-main)',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <Users size={14} color="#38bdf8" />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700 }}>Group Online</div>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Collaborative Cohorts & Breakouts</div>
+                        </div>
+                        {courseCreatorTab === 'group_online' && <Check size={13} color="#38bdf8" />}
+                      </button>
+
+                      <button
+                        id="path-menu-camp-online-btn"
+                        type="button"
+                        onClick={() => {
+                          setSelectedPathMode('camp_online');
+                          setPrimaryNavView('student_paths');
+                          setCourseCreatorTab('camp_online');
+                          setIsDeliveryPathsMenuOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.6rem',
+                          padding: '0.42rem 0.65rem',
+                          borderRadius: '0.55rem',
+                          background: courseCreatorTab === 'camp_online' ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
+                          border: courseCreatorTab === 'camp_online' ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid transparent',
+                          color: courseCreatorTab === 'camp_online' ? '#f59e0b' : 'var(--text-main)',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <Tent size={14} color="#f59e0b" />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700 }}>Camp Online</div>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Intensive Virtual Bootcamps</div>
+                        </div>
+                        {courseCreatorTab === 'camp_online' && <Check size={13} color="#f59e0b" />}
+                      </button>
+
+                      <button
+                        id="path-menu-camp-offline-btn"
+                        type="button"
+                        onClick={() => {
+                          setSelectedPathMode('camp_offline');
+                          setPrimaryNavView('student_paths');
+                          setCourseCreatorTab('camp_offline');
+                          setIsDeliveryPathsMenuOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.6rem',
+                          padding: '0.42rem 0.65rem',
+                          borderRadius: '0.55rem',
+                          background: courseCreatorTab === 'camp_offline' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                          border: courseCreatorTab === 'camp_offline' ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid transparent',
+                          color: courseCreatorTab === 'camp_offline' ? '#10b981' : 'var(--text-main)',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <MapPin size={14} color="#10b981" />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700 }}>Camp Offline</div>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>On-Campus Physical Stations</div>
+                        </div>
+                        {courseCreatorTab === 'camp_offline' && <Check size={13} color="#10b981" />}
+                      </button>
+
+                      <button
+                        id="path-menu-sports-online-btn"
+                        type="button"
+                        onClick={() => {
+                          setSelectedPathMode('sports_online');
+                          setPrimaryNavView('student_paths');
+                          setCourseCreatorTab('sports_online');
+                          setIsDeliveryPathsMenuOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.6rem',
+                          padding: '0.42rem 0.65rem',
+                          borderRadius: '0.55rem',
+                          background: courseCreatorTab === 'sports_online' ? 'rgba(139, 92, 246, 0.15)' : 'transparent',
+                          border: courseCreatorTab === 'sports_online' ? '1px solid rgba(139, 92, 246, 0.4)' : '1px solid transparent',
+                          color: courseCreatorTab === 'sports_online' ? '#c084fc' : 'var(--text-main)',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <Trophy size={14} color="#c084fc" />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700 }}>Sports Online</div>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Tactical Playbook & Home Conditioning</div>
+                        </div>
+                        {courseCreatorTab === 'sports_online' && <Check size={13} color="#c084fc" />}
+                      </button>
+
+                      <button
+                        id="path-menu-sports-offline-btn"
+                        type="button"
+                        onClick={() => {
+                          setSelectedPathMode('sports_offline');
+                          setPrimaryNavView('student_paths');
+                          setCourseCreatorTab('sports_offline');
+                          setIsDeliveryPathsMenuOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.6rem',
+                          padding: '0.42rem 0.65rem',
+                          borderRadius: '0.55rem',
+                          background: courseCreatorTab === 'sports_offline' ? 'rgba(244, 63, 94, 0.15)' : 'transparent',
+                          border: courseCreatorTab === 'sports_offline' ? '1px solid rgba(244, 63, 94, 0.4)' : '1px solid transparent',
+                          color: courseCreatorTab === 'sports_offline' ? '#f43f5e' : 'var(--text-main)',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <Activity size={14} color="#f43f5e" />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700 }}>Sports Offline</div>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>On-Field Drills & Circuits</div>
+                        </div>
+                        {courseCreatorTab === 'sports_offline' && <Check size={13} color="#f43f5e" />}
+                      </button>
+
+                      {/* Active Learning Modules List */}
+                      {courseCreatorSessions.length > 0 && (
+                        <>
+                          <div
+                            style={{
+                              padding: '0.45rem 0.65rem 0.2rem 0.65rem',
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                              color: 'var(--text-subtle)',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.05em',
+                              borderTop: '1px solid var(--border-subtle)',
+                              marginTop: '0.2rem',
+                            }}
+                          >
+                            Active Modules ({courseCreatorSessions.length})
+                          </div>
+                          {courseCreatorSessions.slice(0, 4).map((cSession) => (
+                            <button
+                              key={cSession.id}
+                              type="button"
+                              onClick={() => {
+                                handleSelectSession(cSession.id);
+                                setPrimaryNavView('course_creator');
+                                setCourseCreatorTab('home');
+                                setIsDeliveryPathsMenuOpen(false);
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '0.42rem 0.65rem',
+                                borderRadius: '0.55rem',
+                                background: 'transparent',
+                                border: '1px solid transparent',
+                                cursor: 'pointer',
+                                textAlign: 'left',
+                                gap: '0.5rem',
+                                transition: 'background 0.15s ease',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'rgba(16, 185, 129, 0.1)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'transparent';
+                              }}
+                            >
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div
+                                  style={{
+                                    fontSize: '0.76rem',
+                                    fontWeight: 600,
+                                    color: 'var(--text-main)',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                  }}
+                                >
+                                  {cSession.title || 'Untitled Path'}
+                                </div>
+                                <div style={{ fontSize: '0.65rem', color: '#10b981' }}>
+                                  Access Lessons & Slides
+                                </div>
+                              </div>
+                              <ArrowRight size={12} color="var(--text-muted)" />
+                            </button>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </nav>
+          ) : activeModule === 'ai_tieup_creator' || primaryNavView === 'tieup_creator' ? (
+            /* Dedicated Tie-up Sub-Navigation Menu (Permanently Locked on Secondary Row) */
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+              <nav
+                id="tieup-sub-navbar"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '9999px',
+                  padding: '0.2rem 0.25rem',
+                  gap: '0.25rem',
+                }}
+              >
+                {/* 1. Chat Home */}
+                <button
+                  id="tieup-subnav-chat-home"
+                  type="button"
+                  onClick={() => handleSelectTieupTab('chat_home')}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.38rem',
+                    padding: '0.32rem 0.85rem',
+                    borderRadius: '9999px',
+                    background: tieupActiveTab === 'chat_home' ? 'var(--bg-card)' : 'transparent',
+                    border: tieupActiveTab === 'chat_home' ? '1px solid var(--border-medium)' : '1px solid transparent',
+                    borderBottom: tieupActiveTab === 'chat_home' ? '2px solid var(--accent-primary)' : '1px solid transparent',
+                    color: tieupActiveTab === 'chat_home' ? 'var(--text-main)' : 'var(--text-muted)',
+                    fontSize: '0.76rem',
+                    fontWeight: tieupActiveTab === 'chat_home' ? 700 : 500,
+                    cursor: 'pointer',
+                    boxShadow: tieupActiveTab === 'chat_home' ? 'var(--shadow-sm)' : 'none',
+                    transition: 'all 0.15s ease',
+                  }}
+                  title="Chat Home: Inverted workspace & AI grounding research"
+                >
+                  <MessageSquare size={13} color={tieupActiveTab === 'chat_home' ? 'var(--accent-primary)' : 'currentColor'} />
+                  <span>Chat Home</span>
+                </button>
+
+                {/* 2. Resources */}
+                <button
+                  id="tieup-subnav-resources"
+                  type="button"
+                  onClick={() => handleSelectTieupTab('resources')}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.38rem',
+                    padding: '0.32rem 0.85rem',
+                    borderRadius: '9999px',
+                    background: tieupActiveTab === 'resources' ? 'var(--bg-card)' : 'transparent',
+                    border: tieupActiveTab === 'resources' ? '1px solid var(--border-medium)' : '1px solid transparent',
+                    borderBottom: tieupActiveTab === 'resources' ? '2px solid var(--accent-primary)' : '1px solid transparent',
+                    color: tieupActiveTab === 'resources' ? 'var(--text-main)' : 'var(--text-muted)',
+                    fontSize: '0.76rem',
+                    fontWeight: tieupActiveTab === 'resources' ? 700 : 500,
+                    cursor: 'pointer',
+                    boxShadow: tieupActiveTab === 'resources' ? 'var(--shadow-sm)' : 'none',
+                    transition: 'all 0.15s ease',
+                  }}
+                  title="Resources: Master institutional repository & lead database"
+                >
+                  <Database size={13} color={tieupActiveTab === 'resources' ? 'var(--accent-primary)' : 'currentColor'} />
+                  <span>Resources</span>
+                  {tieupCounts.resources > 0 && (
+                    <span
+                      style={{
+                        fontSize: '0.62rem',
+                        fontWeight: 700,
+                        padding: '0.05rem 0.4rem',
+                        borderRadius: '9999px',
+                        background: tieupActiveTab === 'resources' ? 'var(--accent-gradient-subtle)' : 'var(--border-subtle)',
+                        color: tieupActiveTab === 'resources' ? 'var(--accent-primary)' : 'var(--text-subtle)',
+                      }}
+                    >
+                      {tieupCounts.resources}
+                    </span>
+                  )}
+                </button>
+
+                {/* 3. Process */}
+                <button
+                  id="tieup-subnav-process"
+                  type="button"
+                  onClick={() => handleSelectTieupTab('process')}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.38rem',
+                    padding: '0.32rem 0.85rem',
+                    borderRadius: '9999px',
+                    background: tieupActiveTab === 'process' ? 'var(--bg-card)' : 'transparent',
+                    border: tieupActiveTab === 'process' ? '1px solid var(--border-medium)' : '1px solid transparent',
+                    borderBottom: tieupActiveTab === 'process' ? '2px solid var(--accent-primary)' : '1px solid transparent',
+                    color: tieupActiveTab === 'process' ? 'var(--text-main)' : 'var(--text-muted)',
+                    fontSize: '0.76rem',
+                    fontWeight: tieupActiveTab === 'process' ? 700 : 500,
+                    cursor: 'pointer',
+                    boxShadow: tieupActiveTab === 'process' ? 'var(--shadow-sm)' : 'none',
+                    transition: 'all 0.15s ease',
+                  }}
+                  title="Process: Outreach automation, dispatch queue & delivery tracking"
+                >
+                  <SendHorizontal size={13} color={tieupActiveTab === 'process' ? 'var(--accent-primary)' : 'currentColor'} />
+                  <span>Process</span>
+                  {tieupCounts.process > 0 && (
+                    <span
+                      style={{
+                        fontSize: '0.62rem',
+                        fontWeight: 700,
+                        padding: '0.05rem 0.4rem',
+                        borderRadius: '9999px',
+                        background: tieupActiveTab === 'process' ? 'var(--accent-gradient-subtle)' : 'var(--border-subtle)',
+                        color: tieupActiveTab === 'process' ? 'var(--accent-primary)' : 'var(--text-subtle)',
+                      }}
+                    >
+                      {tieupCounts.process}
+                    </span>
+                  )}
+                </button>
+
+                {/* 4. Partners */}
+                <button
+                  id="tieup-subnav-partners"
+                  type="button"
+                  onClick={() => handleSelectTieupTab('partners')}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.38rem',
+                    padding: '0.32rem 0.85rem',
+                    borderRadius: '9999px',
+                    background: tieupActiveTab === 'partners' ? 'var(--bg-card)' : 'transparent',
+                    border: tieupActiveTab === 'partners' ? '1px solid var(--border-medium)' : '1px solid transparent',
+                    borderBottom: tieupActiveTab === 'partners' ? '2px solid var(--accent-primary)' : '1px solid transparent',
+                    color: tieupActiveTab === 'partners' ? 'var(--text-main)' : 'var(--text-muted)',
+                    fontSize: '0.76rem',
+                    fontWeight: tieupActiveTab === 'partners' ? 700 : 500,
+                    cursor: 'pointer',
+                    boxShadow: tieupActiveTab === 'partners' ? 'var(--shadow-sm)' : 'none',
+                    transition: 'all 0.15s ease',
+                  }}
+                  title="Partners: Finalized MOUs, signed contracts & board records"
+                >
+                  <Award size={13} color={tieupActiveTab === 'partners' ? 'var(--accent-primary)' : 'currentColor'} />
+                  <span>Partners</span>
+                  {tieupCounts.partners > 0 && (
+                    <span
+                      style={{
+                        fontSize: '0.62rem',
+                        fontWeight: 700,
+                        padding: '0.05rem 0.4rem',
+                        borderRadius: '9999px',
+                        background: tieupActiveTab === 'partners' ? 'var(--accent-gradient-subtle)' : 'var(--border-subtle)',
+                        color: tieupActiveTab === 'partners' ? 'var(--accent-primary)' : 'var(--text-subtle)',
+                      }}
+                    >
+                      {tieupCounts.partners}
+                    </span>
+                  )}
+                </button>
+              </nav>
+
+              {/* Our Policies Button */}
+              <button
+                id="tieup-subnav-policies-btn"
+                type="button"
+                onClick={() => setIsTieupPolicyModalOpen(true)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.38rem',
+                  padding: '0.34rem 0.85rem',
+                  borderRadius: '9999px',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-medium)',
+                  color: 'var(--text-main)',
+                  fontSize: '0.74rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: 'var(--shadow-sm)',
+                  transition: 'all 0.15s ease',
+                }}
+                title="Configure institution criteria, commission benchmarks, and student requirements"
+              >
+                <Settings size={13} strokeWidth={2} color="var(--accent-primary)" />
+                <span>Our Policies</span>
+              </button>
+            </div>
+          ) : (
+            /* General AI / Other Tools Navigation: Chat Home | Resources */
+            <nav
+              id="general-ai-navbar"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                background: 'var(--subnav-track-bg)',
+                border: '1px solid var(--subnav-track-border)',
+                borderRadius: '9999px',
+                padding: '0.22rem',
+                gap: '0.25rem',
+                boxShadow: 'var(--subnav-track-shadow)',
+              }}
+            >
+              {/* 1. Chat Home */}
+              <button
+                id="nav-chat-home-btn"
+                type="button"
+                onClick={() => {
+                  setPrimaryNavView('chat_home');
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.42rem',
+                  padding: '0.34rem 0.95rem',
+                  borderRadius: '9999px',
+                  background:
+                    primaryNavView === 'chat_home' || primaryNavView === 'ai_tool'
+                      ? 'var(--accent-gradient)'
+                      : 'transparent',
+                  border: 'none',
+                  color:
+                    primaryNavView === 'chat_home' || primaryNavView === 'ai_tool'
+                      ? '#ffffff'
+                      : 'var(--text-muted)',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow:
+                    primaryNavView === 'chat_home' || primaryNavView === 'ai_tool'
+                      ? '0 2px 14px var(--accent-glow)'
+                      : 'none',
+                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                }}
+                title="Chat Home: Conversational AI companion & specialized assistant"
+              >
+                <MessageSquare size={14} />
+                <span>Chat Home</span>
+              </button>
+
+              {/* 2. Resources */}
+              <button
+                id="nav-resources-btn"
+                type="button"
+                onClick={() => {
+                  setPrimaryNavView('resources');
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.42rem',
+                  padding: '0.34rem 0.95rem',
+                  borderRadius: '9999px',
+                  background:
+                    primaryNavView === 'resources'
+                      ? 'linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%)'
+                      : 'transparent',
+                  border: 'none',
+                  color: primaryNavView === 'resources' ? '#ffffff' : 'var(--text-muted)',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow:
+                    primaryNavView === 'resources'
+                      ? '0 2px 14px rgba(14, 165, 233, 0.45)'
+                      : 'none',
+                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                }}
+                title="Resources: Saved outputs repository & centralized data hub"
+              >
+                <Database size={14} />
+                <span>Resources</span>
+              </button>
+            </nav>
+          )}
+        </div>
+      </div>
 
       {/* Global Error Banner */}
       {error && (
@@ -1457,8 +2851,104 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
           position: 'relative',
         }}
       >
-        {/* SCENARIO A: CENTRAL DASHBOARD (Default Landing Page) */}
-        {activeModule === 'central_dashboard' ? (
+        {/* VIEW ROUTING BASED ON STRICT ISOLATION ARCHITECTURE */}
+        {activeModule === 'ai_tieup_creator' || primaryNavView === 'tieup_creator' ? (
+          /* 1. 100% IMMERSIVE ISOLATED TIE-UP & PARTNERSHIP CREATOR WORKSPACE */
+          <CourseErrorBoundary
+            key="tieup_creator_boundary"
+            onReset={() => {
+              setActiveModule('ai_tieup_creator');
+              setPrimaryNavView('tieup_creator');
+            }}
+          >
+            <TieupResearchEngineView
+              key={`tieup_isolated_view_${activeTieupSession?.id || 'default'}`}
+              activeSession={activeTieupSession}
+              sessions={sessions}
+              onSelectSession={handleSelectSession}
+              onNewSession={(prod, p) => handleNewChatForProduct(prod || 'ai_tieup_creator', p)}
+              onDeleteSession={handleDeleteSession}
+              onSendMessage={handleSendAIHubMessage}
+              loading={loading}
+              activeMainTab={tieupActiveTab}
+              onSelectTab={handleSelectTieupTab}
+              isPolicyModalOpen={isTieupPolicyModalOpen}
+              onOpenPolicyModal={() => setIsTieupPolicyModalOpen(true)}
+              onClosePolicyModal={() => setIsTieupPolicyModalOpen(false)}
+              onUpdateCounts={setTieupCounts}
+            />
+          </CourseErrorBoundary>
+        ) : primaryNavView === 'library' ? (
+          /* 2. 100% IMMERSIVE DEDICATED LIBRARY VIEW: ZERO CHAT SIDEBAR */
+          <DedicatedLibraryView
+            onOpenInWorkspace={(course: LibraryCourse) => {
+              const matchedSession = sessions.find((s) => s.id === course.sourceSessionId);
+              if (matchedSession) {
+                setActiveSessionId(matchedSession.id);
+              }
+              setPrimaryNavView('course_creator');
+              setCourseCreatorTab('home');
+            }}
+            onBackToChat={() => {
+              setPrimaryNavView('course_creator');
+              setCourseCreatorTab('home');
+            }}
+            onCreateNewCourse={() => {
+              handleNewCourse();
+              setPrimaryNavView('course_creator');
+              setCourseCreatorTab('home');
+            }}
+          />
+        ) : primaryNavView === 'student_paths' ? (
+          /* 2. 100% IMMERSIVE STUDENT PATHS VIEW WITH SAFE ERROR BOUNDARY */
+          <CourseErrorBoundary
+            key="student_paths_boundary"
+            onReset={() => setPrimaryNavView('student_paths')}
+          >
+            <LearningPathModeView
+              key={`dedicated_student_paths_${selectedPathMode}`}
+              initialMode={selectedPathMode}
+              sessions={courseCreatorSessions}
+              onSelectCourseSession={(sId) => {
+                handleSelectSession(sId);
+                setPrimaryNavView('course_creator');
+                setCourseCreatorTab('home');
+              }}
+              onLaunchCourse={(topicQuery, mode) => {
+                const modeCfg = LEARNING_PATH_MODES[mode];
+                const targetAudienceValue = modeCfg?.recommendedAudience || 'General Student';
+                localStorage.setItem('ila_learner_category', targetAudienceValue);
+                setPrimaryNavView('course_creator');
+                setCourseCreatorTab('home');
+                handleNewCourse().then(() => {
+                  executeAutonomousCoursePlan(
+                    `[${modeCfg?.title || mode} Delivery] ${topicQuery}`,
+                    [],
+                    targetAudienceValue
+                  );
+                });
+              }}
+              onOpenSlideAi={() => {
+                setPrimaryNavView('course_creator');
+                setCourseCreatorTab('slide_ai');
+              }}
+              onOpenVideoAi={() => {
+                setPrimaryNavView('course_creator');
+                setCourseCreatorTab('video_ai');
+              }}
+              onOpenIntelliCoach={() => {
+                setPrimaryNavView('course_creator');
+                setCourseCreatorTab('intelli_coach');
+              }}
+              onOpenAdminLibrary={() => setPrimaryNavView('library')}
+              onOpenChatHome={() => {
+                setPrimaryNavView('course_creator');
+                setCourseCreatorTab('home');
+              }}
+            />
+          </CourseErrorBoundary>
+        ) : primaryNavView === 'central_dashboard' ? (
+          /* 3. 100% IMMERSIVE CENTRAL DASHBOARD: ZERO CHAT SIDEBAR */
           <CentralDashboardView
             sessions={sessions}
             onSelectProduct={(prod) => handleSelectModule(prod)}
@@ -1468,760 +2958,224 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
               if (matched?.productType && matched.productType !== 'course_creator') {
                 handleSelectModule(matched.productType);
               } else {
-                handleSelectModule('course_creator');
+                setPrimaryNavView('course_creator');
+                setCourseCreatorTab('home');
               }
             }}
             onOpenParameterInput={() => handleOpenParameters('input')}
             onOpenParameterList={() => handleOpenParameters('list')}
-            onReturnToHome={() => handleSelectModule('course_creator')}
+            onReturnToHome={() => {
+              setPrimaryNavView('course_creator');
+              setCourseCreatorTab('home');
+            }}
           />
-        ) : activeModule === 'course_creator' ? (
-          /* SCENARIO B: ISOLATED COURSE CREATOR STUDIO VIEW */
+        ) : primaryNavView === 'resources' ? (
+          /* 4. 100% IMMERSIVE RESOURCES REPOSITORY & DATA HUB */
+          <ResourcesDataHubView
+            sessions={sessions}
+            onOpenSessionInWorkspace={(session) => {
+              handleSelectSession(session.id);
+              if (session.productType && session.productType !== 'course_creator' && session.productType !== 'ila_chat') {
+                handleSelectModule(session.productType);
+              } else if (session.productType === 'ila_chat') {
+                setActiveModule('ila_chat');
+                setPrimaryNavView('chat_home');
+              } else {
+                setPrimaryNavView('course_creator');
+                setCourseCreatorTab('home');
+              }
+            }}
+            onDeleteSession={handleDeleteSession}
+            onExportJSON={handleExportJSON}
+            onNavigateToChat={() => {
+              setActiveModule('ila_chat');
+              setPrimaryNavView('chat_home');
+            }}
+            onNavigateToCourseCreator={() => {
+              setActiveModule('course_creator');
+              setPrimaryNavView('course_creator');
+              setCourseCreatorTab('home');
+            }}
+          />
+        ) : (primaryNavView === 'ai_tool' || (activeModule !== 'course_creator' && primaryNavView === 'chat_home' && activeModule !== 'ila_chat')) ? (
+          /* 5. 100% IMMERSIVE SPECIALIZED AI HUB TOOLS */
+          <AIHubWorkspaceView
+            productType={activeModule as AIProductType}
+            onSelectProduct={handleSelectModule}
+            onReturnToCourseCreator={() => {
+              setPrimaryNavView('course_creator');
+              setCourseCreatorTab('home');
+            }}
+            activeSession={activeSession}
+            sessions={sessions}
+            onSelectSession={handleSelectSession}
+            onNewSession={(prod, p) => handleNewChatForProduct(prod, p)}
+            onDeleteSession={handleDeleteSession}
+            onSendMessage={handleSendAIHubMessage}
+            loading={loading}
+            theme={theme}
+            onToggleThemeMenu={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
+            isThemeMenuOpen={isThemeMenuOpen}
+            onSelectTheme={setTheme}
+            isSidebarOpen={isLeftSidebarOpen}
+            onToggleSidebar={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)}
+            onOpenActivityTracker={() => setIsActivityTrackerOpen(true)}
+            onOpenCentralDashboard={() => {
+              setPrimaryNavView('central_dashboard');
+            }}
+            onOpenParameterInput={() => handleOpenParameters('input')}
+            onOpenParameterList={() => handleOpenParameters('list')}
+          />
+        ) : activeModule === 'ila_chat' && primaryNavView === 'chat_home' ? (
+          /* 6. GENERAL CHAT HOME MODE (Unified AI Assistant) */
+          <ChatHomeView
+            sessions={sessions.filter((s) => s.productType === 'ila_chat' || !s.productType)}
+            activeSessionId={activeSessionId}
+            onSelectSession={handleSelectSession}
+            onNewChat={() => handleNewChatForProduct('ila_chat')}
+            onDeleteSession={handleDeleteSession}
+            onRenameSession={handleRenameSession}
+            onTogglePinSession={handleTogglePinSession}
+            onClearAllSessions={handleClearAllSessions}
+            onExportJSON={handleExportJSON}
+            onImportJSON={handleImportJSON}
+            onSendMessage={handleSendMessage}
+            loading={loading}
+            isDbPersisted={isDbPersisted}
+            dbHealth={dbHealth}
+            onSpeak={speak}
+            isSpeaking={isSpeaking}
+            activeSpeakingId={activeSpeakingId}
+            onConvertToCourse={(session) => {
+              handleSelectSession(session.id);
+              setActiveModule('course_creator');
+              setPrimaryNavView('course_creator');
+              setCourseCreatorTab('home');
+            }}
+          />
+        ) : (
+          /* 5. COURSE CREATOR UNIFIED MASTER STUDIO (Left Chat History Sidebar + Right Master Workspace) */
           <div
             id="course-creator-studio-layout"
             style={{
               flex: 1,
               display: 'flex',
+              flexDirection: 'row',
               height: '100%',
               width: '100%',
               overflow: 'hidden',
+              position: 'relative',
             }}
           >
-            {/* Left Chat History Sidebar (Only visible in Course Creator) */}
-            <ChatSidebar
-              sessions={courseCreatorSessions}
-              activeSessionId={activeSessionId}
-              onSelectSession={handleSelectSession}
-              onNewChat={handleNewChat}
-              onDeleteSession={handleDeleteSession}
-              onRenameSession={handleRenameSession}
-              onTogglePinSession={handleTogglePinSession}
-              onClearAllSessions={handleClearAllSessions}
-              onExportJSON={handleExportJSON}
-              onImportJSON={handleImportJSON}
-              isOpen={isLeftSidebarOpen}
-              onToggleOpen={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)}
-              isDbPersisted={isDbPersisted}
-              dbHealth={dbHealth}
-              activeProductType="course_creator"
-              onSelectProduct={handleSelectModule}
-              onOpenFunctionList={() => setIsFunctionListOpen(true)}
-            />
+            {/* Left: Unified Course Chat History Sidebar (Only shown on Course Creator Home tab, removed from Slide AI, Video AI, IntelliCoach, and Student Delivery Paths) */}
+            {courseCreatorTab === 'home' && (
+              <ChatSidebar
+                sessions={courseCreatorSessions}
+                activeSessionId={activeCourseSession?.id || activeSessionId}
+                onSelectSession={(sId) => {
+                  handleSelectSession(sId);
+                  setCourseCreatorTab('home');
+                }}
+                onNewChat={handleNewCourse}
+                onDeleteSession={handleDeleteSession}
+                onRenameSession={handleRenameSession}
+                onTogglePinSession={handleTogglePinSession}
+                onClearAllSessions={handleClearAllSessions}
+                onExportJSON={handleExportJSON}
+                onImportJSON={handleImportJSON}
+                isOpen={isLeftSidebarOpen}
+                onToggleOpen={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)}
+                isDbPersisted={isDbPersisted}
+                dbHealth={dbHealth}
+                activeProductType="course_creator"
+                onSelectProduct={handleSelectModule}
+              />
+            )}
 
-            {/* Main Course Creator Body */}
+            {/* Right: Full Course Creation Workspace Panel */}
             <div
-              id="course-creator-body-container"
+              id="course-creator-workspace-container"
               style={{
                 flex: 1,
                 display: 'flex',
                 flexDirection: 'column',
                 height: '100%',
+                minWidth: 0,
                 overflow: 'hidden',
                 position: 'relative',
-                minWidth: 0,
               }}
             >
-              {/* COURSE CREATOR ISOLATED SUB-NAVIGATION BAR */}
-              <div
-                id="course-creator-subnav"
-                style={{
-                  padding: '0.5rem 1.25rem',
-                  borderBottom: '1px solid var(--border-subtle)',
-                  background: 'var(--header-bg)',
-                  backdropFilter: 'blur(20px)',
-                  WebkitBackdropFilter: 'blur(20px)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '1rem',
-                  flexShrink: 0,
-                  zIndex: 30,
-                  boxShadow: '0 4px 20px -5px rgba(0, 0, 0, 0.4)',
-                }}
-              >
-                {/* Left: Sidebar Toggle + Active Course Session Title */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
-                  <button
-                    id="sidebar-toggle-btn"
-                    type="button"
-                    onClick={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)}
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      border: '1px solid var(--border-subtle)',
-                      borderRadius: '0.6rem',
-                      color: isLeftSidebarOpen ? 'var(--accent-primary)' : 'var(--text-main)',
-                      cursor: 'pointer',
-                      padding: '0.42rem 0.5rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                      boxShadow: isLeftSidebarOpen ? '0 0 12px var(--accent-glow)' : 'none',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-                      e.currentTarget.style.borderColor = 'var(--border-focus)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                      e.currentTarget.style.borderColor = 'var(--border-subtle)';
-                    }}
-                    title={isLeftSidebarOpen ? 'Collapse Chat History' : 'Expand Chat History'}
-                  >
-                    <PanelLeft size={16} />
-                  </button>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0 }}>
-                    <div
-                      style={{
-                        width: '8px',
-                        height: '8px',
-                        borderRadius: '50%',
-                        background: 'var(--accent-primary)',
-                        boxShadow: '0 0 8px var(--accent-primary)',
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span
-                      style={{
-                        fontSize: '0.86rem',
-                        fontWeight: 700,
-                        color: 'var(--text-main)',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        maxWidth: '320px',
-                        letterSpacing: '-0.01em',
-                      }}
-                      title={activeSession?.title || 'Course Creator Studio'}
-                    >
-                      {activeSession?.title && activeSession.title !== 'New Course Workspace'
-                        ? activeSession.title
-                        : 'Course Creator Studio'}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: '0.65rem',
-                        fontWeight: 800,
-                        padding: '0.12rem 0.55rem',
-                        borderRadius: '9999px',
-                        background: 'rgba(99, 102, 241, 0.15)',
-                        border: '1px solid rgba(99, 102, 241, 0.35)',
-                        color: '#a5b4fc',
-                        whiteSpace: 'nowrap',
-                        letterSpacing: '0.04em',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      Workspace
-                    </span>
-                  </div>
-                </div>
-
-                {/* Right: Fixed Buttons (Chat Home, Admin Library) + Select Path Dropdown */}
-                <div
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    background: 'rgba(0, 0, 0, 0.35)',
-                    border: '1px solid var(--border-medium)',
-                    borderRadius: '9999px',
-                    padding: '0.22rem',
-                    gap: '0.3rem',
-                    position: 'relative',
-                    boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.4)',
-                  }}
-                >
-                  {/* 1. Fixed Button: Chat Home */}
-                  <button
-                    id="main-nav-chat-home-btn"
-                    type="button"
-                    onClick={() => {
-                      setCourseCreatorTab('home');
-                      setIsPathDropdownOpen(false);
-                    }}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.38rem',
-                      padding: '0.35rem 0.85rem',
-                      borderRadius: '9999px',
-                      background:
-                        courseCreatorTab === 'home'
-                          ? 'var(--accent-gradient)'
-                          : 'transparent',
-                      border: 'none',
-                      color: courseCreatorTab === 'home' ? '#ffffff' : 'var(--text-muted)',
-                      fontSize: '0.78rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      boxShadow:
-                        courseCreatorTab === 'home'
-                          ? '0 2px 12px var(--accent-glow)'
-                          : 'none',
-                      transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                    }}
-                    onMouseEnter={(e) => {
-                      if (courseCreatorTab !== 'home') {
-                        e.currentTarget.style.color = 'var(--text-main)';
-                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (courseCreatorTab !== 'home') {
-                        e.currentTarget.style.color = 'var(--text-muted)';
-                        e.currentTarget.style.background = 'transparent';
-                      }
-                    }}
-                    title="Chat Home: Course Workspace & Download Page, Authoring Studio, Prompts & Live Course Generation"
-                  >
-                    <MessageSquare size={13} />
-                    <span>Chat Home</span>
-                  </button>
-
-                  {/* 2. Fixed Button: Admin Library */}
-                  <button
-                    id="main-nav-admin-lib-btn"
-                    type="button"
-                    onClick={() => {
-                      setCourseCreatorTab('admin_library');
-                      setIsPathDropdownOpen(false);
-                    }}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.38rem',
-                      padding: '0.35rem 0.85rem',
-                      borderRadius: '9999px',
-                      background:
-                        courseCreatorTab === 'admin_library'
-                          ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)'
-                          : 'transparent',
-                      border: 'none',
-                      color:
-                        courseCreatorTab === 'admin_library'
-                          ? '#ffffff'
-                          : 'var(--text-muted)',
-                      fontSize: '0.78rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      boxShadow:
-                        courseCreatorTab === 'admin_library'
-                          ? '0 2px 12px rgba(99, 102, 241, 0.4)'
-                          : 'none',
-                      transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                    }}
-                    onMouseEnter={(e) => {
-                      if (courseCreatorTab !== 'admin_library') {
-                        e.currentTarget.style.color = 'var(--text-main)';
-                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (courseCreatorTab !== 'admin_library') {
-                        e.currentTarget.style.color = 'var(--text-muted)';
-                        e.currentTarget.style.background = 'transparent';
-                      }
-                    }}
-                    title="Admin Library: Manage authorized courses, inspect versions, DOCX downloads & course structures"
-                  >
-                    <ShieldCheck size={13} />
-                    <span>Admin Library</span>
-                  </button>
-
-                  {/* 3. Dropdown Menu: Select Path */}
-                  <div style={{ position: 'relative' }}>
-                    <button
-                      id="main-nav-path-dropdown-btn"
-                      type="button"
-                      onClick={() => setIsPathDropdownOpen(!isPathDropdownOpen)}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.38rem',
-                        padding: '0.35rem 0.9rem',
-                        borderRadius: '9999px',
-                        background:
-                          courseCreatorTab !== 'home' && courseCreatorTab !== 'admin_library'
-                            ? 'linear-gradient(135deg, #38bdf8 0%, #6366f1 100%)'
-                            : 'transparent',
-                        border: 'none',
-                        color:
-                          courseCreatorTab !== 'home' && courseCreatorTab !== 'admin_library'
-                            ? '#ffffff'
-                            : 'var(--text-muted)',
-                        fontSize: '0.78rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        boxShadow:
-                          courseCreatorTab !== 'home' && courseCreatorTab !== 'admin_library'
-                            ? '0 2px 12px rgba(56, 189, 248, 0.45)'
-                            : 'none',
-                        transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                      }}
-                      onMouseEnter={(e) => {
-                        if (courseCreatorTab === 'home' || courseCreatorTab === 'admin_library') {
-                          e.currentTarget.style.color = 'var(--text-main)';
-                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (courseCreatorTab === 'home' || courseCreatorTab === 'admin_library') {
-                          e.currentTarget.style.color = 'var(--text-muted)';
-                          e.currentTarget.style.background = 'transparent';
-                        }
-                      }}
-                      title="Select Learning & Teaching Delivery Path"
-                    >
-                      <Compass size={13} />
-                      <span>
-                        {courseCreatorTab === 'slide_ai'
-                          ? 'Path: Slide+AI'
-                          : courseCreatorTab === 'video_ai'
-                          ? 'Path: Video+AI'
-                          : courseCreatorTab === 'intelli_coach'
-                          ? 'Path: Intelli Coach'
-                          : courseCreatorTab === 'one_on_one_online'
-                          ? 'Path: 1-on-1 Online'
-                          : courseCreatorTab === 'group_online'
-                          ? 'Path: Group Online'
-                          : courseCreatorTab === 'camp_online'
-                          ? 'Path: Camp Online'
-                          : courseCreatorTab === 'camp_offline'
-                          ? 'Path: Camp Offline'
-                          : courseCreatorTab === 'sports_online'
-                          ? 'Path: Sports Online'
-                          : courseCreatorTab === 'sports_offline'
-                          ? 'Path: Sports Offline'
-                          : 'Select Path'}
-                      </span>
-                      <ChevronDown
-                        size={12}
-                        style={{
-                          transform: isPathDropdownOpen ? 'rotate(180deg)' : 'none',
-                          transition: 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-                        }}
-                      />
-                    </button>
-
-                    {/* Path Dropdown Menu */}
-                    {isPathDropdownOpen && (
-                      <>
-                        <div
-                          style={{ position: 'fixed', inset: 0, zIndex: 90 }}
-                          onClick={() => setIsPathDropdownOpen(false)}
-                        />
-                        <div
-                          className="animate-pop-in"
-                          style={{
-                            position: 'absolute',
-                            right: 0,
-                            top: 'calc(100% + 0.5rem)',
-                            width: '290px',
-                            background: 'var(--bg-glass-elevated)',
-                            backdropFilter: 'blur(20px)',
-                            WebkitBackdropFilter: 'blur(20px)',
-                            border: '1px solid var(--border-medium)',
-                            borderRadius: '0.95rem',
-                            padding: '0.5rem',
-                            boxShadow: 'var(--shadow-lg)',
-                            zIndex: 95,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '0.25rem',
-                          }}
-                        >
-                          {/* Group 1: Teaching & Studio Tools */}
-                          <div
-                            style={{
-                              padding: '0.35rem 0.65rem 0.2rem 0.65rem',
-                              fontSize: '0.68rem',
-                              fontWeight: 700,
-                              color: 'var(--text-subtle)',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.05em',
-                            }}
-                          >
-                            AI Teaching & Studio Tools
-                          </div>
-
-                          <button
-                            id="path-menu-slide-ai-btn"
-                            type="button"
-                            onClick={() => {
-                              setCourseCreatorTab('slide_ai');
-                              setIsPathDropdownOpen(false);
-                            }}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.6rem',
-                              padding: '0.45rem 0.65rem',
-                              borderRadius: '0.55rem',
-                              background: courseCreatorTab === 'slide_ai' ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
-                              border: courseCreatorTab === 'slide_ai' ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid transparent',
-                              color: courseCreatorTab === 'slide_ai' ? '#38bdf8' : 'var(--text-main)',
-                              fontSize: '0.78rem',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              textAlign: 'left',
-                            }}
-                          >
-                            <Presentation size={14} color="#38bdf8" />
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontWeight: 700 }}>Slide+AI</div>
-                              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Interactive Slide Decks & TTS Narration</div>
-                            </div>
-                            {courseCreatorTab === 'slide_ai' && <Check size={13} color="#38bdf8" />}
-                          </button>
-
-                          <button
-                            id="path-menu-video-ai-btn"
-                            type="button"
-                            onClick={() => {
-                              setCourseCreatorTab('video_ai');
-                              setIsPathDropdownOpen(false);
-                            }}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.6rem',
-                              padding: '0.45rem 0.65rem',
-                              borderRadius: '0.55rem',
-                              background: courseCreatorTab === 'video_ai' ? 'rgba(236, 72, 153, 0.15)' : 'transparent',
-                              border: courseCreatorTab === 'video_ai' ? '1px solid rgba(236, 72, 153, 0.4)' : '1px solid transparent',
-                              color: courseCreatorTab === 'video_ai' ? '#ec4899' : 'var(--text-main)',
-                              fontSize: '0.78rem',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              textAlign: 'left',
-                            }}
-                          >
-                            <Tv size={14} color="#ec4899" />
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontWeight: 700 }}>Video+AI</div>
-                              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Studio Video Masterclasses & Playback</div>
-                            </div>
-                            {courseCreatorTab === 'video_ai' && <Check size={13} color="#ec4899" />}
-                          </button>
-
-                          <button
-                            id="path-menu-intelli-coach-btn"
-                            type="button"
-                            onClick={() => {
-                              setCourseCreatorTab('intelli_coach');
-                              setIsPathDropdownOpen(false);
-                            }}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.6rem',
-                              padding: '0.45rem 0.65rem',
-                              borderRadius: '0.55rem',
-                              background: courseCreatorTab === 'intelli_coach' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
-                              border: courseCreatorTab === 'intelli_coach' ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid transparent',
-                              color: courseCreatorTab === 'intelli_coach' ? '#10b981' : 'var(--text-main)',
-                              fontSize: '0.78rem',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              textAlign: 'left',
-                            }}
-                          >
-                            <Bot size={14} color="#10b981" />
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontWeight: 700 }}>Intelli Coach</div>
-                              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Tutoring Diagnostics & Blueprints</div>
-                            </div>
-                            {courseCreatorTab === 'intelli_coach' && <Check size={13} color="#10b981" />}
-                          </button>
-
-                          {/* Group 2: Learning Delivery Formats */}
-                          <div
-                            style={{
-                              padding: '0.45rem 0.65rem 0.2rem 0.65rem',
-                              fontSize: '0.68rem',
-                              fontWeight: 700,
-                              color: 'var(--text-subtle)',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.05em',
-                              borderTop: '1px solid var(--border-subtle)',
-                              marginTop: '0.2rem',
-                            }}
-                          >
-                            Learning Delivery Formats
-                          </div>
-
-                          <button
-                            id="path-menu-1on1-btn"
-                            type="button"
-                            onClick={() => {
-                              setCourseCreatorTab('one_on_one_online');
-                              setIsPathDropdownOpen(false);
-                            }}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.6rem',
-                              padding: '0.42rem 0.65rem',
-                              borderRadius: '0.55rem',
-                              background: courseCreatorTab === 'one_on_one_online' ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
-                              border: courseCreatorTab === 'one_on_one_online' ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid transparent',
-                              color: courseCreatorTab === 'one_on_one_online' ? '#818cf8' : 'var(--text-main)',
-                              fontSize: '0.78rem',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              textAlign: 'left',
-                            }}
-                          >
-                            <UserCheck size={14} color="#818cf8" />
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontWeight: 700 }}>1-on-1 Online</div>
-                              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Private Mentorship & Live Diagnostics</div>
-                            </div>
-                            {courseCreatorTab === 'one_on_one_online' && <Check size={13} color="#818cf8" />}
-                          </button>
-
-                          <button
-                            id="path-menu-group-btn"
-                            type="button"
-                            onClick={() => {
-                              setCourseCreatorTab('group_online');
-                              setIsPathDropdownOpen(false);
-                            }}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.6rem',
-                              padding: '0.42rem 0.65rem',
-                              borderRadius: '0.55rem',
-                              background: courseCreatorTab === 'group_online' ? 'rgba(14, 165, 233, 0.15)' : 'transparent',
-                              border: courseCreatorTab === 'group_online' ? '1px solid rgba(14, 165, 233, 0.4)' : '1px solid transparent',
-                              color: courseCreatorTab === 'group_online' ? '#38bdf8' : 'var(--text-main)',
-                              fontSize: '0.78rem',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              textAlign: 'left',
-                            }}
-                          >
-                            <Users size={14} color="#38bdf8" />
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontWeight: 700 }}>Group Online</div>
-                              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Collaborative Cohorts & Breakouts</div>
-                            </div>
-                            {courseCreatorTab === 'group_online' && <Check size={13} color="#38bdf8" />}
-                          </button>
-
-                          <button
-                            id="path-menu-camp-online-btn"
-                            type="button"
-                            onClick={() => {
-                              setCourseCreatorTab('camp_online');
-                              setIsPathDropdownOpen(false);
-                            }}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.6rem',
-                              padding: '0.42rem 0.65rem',
-                              borderRadius: '0.55rem',
-                              background: courseCreatorTab === 'camp_online' ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
-                              border: courseCreatorTab === 'camp_online' ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid transparent',
-                              color: courseCreatorTab === 'camp_online' ? '#f59e0b' : 'var(--text-main)',
-                              fontSize: '0.78rem',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              textAlign: 'left',
-                            }}
-                          >
-                            <Tent size={14} color="#f59e0b" />
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontWeight: 700 }}>Camp Online</div>
-                              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Multi-Day Virtual Intensive Bootcamp</div>
-                            </div>
-                            {courseCreatorTab === 'camp_online' && <Check size={13} color="#f59e0b" />}
-                          </button>
-
-                          <button
-                            id="path-menu-camp-offline-btn"
-                            type="button"
-                            onClick={() => {
-                              setCourseCreatorTab('camp_offline');
-                              setIsPathDropdownOpen(false);
-                            }}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.6rem',
-                              padding: '0.42rem 0.65rem',
-                              borderRadius: '0.55rem',
-                              background: courseCreatorTab === 'camp_offline' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
-                              border: courseCreatorTab === 'camp_offline' ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid transparent',
-                              color: courseCreatorTab === 'camp_offline' ? '#10b981' : 'var(--text-main)',
-                              fontSize: '0.78rem',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              textAlign: 'left',
-                            }}
-                          >
-                            <MapPin size={14} color="#10b981" />
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontWeight: 700 }}>Camp Offline</div>
-                              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>On-Campus Physical Activity Stations</div>
-                            </div>
-                            {courseCreatorTab === 'camp_offline' && <Check size={13} color="#10b981" />}
-                          </button>
-
-                          <button
-                            id="path-menu-sports-online-btn"
-                            type="button"
-                            onClick={() => {
-                              setCourseCreatorTab('sports_online');
-                              setIsPathDropdownOpen(false);
-                            }}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.6rem',
-                              padding: '0.42rem 0.65rem',
-                              borderRadius: '0.55rem',
-                              background: courseCreatorTab === 'sports_online' ? 'rgba(139, 92, 246, 0.15)' : 'transparent',
-                              border: courseCreatorTab === 'sports_online' ? '1px solid rgba(139, 92, 246, 0.4)' : '1px solid transparent',
-                              color: courseCreatorTab === 'sports_online' ? '#c084fc' : 'var(--text-main)',
-                              fontSize: '0.78rem',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              textAlign: 'left',
-                            }}
-                          >
-                            <Trophy size={14} color="#c084fc" />
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontWeight: 700 }}>Sports Class Online</div>
-                              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Tactical Playbook & Home Conditioning</div>
-                            </div>
-                            {courseCreatorTab === 'sports_online' && <Check size={13} color="#c084fc" />}
-                          </button>
-
-                          <button
-                            id="path-menu-sports-offline-btn"
-                            type="button"
-                            onClick={() => {
-                              setCourseCreatorTab('sports_offline');
-                              setIsPathDropdownOpen(false);
-                            }}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.6rem',
-                              padding: '0.42rem 0.65rem',
-                              borderRadius: '0.55rem',
-                              background: courseCreatorTab === 'sports_offline' ? 'rgba(236, 72, 153, 0.15)' : 'transparent',
-                              border: courseCreatorTab === 'sports_offline' ? '1px solid rgba(236, 72, 153, 0.4)' : '1px solid transparent',
-                              color: courseCreatorTab === 'sports_offline' ? '#f43f5e' : 'var(--text-main)',
-                              fontSize: '0.78rem',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              textAlign: 'left',
-                            }}
-                          >
-                            <Activity size={14} color="#f43f5e" />
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontWeight: 700 }}>Sports Class Offline</div>
-                              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>On-Field Drills, Circuits & Scorecards</div>
-                            </div>
-                            {courseCreatorTab === 'sports_offline' && <Check size={13} color="#f43f5e" />}
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-
               {/* Sub-Views inside Course Creator wrapped in safe Error Boundary */}
               <CourseErrorBoundary
                 key={courseCreatorTab}
                 onReset={() => setCourseCreatorTab('home')}
               >
-                {courseCreatorTab === 'intelli_coach' ? (
-                  <IntelliCoachView
-                    key="intelli_coach_standalone_view"
-                    onLaunchCourse={(_courseTitle, targetAudience, promptQuery) => {
-                      setCourseCreatorTab('home');
-                      const targetAudienceValue = targetAudience || 'General Student / Lifelong Learner';
-                      localStorage.setItem('ila_learner_category', targetAudienceValue);
-                      handleNewChat().then(() => {
-                        if (promptQuery) {
-                          executeAutonomousCoursePlan(promptQuery, [], targetAudienceValue);
-                        }
-                      });
-                    }}
-                    onOpenReadingTab={() => setCourseCreatorTab('home')}
-                    onOpenSlideTab={() => setCourseCreatorTab('slide_ai')}
-                    onOpenVideoTab={() => setCourseCreatorTab('video_ai')}
-                  />
-                ) : courseCreatorTab === 'slide_ai' ? (
-                  <SlideAiLibraryView
-                    key="slide_ai_standalone_view"
-                    onOpenCreator={() => {
-                      setCourseCreatorTab('home');
-                      handleNewChat();
-                    }}
-                  />
-                ) : courseCreatorTab === 'video_ai' ? (
-                  <VideoAiLibraryView
-                    key="video_ai_standalone_view"
-                    onOpenCreator={() => {
-                      setCourseCreatorTab('home');
-                      handleNewChat();
-                    }}
-                  />
-                ) : courseCreatorTab === 'admin_library' ? (
-                  <DedicatedLibraryView
-                    onOpenInWorkspace={(course: LibraryCourse) => {
-                      const matchedSession = sessions.find((s) => s.id === course.sourceSessionId);
-                      if (matchedSession) {
-                        setActiveSessionId(matchedSession.id);
+              {courseCreatorTab === 'intelli_coach' ? (
+                <IntelliCoachView
+                  key="intelli_coach_standalone_view"
+                  initialCourse={activeCourseSession && activeCourseSession.messages.length > 0 ? compileCourseFromChatSession(activeCourseSession) : null}
+                  onLaunchCourse={(_courseTitle, targetAudience, promptQuery) => {
+                    setCourseCreatorTab('home');
+                    const targetAudienceValue = targetAudience || 'General Student / Lifelong Learner';
+                    localStorage.setItem('ila_learner_category', targetAudienceValue);
+                    handleNewCourse().then(() => {
+                      if (promptQuery) {
+                        executeAutonomousCoursePlan(promptQuery, [], targetAudienceValue);
                       }
-                      setCourseCreatorTab('home');
-                    }}
-                    onBackToChat={() => setCourseCreatorTab('home')}
-                    onCreateNewCourse={() => {
-                      setCourseCreatorTab('home');
-                      handleNewChat();
-                    }}
-                  />
-                ) : (
-                  courseCreatorTab === 'one_on_one_online' ||
-                  courseCreatorTab === 'group_online' ||
-                  courseCreatorTab === 'camp_online' ||
-                  courseCreatorTab === 'camp_offline' ||
-                  courseCreatorTab === 'sports_online' ||
-                  courseCreatorTab === 'sports_offline'
-                ) ? (
-                  <LearningPathModeView
-                    key={`path_mode_${courseCreatorTab}`}
-                    initialMode={courseCreatorTab as LearningPathMode}
-                    onLaunchCourse={(topicQuery, mode) => {
-                      setCourseCreatorTab('home');
-                      const modeCfg = LEARNING_PATH_MODES[mode];
-                      const targetAudienceValue = modeCfg?.recommendedAudience || 'General Student';
-                      localStorage.setItem('ila_learner_category', targetAudienceValue);
-                      handleNewChat().then(() => {
-                        executeAutonomousCoursePlan(
-                          `[${modeCfg?.title || mode} Delivery] ${topicQuery}`,
-                          [],
-                          targetAudienceValue
-                        );
-                      });
-                    }}
-                    onOpenSlideAi={() => setCourseCreatorTab('slide_ai')}
-                    onOpenVideoAi={() => setCourseCreatorTab('video_ai')}
-                    onOpenIntelliCoach={() => setCourseCreatorTab('intelli_coach')}
-                    onOpenAdminLibrary={() => setCourseCreatorTab('admin_library')}
-                    onOpenChatHome={() => setCourseCreatorTab('home')}
-                  />
-                ) : (
-                /* Home / Chat Workspace Course Creation view */
+                    });
+                  }}
+                  onOpenReadingTab={() => setCourseCreatorTab('home')}
+                  onOpenSlideTab={() => setCourseCreatorTab('slide_ai')}
+                  onOpenVideoTab={() => setCourseCreatorTab('video_ai')}
+                />
+              ) : courseCreatorTab === 'slide_ai' ? (
+                <SlideAiLibraryView
+                  key="slide_ai_standalone_view"
+                  onOpenCreator={() => {
+                    setCourseCreatorTab('home');
+                    handleNewCourse();
+                  }}
+                />
+              ) : courseCreatorTab === 'video_ai' ? (
+                <VideoAiLibraryView
+                  key="video_ai_standalone_view"
+                  onOpenCreator={() => {
+                    setCourseCreatorTab('home');
+                    handleNewCourse();
+                  }}
+                />
+              ) : (
+                courseCreatorTab === 'one_on_one_online' ||
+                courseCreatorTab === 'group_online' ||
+                courseCreatorTab === 'camp_online' ||
+                courseCreatorTab === 'camp_offline' ||
+                courseCreatorTab === 'sports_online' ||
+                courseCreatorTab === 'sports_offline'
+              ) ? (
+                <LearningPathModeView
+                  key={`path_mode_${courseCreatorTab}`}
+                  initialMode={courseCreatorTab as LearningPathMode}
+                  onLaunchCourse={(topicQuery, mode) => {
+                    setCourseCreatorTab('home');
+                    const modeCfg = LEARNING_PATH_MODES[mode];
+                    const targetAudienceValue = modeCfg?.recommendedAudience || 'General Student';
+                    localStorage.setItem('ila_learner_category', targetAudienceValue);
+                    handleNewCourse().then(() => {
+                      executeAutonomousCoursePlan(
+                        `[${modeCfg?.title || mode} Delivery] ${topicQuery}`,
+                        [],
+                        targetAudienceValue
+                      );
+                    });
+                  }}
+                  onOpenSlideAi={() => setCourseCreatorTab('slide_ai')}
+                  onOpenVideoAi={() => setCourseCreatorTab('video_ai')}
+                  onOpenIntelliCoach={() => setCourseCreatorTab('intelli_coach')}
+                  onOpenAdminLibrary={() => setPrimaryNavView('library')}
+                  onOpenChatHome={() => setPrimaryNavView('chat_home')}
+                />
+              ) : (
+                /* Home / Workspace Course Creation view */
                 <>
                   {/* Upper Search Bar & Creator Controls */}
                   <div
@@ -2238,21 +3192,28 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
                   >
                     <div style={{ width: '100%', maxWidth: '100%', margin: '0' }}>
                       <SearchBox
-                        key={activeSessionId || 'default'}
+                        key={activeCourseSession?.id || 'default'}
                         onSendMessage={handleSendMessage}
                         loading={loading}
                         attachedDocuments={attachedDocuments}
                         onDocumentsChange={setAttachedDocuments}
-                        placeholder="Create enterprise course or ask anything..."
-                        onNewChat={handleNewChat}
+                        placeholder="Create enterprise course curriculum, author textbook chapter, or specify topic..."
+                        onNewChat={handleNewCourse}
                         isBulkPlannerActive={isBulkPlannerActive}
                         onToggleBulkPlanner={setIsBulkPlannerActive}
+                        initialCourseName={
+                          activeCourseSession &&
+                          activeCourseSession.title !== 'New Course Workspace' &&
+                          activeCourseSession.title !== 'Untitled Course'
+                            ? activeCourseSession.title
+                            : ''
+                        }
                       />
                     </div>
                   </div>
 
                   {/* Direct Comprehensive Course Workspace View */}
-                  {activeSession && activeSession.messages.length > 0 ? (
+                  {activeCourseSession && activeCourseSession.messages.length > 0 ? (
                     <div
                       id="main-course-workspace-container"
                       style={{
@@ -2293,8 +3254,8 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
                       )}
 
                       <LibraryWorkspaceView
-                        key={activeSession.id}
-                        session={activeSession}
+                        key={activeCourseSession.id}
+                        session={activeCourseSession}
                         onSpeak={speak}
                         isSpeaking={isSpeaking}
                         activeSpeakingId={activeSpeakingId}
@@ -2398,7 +3359,7 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
                               WebkitTextFillColor: 'transparent',
                             }}
                           >
-                            Course Creator Studio
+                            Course Creator
                           </h2>
                           <p
                             style={{
@@ -2538,36 +3499,11 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
                   )}
                 </>
               )}
-              </CourseErrorBoundary>
-            </div>
+            </CourseErrorBoundary>
           </div>
-        ) : (
-          /* SCENARIO C: MODULE INDEPENDENCE (ALL OTHER 15 SPECIALIZED AI TOOLS) */
-          <AIHubWorkspaceView
-            productType={activeModule as AIProductType}
-            onSelectProduct={handleSelectModule}
-            onReturnToCourseCreator={() => handleSelectModule('course_creator')}
-            activeSession={activeSession}
-            sessions={sessions}
-            onSelectSession={handleSelectSession}
-            onNewSession={(prod, p) => handleNewChatForProduct(prod, p)}
-            onDeleteSession={handleDeleteSession}
-            onSendMessage={handleSendAIHubMessage}
-            loading={loading}
-            theme={theme}
-            onToggleThemeMenu={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
-            isThemeMenuOpen={isThemeMenuOpen}
-            onSelectTheme={setTheme}
-            isSidebarOpen={isLeftSidebarOpen}
-            onToggleSidebar={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)}
-            onOpenFunctionList={() => setIsFunctionListOpen(true)}
-            onOpenActivityTracker={() => setIsActivityTrackerOpen(true)}
-            onOpenCentralDashboard={() => handleSelectModule('central_dashboard')}
-            onOpenParameterInput={() => handleOpenParameters('input')}
-            onOpenParameterList={() => handleOpenParameters('list')}
-          />
-        )}
-      </div>
+        </div>
+      )}
+    </div>
 
       {/* Question Tree Navigation Drawer */}
       <QuestionTreeDrawer
@@ -2616,22 +3552,17 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
         />
       )}
 
-      {/* Global Modal 1: Full ILA AI Hub Function List Modal */}
-      <FunctionListModal
-        isOpen={isFunctionListOpen}
-        onClose={() => setIsFunctionListOpen(false)}
-        activeProductId={activeModule === 'central_dashboard' ? 'course_creator' : (activeModule as AIProductType)}
-        onSelectProduct={(prod) => {
-          handleSelectModule(prod);
-          setIsFunctionListOpen(false);
-        }}
-      />
-
       {/* Global Modal 2: Full ILA AI Hub Activity Tracker & Dashboard Modal */}
       <ActivityTrackerModal
         isOpen={isActivityTrackerOpen}
         onClose={() => setIsActivityTrackerOpen(false)}
-        activeProductId={activeModule === 'central_dashboard' ? 'course_creator' : (activeModule as AIProductType)}
+        activeProductId={
+          (primaryNavView === 'central_dashboard' || activeModule === 'central_dashboard')
+            ? 'all'
+            : (activeModule === 'ai_tieup_creator' || primaryNavView === 'tieup_creator')
+            ? 'ai_tieup_creator'
+            : (activeModule as any)
+        }
         sessions={sessions}
         onSelectSession={handleSelectSession}
         onSelectProduct={handleSelectModule}

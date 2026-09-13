@@ -75,10 +75,10 @@ export default function FunctionListModal({
           width: '100%',
           maxWidth: '1060px',
           maxHeight: '90vh',
-          background: 'rgba(15, 23, 42, 0.98)',
-          border: '1px solid rgba(99, 102, 241, 0.35)',
+          background: 'var(--modal-bg)',
+          border: '1px solid var(--modal-border)',
           borderRadius: '1.25rem',
-          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 40px rgba(99, 102, 241, 0.25)',
+          boxShadow: 'var(--modal-shadow)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -91,7 +91,7 @@ export default function FunctionListModal({
           style={{
             padding: '1.25rem 1.5rem',
             borderBottom: '1px solid var(--border-subtle)',
-            background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%)',
+            background: 'var(--modal-header-bg)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -116,7 +116,7 @@ export default function FunctionListModal({
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+                <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
                   ILA AI Hub — Function List
                 </h2>
                 <span
@@ -166,7 +166,7 @@ export default function FunctionListModal({
           style={{
             padding: '0.85rem 1.5rem',
             borderBottom: '1px solid var(--border-subtle)',
-            background: 'rgba(10, 15, 26, 0.7)',
+            background: 'var(--bg-secondary)',
             display: 'flex',
             alignItems: 'center',
             gap: '0.75rem',
@@ -178,7 +178,7 @@ export default function FunctionListModal({
               position: 'relative',
               display: 'flex',
               alignItems: 'center',
-              background: 'rgba(2, 6, 23, 0.8)',
+              background: 'var(--input-bg)',
               border: '1px solid var(--border-subtle)',
               borderRadius: '0.65rem',
               padding: '0.45rem 0.85rem',
@@ -195,7 +195,7 @@ export default function FunctionListModal({
                 background: 'transparent',
                 border: 'none',
                 outline: 'none',
-                color: '#ffffff',
+                color: 'var(--text-main)',
                 fontSize: '0.86rem',
               }}
               autoFocus
@@ -302,10 +302,10 @@ export default function FunctionListModal({
                         }}
                         style={{
                           background: isSelected
-                            ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(168, 85, 247, 0.2) 100%)'
-                            : 'rgba(255, 255, 255, 0.03)',
+                            ? 'var(--dropdown-item-selected)'
+                            : 'var(--bg-card)',
                           border: isSelected
-                            ? '1px solid var(--accent-primary)'
+                            ? '1px solid var(--dropdown-item-selected-border)'
                             : '1px solid var(--border-subtle)',
                           borderRadius: '0.85rem',
                           padding: '1rem',
@@ -322,14 +322,14 @@ export default function FunctionListModal({
                         }}
                         onMouseEnter={(e) => {
                           if (!isSelected) {
-                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
-                            e.currentTarget.style.borderColor = 'rgba(165, 180, 252, 0.4)';
+                            e.currentTarget.style.background = 'var(--dropdown-item-hover)';
+                            e.currentTarget.style.borderColor = 'var(--border-medium)';
                             e.currentTarget.style.transform = 'translateY(-2px)';
                           }
                         }}
                         onMouseLeave={(e) => {
                           if (!isSelected) {
-                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+                            e.currentTarget.style.background = 'var(--bg-card)';
                             e.currentTarget.style.borderColor = 'var(--border-subtle)';
                             e.currentTarget.style.transform = 'translateY(0)';
                           }
@@ -399,7 +399,7 @@ export default function FunctionListModal({
                             style={{
                               fontSize: '0.94rem',
                               fontWeight: 700,
-                              color: '#ffffff',
+                              color: 'var(--text-main)',
                               margin: '0 0 0.25rem 0',
                             }}
                           >
@@ -423,7 +423,7 @@ export default function FunctionListModal({
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                            borderTop: '1px solid var(--border-subtle)',
                             paddingTop: '0.6rem',
                             marginTop: '0.2rem',
                           }}
@@ -435,7 +435,7 @@ export default function FunctionListModal({
                             style={{
                               fontSize: '0.74rem',
                               fontWeight: 700,
-                              color: isSelected ? 'var(--accent-primary)' : '#ffffff',
+                              color: isSelected ? 'var(--accent-primary)' : 'var(--text-main)',
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '0.3rem',
@@ -458,7 +458,7 @@ export default function FunctionListModal({
           style={{
             padding: '0.85rem 1.5rem',
             borderTop: '1px solid var(--border-subtle)',
-            background: 'rgba(10, 15, 26, 0.95)',
+            background: 'var(--modal-header-bg)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -471,11 +471,11 @@ export default function FunctionListModal({
             type="button"
             onClick={onClose}
             style={{
-              background: 'rgba(255, 255, 255, 0.08)',
-              border: '1px solid var(--border-subtle)',
+              background: 'var(--btn-default-bg)',
+              border: '1px solid var(--btn-default-border)',
               borderRadius: '0.45rem',
               padding: '0.35rem 0.85rem',
-              color: '#ffffff',
+              color: 'var(--btn-default-color)',
               fontSize: '0.76rem',
               fontWeight: 600,
               cursor: 'pointer',

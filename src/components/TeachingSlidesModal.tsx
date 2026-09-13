@@ -21,6 +21,7 @@ import {
 import { speakText, stopSpeaking } from '../services/speechService';
 import { detectStandardCurriculum } from '../services/curriculumStandardService';
 import { extractMarkdownImages } from '../services/masterclassVideoService';
+import { recordCourseDownload } from '../services/dbService';
 
 export interface TeachingSlide {
   id: string;
@@ -550,6 +551,7 @@ export default function TeachingSlidesModal({
 
   // Download Presentation as Markdown (Marp/Reveal Compatible with Side-by-Side Visuals)
   const handleDownloadMarkdownSlides = () => {
+    recordCourseDownload(courseTitle, 'slides_md');
     let md = `# ${courseTitle}\n## ${chapterTitle}\n\n---\n\n`;
     slides.forEach((slide) => {
       md += `<!-- _class: lead -->\n`;
@@ -584,6 +586,7 @@ export default function TeachingSlidesModal({
 
   // Download Self-Contained HTML Presentation Deck
   const handleDownloadHtmlDeck = () => {
+    recordCourseDownload(courseTitle, 'slides_html');
     const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -661,8 +664,8 @@ ${slides
       <div
         style={{
           padding: '0.65rem 1.5rem',
-          background: 'rgba(15, 20, 32, 0.98)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          background: 'var(--modal-header-bg)',
+          borderBottom: '1px solid var(--modal-border)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -688,7 +691,7 @@ ${slides
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-              <span style={{ fontSize: '0.86rem', fontWeight: 700, color: '#ffffff' }}>
+              <span style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-main)' }}>
                 Presentation-Ready Teaching Slides & Visual Reference
               </span>
               <span

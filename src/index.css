@@ -1,4 +1,118 @@
 :root,
+[data-theme="standard"],
+[data-theme="default"] {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f1f5f9;
+  --bg-card: #ffffff;
+  --bg-card-solid: #ffffff;
+  --bg-card-hover: #f1f5f9;
+  --bg-glass: rgba(255, 255, 255, 0.98);
+  --bg-glass-elevated: #ffffff;
+  --border-subtle: #cbd5e1;
+  --border-medium: #94a3b8;
+  --border-focus: #1d4ed8;
+  --glass-border: rgba(0, 0, 0, 0.1);
+  --accent-primary: #1d4ed8;
+  --accent-primary-hover: #1e40af;
+  --accent-secondary: #4338ca;
+  --accent-gradient: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
+  --accent-gradient-subtle: linear-gradient(135deg, rgba(29, 78, 216, 0.09) 0%, rgba(37, 99, 235, 0.05) 100%);
+  --accent-glow: rgba(29, 78, 216, 0.18);
+  --accent-glow-strong: rgba(29, 78, 216, 0.3);
+  --text-main: #090d16;
+  --text-muted: #1e293b;
+  --text-subtle: #475569;
+  --header-bg: #ffffff;
+  --input-bg: #ffffff;
+
+  /* Universal Dropdown & Popover Design Tokens */
+  --dropdown-bg: #ffffff;
+  --dropdown-header-bg: #f8fafc;
+  --dropdown-border: #cbd5e1;
+  --dropdown-item-hover: #f1f5f9;
+  --dropdown-item-selected: rgba(29, 78, 216, 0.1);
+  --dropdown-item-selected-border: #1d4ed8;
+  --dropdown-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(0, 0, 0, 0.06);
+
+  /* Modal Design Tokens */
+  --modal-bg: #ffffff;
+  --modal-header-bg: #f8fafc;
+  --modal-border: #cbd5e1;
+  --modal-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.08);
+
+  /* Toolbar Button Design Tokens */
+  --btn-default-bg: #ffffff;
+  --btn-default-border: #cbd5e1;
+  --btn-default-color: #090d16;
+  --btn-default-hover-bg: #f1f5f9;
+  --btn-default-hover-border: #94a3b8;
+  --btn-default-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+
+  --btn-dashboard-bg: rgba(217, 119, 6, 0.12);
+  --btn-dashboard-border: rgba(217, 119, 6, 0.4);
+  --btn-dashboard-color: #92400e;
+  --btn-dashboard-hover-bg: rgba(217, 119, 6, 0.22);
+  --btn-dashboard-hover-border: rgba(217, 119, 6, 0.6);
+
+  --btn-activity-bg: rgba(79, 70, 229, 0.1);
+  --btn-activity-border: rgba(79, 70, 229, 0.4);
+  --btn-activity-color: #4338ca;
+  --btn-activity-hover-bg: rgba(79, 70, 229, 0.2);
+  --btn-activity-hover-border: rgba(79, 70, 229, 0.6);
+
+  --btn-param-bg: rgba(2, 132, 199, 0.1);
+  --btn-param-border: rgba(2, 132, 199, 0.4);
+  --btn-param-color: #0369a1;
+  --btn-param-hover-bg: rgba(2, 132, 199, 0.2);
+  --btn-param-hover-border: rgba(2, 132, 199, 0.6);
+
+  /* Subnav Track Tokens */
+  --subnav-track-bg: #f1f5f9;
+  --subnav-track-border: #cbd5e1;
+  --subnav-track-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+
+  /* Sidebar Design Tokens */
+  --sidebar-bg: #f8fafc;
+  --sidebar-header-bg: #ffffff;
+  --sidebar-border: #cbd5e1;
+  --sidebar-item-active-bg: rgba(29, 78, 216, 0.1);
+  --sidebar-item-active-border: #1d4ed8;
+  --sidebar-item-active-color: #1d4ed8;
+  --sidebar-item-hover-bg: #f1f5f9;
+  --sidebar-input-bg: #ffffff;
+
+  /* High-Contrast Action Chip Tokens */
+  --chip-download-bg: rgba(29, 78, 216, 0.08);
+  --chip-download-border: rgba(29, 78, 216, 0.4);
+  --chip-download-color: #1d4ed8;
+  --chip-download-hover-bg: rgba(29, 78, 216, 0.16);
+
+  --chip-audience-bg: rgba(2, 132, 199, 0.08);
+  --chip-audience-border: rgba(2, 132, 199, 0.4);
+  --chip-audience-color: #0369a1;
+  --chip-audience-hover-bg: rgba(2, 132, 199, 0.16);
+
+  --chip-refine-bg: rgba(124, 58, 237, 0.08);
+  --chip-refine-border: rgba(124, 58, 237, 0.4);
+  --chip-refine-color: #6d28d9;
+  --chip-refine-hover-bg: rgba(124, 58, 237, 0.16);
+
+  --success: #047857;
+  --success-bg: rgba(4, 120, 87, 0.1);
+  --warning: #b45309;
+  --warning-bg: rgba(180, 83, 9, 0.1);
+  --error: #b91c1c;
+  --error-bg: rgba(185, 28, 28, 0.08);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 10px 24px rgba(0, 0, 0, 0.1);
+  --font-sans: 'Inter', 'Roboto', 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-thumb-hover: #94a3b8;
+}
+
 [data-theme="obsidian"] {
   --bg-primary: #080b12;
   --bg-secondary: #0f1524;
@@ -33,26 +147,116 @@
   --shadow-sm: 0 2px 8px -1px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 8px 24px -4px rgba(0, 0, 0, 0.6), 0 0 1px rgba(255, 255, 255, 0.08);
   --shadow-lg: 0 20px 40px -8px rgba(0, 0, 0, 0.8), 0 0 20px rgba(99, 102, 241, 0.15);
-  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
   --scrollbar-thumb: rgba(255, 255, 255, 0.16);
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.32);
+
+  /* Universal Dropdown & Popover Design Tokens */
+  --dropdown-bg: rgba(15, 23, 42, 0.98);
+  --dropdown-header-bg: linear-gradient(135deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
+  --dropdown-border: rgba(99, 102, 241, 0.35);
+  --dropdown-item-hover: rgba(255, 255, 255, 0.06);
+  --dropdown-item-selected: linear-gradient(135deg, rgba(99, 102, 241, 0.22) 0%, rgba(168, 85, 247, 0.22) 100%);
+  --dropdown-item-selected-border: rgba(165, 180, 252, 0.45);
+  --dropdown-shadow: 0 20px 50px rgba(0, 0, 0, 0.65), 0 0 30px rgba(99, 102, 241, 0.2);
+
+  /* Modal Design Tokens */
+  --modal-bg: rgba(15, 23, 42, 0.98);
+  --modal-header-bg: rgba(20, 27, 45, 0.6);
+  --modal-border: rgba(99, 102, 241, 0.35);
+  --modal-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 40px rgba(99, 102, 241, 0.25);
+
+  /* Toolbar Button Design Tokens */
+  --btn-default-bg: rgba(255, 255, 255, 0.06);
+  --btn-default-border: var(--border-subtle);
+  --btn-default-color: var(--text-main);
+  --btn-default-hover-bg: rgba(255, 255, 255, 0.12);
+  --btn-default-hover-border: var(--border-medium);
+  --btn-default-shadow: none;
+
+  --btn-dashboard-bg: rgba(245, 158, 11, 0.12);
+  --btn-dashboard-border: rgba(245, 158, 11, 0.35);
+  --btn-dashboard-color: #fcd34d;
+  --btn-dashboard-hover-bg: rgba(245, 158, 11, 0.25);
+  --btn-dashboard-hover-border: rgba(245, 158, 11, 0.6);
+
+  --btn-activity-bg: rgba(99, 102, 241, 0.12);
+  --btn-activity-border: rgba(99, 102, 241, 0.35);
+  --btn-activity-color: #a5b4fc;
+  --btn-activity-hover-bg: rgba(99, 102, 241, 0.25);
+  --btn-activity-hover-border: rgba(99, 102, 241, 0.6);
+
+  --btn-param-bg: rgba(56, 189, 248, 0.12);
+  --btn-param-border: rgba(56, 189, 248, 0.35);
+  --btn-param-color: #7dd3fc;
+  --btn-param-hover-bg: rgba(56, 189, 248, 0.25);
+  --btn-param-hover-border: rgba(56, 189, 248, 0.6);
+
+  --subnav-track-bg: rgba(0, 0, 0, 0.35);
+  --subnav-track-border: var(--border-medium);
+  --subnav-track-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+
+  /* Sidebar Design Tokens */
+  --sidebar-bg: rgba(12, 16, 26, 0.98);
+  --sidebar-header-bg: rgba(18, 24, 38, 0.7);
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-item-active-bg: rgba(99, 102, 241, 0.2);
+  --sidebar-item-active-border: rgba(165, 180, 252, 0.4);
+  --sidebar-item-active-color: #ffffff;
+  --sidebar-item-hover-bg: rgba(255, 255, 255, 0.05);
+  --sidebar-input-bg: rgba(10, 13, 20, 0.8);
+
+  --chip-download-bg: rgba(99, 102, 241, 0.15);
+  --chip-download-border: rgba(99, 102, 241, 0.4);
+  --chip-download-color: #c7d2fe;
+  --chip-download-hover-bg: rgba(99, 102, 241, 0.25);
+
+  --chip-audience-bg: rgba(56, 189, 248, 0.15);
+  --chip-audience-border: rgba(56, 189, 248, 0.4);
+  --chip-audience-color: #7dd3fc;
+  --chip-audience-hover-bg: rgba(56, 189, 248, 0.25);
+
+  --chip-refine-bg: rgba(168, 85, 247, 0.2);
+  --chip-refine-border: rgba(168, 85, 247, 0.5);
+  --chip-refine-color: #e9d5ff;
+  --chip-refine-hover-bg: rgba(168, 85, 247, 0.3);
 }
 
 /* Sunny Day / Anti-Reflection High-Contrast Sunlight Outdoor Mode */
 [data-theme="sunny-day"] {
+  --sidebar-bg: #ffffff;
+  --sidebar-header-bg: #f8fafc;
+  --sidebar-border: #cbd5e1;
+  --sidebar-item-active-bg: rgba(37, 99, 235, 0.1);
+  --sidebar-item-active-border: #2563eb;
+  --sidebar-item-active-color: #1d4ed8;
+  --sidebar-item-hover-bg: #f1f5f9;
+  --sidebar-input-bg: #ffffff;
+  --chip-download-bg: rgba(37, 99, 235, 0.08);
+  --chip-download-border: rgba(37, 99, 235, 0.4);
+  --chip-download-color: #1d4ed8;
+  --chip-download-hover-bg: rgba(37, 99, 235, 0.16);
+  --chip-audience-bg: rgba(2, 132, 199, 0.08);
+  --chip-audience-border: rgba(2, 132, 199, 0.4);
+  --chip-audience-color: #0369a1;
+  --chip-audience-hover-bg: rgba(2, 132, 199, 0.16);
+  --chip-refine-bg: rgba(124, 58, 237, 0.08);
+  --chip-refine-border: rgba(124, 58, 237, 0.4);
+  --chip-refine-color: #6d28d9;
+  --chip-refine-hover-bg: rgba(124, 58, 237, 0.16);
   --bg-primary: #f8fafc;
   --bg-secondary: #ffffff;
   --bg-tertiary: #f1f5f9;
   --bg-card: #ffffff;
   --bg-card-solid: #ffffff;
   --bg-card-hover: #f1f5f9;
-  --bg-glass: rgba(255, 255, 255, 0.85);
-  --bg-glass-elevated: rgba(255, 255, 255, 0.95);
-  --border-subtle: #e2e8f0;
-  --border-medium: #cbd5e1;
+  --bg-glass: rgba(255, 255, 255, 0.95);
+  --bg-glass-elevated: rgba(255, 255, 255, 0.98);
+  --border-subtle: #cbd5e1;
+  --border-medium: #94a3b8;
   --border-focus: #2563eb;
-  --glass-border: rgba(0, 0, 0, 0.08);
+  --glass-border: rgba(0, 0, 0, 0.1);
   --accent-primary: #2563eb;
   --accent-primary-hover: #1d4ed8;
   --accent-secondary: #4f46e5;
@@ -60,11 +264,57 @@
   --accent-gradient-subtle: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(99, 102, 241, 0.08) 100%);
   --accent-glow: rgba(37, 99, 235, 0.2);
   --accent-glow-strong: rgba(37, 99, 235, 0.35);
-  --text-main: #0f172a;
-  --text-muted: #334155;
-  --text-subtle: #64748b;
-  --header-bg: rgba(255, 255, 255, 0.92);
+  --text-main: #090d16;
+  --text-muted: #1e293b;
+  --text-subtle: #475569;
+  --header-bg: #ffffff;
   --input-bg: #ffffff;
+
+  /* Universal Dropdown & Popover Design Tokens */
+  --dropdown-bg: #ffffff;
+  --dropdown-header-bg: #f8fafc;
+  --dropdown-border: #cbd5e1;
+  --dropdown-item-hover: #f1f5f9;
+  --dropdown-item-selected: rgba(37, 99, 235, 0.12);
+  --dropdown-item-selected-border: #2563eb;
+  --dropdown-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.06);
+
+  /* Modal Design Tokens */
+  --modal-bg: #ffffff;
+  --modal-header-bg: #f8fafc;
+  --modal-border: #cbd5e1;
+  --modal-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.08);
+
+  /* Toolbar Button Design Tokens */
+  --btn-default-bg: #ffffff;
+  --btn-default-border: #cbd5e1;
+  --btn-default-color: #090d16;
+  --btn-default-hover-bg: #f1f5f9;
+  --btn-default-hover-border: #94a3b8;
+  --btn-default-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+
+  --btn-dashboard-bg: rgba(217, 119, 6, 0.15);
+  --btn-dashboard-border: rgba(217, 119, 6, 0.45);
+  --btn-dashboard-color: #92400e;
+  --btn-dashboard-hover-bg: rgba(217, 119, 6, 0.25);
+  --btn-dashboard-hover-border: rgba(217, 119, 6, 0.65);
+
+  --btn-activity-bg: rgba(79, 70, 229, 0.12);
+  --btn-activity-border: rgba(79, 70, 229, 0.45);
+  --btn-activity-color: #4338ca;
+  --btn-activity-hover-bg: rgba(79, 70, 229, 0.22);
+  --btn-activity-hover-border: rgba(79, 70, 229, 0.65);
+
+  --btn-param-bg: rgba(2, 132, 199, 0.12);
+  --btn-param-border: rgba(2, 132, 199, 0.45);
+  --btn-param-color: #0369a1;
+  --btn-param-hover-bg: rgba(2, 132, 199, 0.22);
+  --btn-param-hover-border: rgba(2, 132, 199, 0.65);
+
+  --subnav-track-bg: #f1f5f9;
+  --subnav-track-border: #cbd5e1;
+  --subnav-track-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+
   --success: #059669;
   --success-bg: rgba(5, 150, 105, 0.1);
   --warning: #d97706;
@@ -115,6 +365,73 @@
   --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.85);
   --scrollbar-thumb: rgba(56, 189, 248, 0.28);
   --scrollbar-thumb-hover: rgba(56, 189, 248, 0.48);
+
+  --dropdown-bg: rgba(11, 24, 44, 0.98);
+  --dropdown-header-bg: linear-gradient(135deg, rgba(16, 35, 63, 0.95) 0%, rgba(11, 24, 44, 0.98) 100%);
+  --dropdown-border: rgba(56, 189, 248, 0.35);
+  --dropdown-item-hover: rgba(56, 189, 248, 0.08);
+  --dropdown-item-selected: linear-gradient(135deg, rgba(2, 132, 199, 0.22) 0%, rgba(56, 189, 248, 0.22) 100%);
+  --dropdown-item-selected-border: rgba(56, 189, 248, 0.5);
+  --dropdown-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 30px rgba(56, 189, 248, 0.2);
+
+  --modal-bg: rgba(11, 24, 44, 0.98);
+  --modal-header-bg: rgba(16, 35, 63, 0.6);
+  --modal-border: rgba(56, 189, 248, 0.35);
+  --modal-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 40px rgba(56, 189, 248, 0.25);
+
+  --btn-default-bg: rgba(255, 255, 255, 0.06);
+  --btn-default-border: var(--border-subtle);
+  --btn-default-color: var(--text-main);
+  --btn-default-hover-bg: rgba(56, 189, 248, 0.12);
+  --btn-default-hover-border: var(--border-medium);
+  --btn-default-shadow: none;
+
+  --btn-dashboard-bg: rgba(245, 158, 11, 0.12);
+  --btn-dashboard-border: rgba(245, 158, 11, 0.35);
+  --btn-dashboard-color: #fcd34d;
+  --btn-dashboard-hover-bg: rgba(245, 158, 11, 0.25);
+  --btn-dashboard-hover-border: rgba(245, 158, 11, 0.6);
+
+  --btn-activity-bg: rgba(99, 102, 241, 0.12);
+  --btn-activity-border: rgba(99, 102, 241, 0.35);
+  --btn-activity-color: #a5b4fc;
+  --btn-activity-hover-bg: rgba(99, 102, 241, 0.25);
+  --btn-activity-hover-border: rgba(99, 102, 241, 0.6);
+
+  --btn-param-bg: rgba(56, 189, 248, 0.12);
+  --btn-param-border: rgba(56, 189, 248, 0.35);
+  --btn-param-color: #7dd3fc;
+  --btn-param-hover-bg: rgba(56, 189, 248, 0.25);
+  --btn-param-hover-border: rgba(56, 189, 248, 0.6);
+
+  --subnav-track-bg: rgba(0, 0, 0, 0.35);
+  --subnav-track-border: var(--border-medium);
+  --subnav-track-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+
+  /* Sidebar Design Tokens */
+  --sidebar-bg: rgba(9, 20, 36, 0.98);
+  --sidebar-header-bg: rgba(14, 28, 52, 0.85);
+  --sidebar-border: rgba(56, 189, 248, 0.16);
+  --sidebar-item-active-bg: rgba(2, 132, 199, 0.22);
+  --sidebar-item-active-border: rgba(56, 189, 248, 0.5);
+  --sidebar-item-active-color: #f0f9ff;
+  --sidebar-item-hover-bg: rgba(56, 189, 248, 0.08);
+  --sidebar-input-bg: rgba(6, 14, 27, 0.88);
+
+  --chip-download-bg: rgba(2, 132, 199, 0.15);
+  --chip-download-border: rgba(56, 189, 248, 0.4);
+  --chip-download-color: #7dd3fc;
+  --chip-download-hover-bg: rgba(2, 132, 199, 0.25);
+
+  --chip-audience-bg: rgba(56, 189, 248, 0.15);
+  --chip-audience-border: rgba(56, 189, 248, 0.4);
+  --chip-audience-color: #bae6fd;
+  --chip-audience-hover-bg: rgba(56, 189, 248, 0.25);
+
+  --chip-refine-bg: rgba(14, 165, 233, 0.2);
+  --chip-refine-border: rgba(56, 189, 248, 0.5);
+  --chip-refine-color: #e0f2fe;
+  --chip-refine-hover-bg: rgba(14, 165, 233, 0.3);
 }
 
 /* Emerald Forest Mode */
@@ -154,6 +471,73 @@
   --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.85);
   --scrollbar-thumb: rgba(52, 211, 153, 0.28);
   --scrollbar-thumb-hover: rgba(52, 211, 153, 0.48);
+
+  --dropdown-bg: rgba(9, 32, 25, 0.98);
+  --dropdown-header-bg: linear-gradient(135deg, rgba(14, 45, 35, 0.95) 0%, rgba(9, 32, 25, 0.98) 100%);
+  --dropdown-border: rgba(52, 211, 153, 0.35);
+  --dropdown-item-hover: rgba(52, 211, 153, 0.08);
+  --dropdown-item-selected: linear-gradient(135deg, rgba(5, 150, 105, 0.22) 0%, rgba(16, 185, 129, 0.22) 100%);
+  --dropdown-item-selected-border: rgba(52, 211, 153, 0.5);
+  --dropdown-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 30px rgba(16, 185, 129, 0.2);
+
+  --modal-bg: rgba(9, 32, 25, 0.98);
+  --modal-header-bg: rgba(14, 45, 35, 0.6);
+  --modal-border: rgba(52, 211, 153, 0.35);
+  --modal-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 40px rgba(16, 185, 129, 0.25);
+
+  --btn-default-bg: rgba(255, 255, 255, 0.06);
+  --btn-default-border: var(--border-subtle);
+  --btn-default-color: var(--text-main);
+  --btn-default-hover-bg: rgba(52, 211, 153, 0.12);
+  --btn-default-hover-border: var(--border-medium);
+  --btn-default-shadow: none;
+
+  --btn-dashboard-bg: rgba(245, 158, 11, 0.12);
+  --btn-dashboard-border: rgba(245, 158, 11, 0.35);
+  --btn-dashboard-color: #fcd34d;
+  --btn-dashboard-hover-bg: rgba(245, 158, 11, 0.25);
+  --btn-dashboard-hover-border: rgba(245, 158, 11, 0.6);
+
+  --btn-activity-bg: rgba(99, 102, 241, 0.12);
+  --btn-activity-border: rgba(99, 102, 241, 0.35);
+  --btn-activity-color: #a5b4fc;
+  --btn-activity-hover-bg: rgba(99, 102, 241, 0.25);
+  --btn-activity-hover-border: rgba(99, 102, 241, 0.6);
+
+  --btn-param-bg: rgba(52, 211, 153, 0.12);
+  --btn-param-border: rgba(52, 211, 153, 0.35);
+  --btn-param-color: #6ee7b7;
+  --btn-param-hover-bg: rgba(52, 211, 153, 0.25);
+  --btn-param-hover-border: rgba(52, 211, 153, 0.6);
+
+  --subnav-track-bg: rgba(0, 0, 0, 0.35);
+  --subnav-track-border: var(--border-medium);
+  --subnav-track-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+
+  /* Sidebar Design Tokens */
+  --sidebar-bg: rgba(6, 22, 17, 0.98);
+  --sidebar-header-bg: rgba(11, 36, 28, 0.85);
+  --sidebar-border: rgba(52, 211, 153, 0.18);
+  --sidebar-item-active-bg: rgba(5, 150, 105, 0.22);
+  --sidebar-item-active-border: rgba(52, 211, 153, 0.5);
+  --sidebar-item-active-color: #ecfdf5;
+  --sidebar-item-hover-bg: rgba(52, 211, 153, 0.08);
+  --sidebar-input-bg: rgba(4, 18, 14, 0.88);
+
+  --chip-download-bg: rgba(5, 150, 105, 0.15);
+  --chip-download-border: rgba(52, 211, 153, 0.4);
+  --chip-download-color: #a7f3d0;
+  --chip-download-hover-bg: rgba(5, 150, 105, 0.25);
+
+  --chip-audience-bg: rgba(52, 211, 153, 0.15);
+  --chip-audience-border: rgba(52, 211, 153, 0.4);
+  --chip-audience-color: #6ee7b7;
+  --chip-audience-hover-bg: rgba(52, 211, 153, 0.25);
+
+  --chip-refine-bg: rgba(16, 185, 129, 0.2);
+  --chip-refine-border: rgba(52, 211, 153, 0.5);
+  --chip-refine-color: #d1fae5;
+  --chip-refine-hover-bg: rgba(16, 185, 129, 0.3);
 }
 
 /* Warm Sunset / Amber Solar Mode */
@@ -193,6 +577,85 @@
   --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.85);
   --scrollbar-thumb: rgba(251, 191, 36, 0.28);
   --scrollbar-thumb-hover: rgba(251, 191, 36, 0.48);
+
+  --dropdown-bg: rgba(31, 20, 11, 0.98);
+  --dropdown-header-bg: linear-gradient(135deg, rgba(45, 30, 17, 0.95) 0%, rgba(31, 20, 11, 0.98) 100%);
+  --dropdown-border: rgba(251, 191, 36, 0.35);
+  --dropdown-item-hover: rgba(251, 191, 36, 0.08);
+  --dropdown-item-selected: linear-gradient(135deg, rgba(217, 119, 6, 0.22) 0%, rgba(245, 158, 11, 0.22) 100%);
+  --dropdown-item-selected-border: rgba(251, 191, 36, 0.5);
+  --dropdown-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 30px rgba(245, 158, 11, 0.2);
+
+  --modal-bg: rgba(31, 20, 11, 0.98);
+  --modal-header-bg: rgba(45, 30, 17, 0.6);
+  --modal-border: rgba(251, 191, 36, 0.35);
+  --modal-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 40px rgba(245, 158, 11, 0.25);
+
+  --btn-default-bg: rgba(255, 255, 255, 0.06);
+  --btn-default-border: var(--border-subtle);
+  --btn-default-color: var(--text-main);
+  --btn-default-hover-bg: rgba(251, 191, 36, 0.12);
+  --btn-default-hover-border: var(--border-medium);
+  --btn-default-shadow: none;
+
+  --btn-dashboard-bg: rgba(245, 158, 11, 0.18);
+  --btn-dashboard-border: rgba(245, 158, 11, 0.4);
+  --btn-dashboard-color: #fcd34d;
+  --btn-dashboard-hover-bg: rgba(245, 158, 11, 0.3);
+  --btn-dashboard-hover-border: rgba(245, 158, 11, 0.65);
+
+  --btn-activity-bg: rgba(99, 102, 241, 0.12);
+  --btn-activity-border: rgba(99, 102, 241, 0.35);
+  --btn-activity-color: #a5b4fc;
+  --btn-activity-hover-bg: rgba(99, 102, 241, 0.25);
+  --btn-activity-hover-border: rgba(99, 102, 241, 0.6);
+
+  --btn-param-bg: rgba(251, 191, 36, 0.12);
+  --btn-param-border: rgba(251, 191, 36, 0.35);
+  --btn-param-color: #fcd34d;
+  --btn-param-hover-bg: rgba(251, 191, 36, 0.25);
+  --btn-param-hover-border: rgba(251, 191, 36, 0.6);
+
+  --subnav-track-bg: rgba(0, 0, 0, 0.35);
+  --subnav-track-border: var(--border-medium);
+  --subnav-track-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+
+  /* Sidebar Design Tokens */
+  --sidebar-bg: rgba(24, 15, 8, 0.98);
+  --sidebar-header-bg: rgba(36, 23, 13, 0.85);
+  --sidebar-border: rgba(251, 191, 36, 0.18);
+  --sidebar-item-active-bg: rgba(217, 119, 6, 0.22);
+  --sidebar-item-active-border: rgba(251, 191, 36, 0.5);
+  --sidebar-item-active-color: #fffbeb;
+  --sidebar-item-hover-bg: rgba(251, 191, 36, 0.08);
+  --sidebar-input-bg: rgba(18, 11, 6, 0.88);
+
+  --chip-download-bg: rgba(217, 119, 6, 0.15);
+  --chip-download-border: rgba(251, 191, 36, 0.4);
+  --chip-download-color: #fde68a;
+  --chip-download-hover-bg: rgba(217, 119, 6, 0.25);
+
+  --chip-audience-bg: rgba(245, 158, 11, 0.15);
+  --chip-audience-border: rgba(251, 191, 36, 0.4);
+  --chip-audience-color: #fcd34d;
+  --chip-audience-hover-bg: rgba(245, 158, 11, 0.25);
+
+  --chip-refine-bg: rgba(251, 191, 36, 0.2);
+  --chip-refine-border: rgba(251, 191, 36, 0.5);
+  --chip-refine-color: #fef3c7;
+  --chip-refine-hover-bg: rgba(251, 191, 36, 0.3);
+}
+
+:root {
+  --workspace-font-scale: 100%;
+  --workspace-font-family: 'Inter', 'Roboto', 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --workspace-font-family-mono: 'JetBrains Mono', monospace;
+  --workspace-font-family-clean: 'Roboto', 'Inter', -apple-system, sans-serif;
+}
+
+html {
+  font-size: var(--workspace-font-scale, 100%);
+  transition: font-size 0.15s ease-out;
 }
 
 * {
@@ -202,20 +665,67 @@
 }
 
 body {
-  font-family: var(--font-sans);
+  font-family: var(--workspace-font-family, var(--font-sans));
+  font-size: 0.9375rem;
+  font-weight: 400;
   background-color: var(--bg-primary);
   color: var(--text-main);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background-image: 
-    radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.09) 0%, transparent 45%),
-    radial-gradient(circle at 85% 20%, rgba(168, 85, 247, 0.08) 0%, transparent 45%),
-    radial-gradient(circle at 50% 85%, rgba(236, 72, 153, 0.05) 0%, transparent 50%);
-  background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  line-height: 1.5;
+  text-rendering: optimizeLegibility;
+  line-height: 1.6;
+}
+
+[data-high-contrast="true"] {
+  --border-subtle: rgba(0, 0, 0, 0.25);
+  --border-medium: rgba(0, 0, 0, 0.45);
+  --text-subtle: #334155;
+  font-weight: 450;
+}
+
+[data-theme="obsidian"][data-high-contrast="true"],
+[data-theme="sapphire"][data-high-contrast="true"],
+[data-theme="emerald"][data-high-contrast="true"],
+[data-theme="amber"][data-high-contrast="true"] {
+  --border-subtle: rgba(255, 255, 255, 0.22);
+  --border-medium: rgba(255, 255, 255, 0.4);
+  --text-subtle: #cbd5e1;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  color: var(--text-main);
+  letter-spacing: -0.015em;
+  line-height: 1.35;
+}
+
+p, span, div, td, th, li {
+  -webkit-font-smoothing: antialiased;
+}
+
+b, strong {
+  font-weight: 600;
+}
+
+input, select, textarea, button {
+  font-family: inherit;
+  font-weight: 500;
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-normal {
+  font-weight: 400 !important;
+}
+
+.font-medium {
+  font-weight: 500 !important;
+}
+
+.font-semibold {
+  font-weight: 600 !important;
 }
 
 #root {
@@ -409,3 +919,34 @@ body {
   box-shadow: var(--shadow-md);
   border-color: var(--border-focus);
 }
+
+/* Universal High-Contrast Dropdown & Modal Styles */
+.dropdown-menu-popover {
+  background: var(--dropdown-bg) !important;
+  border: 1px solid var(--dropdown-border) !important;
+  box-shadow: var(--dropdown-shadow) !important;
+  color: var(--text-main) !important;
+}
+
+.dropdown-menu-popover input[type="text"],
+.dropdown-menu-popover input[type="search"] {
+  background: var(--input-bg) !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--border-medium) !important;
+}
+
+.dropdown-menu-popover input::placeholder {
+  color: var(--text-subtle) !important;
+}
+
+select {
+  background-color: var(--bg-secondary);
+  color: var(--text-main);
+  border-color: var(--border-medium);
+}
+
+select option {
+  background-color: var(--bg-secondary);
+  color: var(--text-main);
+}
+

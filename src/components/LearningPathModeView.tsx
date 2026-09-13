@@ -17,7 +17,10 @@ import {
   Video,
   Presentation,
   ShieldCheck,
+  BookOpen,
+  GraduationCap,
 } from 'lucide-react';
+import type { ChatSession } from '../services/dbService';
 
 export type LearningPathMode =
   | 'one_on_one_online'
@@ -197,29 +200,44 @@ export const LEARNING_PATH_MODES: Record<LearningPathMode, LearningPathModeConfi
 };
 
 interface LearningPathModeViewProps {
-  initialMode: LearningPathMode;
+  initialMode?: LearningPathMode;
+  sessions?: ChatSession[];
+  onSelectCourseSession?: (sessionId: string) => void;
   onLaunchCourse: (topicQuery: string, deliveryMode: LearningPathMode) => void;
   onOpenSlideAi: () => void;
   onOpenVideoAi: () => void;
   onOpenIntelliCoach: () => void;
   onOpenAdminLibrary: () => void;
-  onOpenChatHome: () => void;
+  onOpenCourseCreator?: () => void;
+  onOpenChatHome?: () => void;
 }
 
 export default function LearningPathModeView({
-  initialMode,
+  initialMode = 'one_on_one_online',
+  sessions = [],
+  onSelectCourseSession,
   onLaunchCourse,
   onOpenSlideAi,
   onOpenVideoAi,
   onOpenIntelliCoach,
   onOpenAdminLibrary,
+  onOpenCourseCreator,
   onOpenChatHome,
 }: LearningPathModeViewProps) {
-  const [activeMode, setActiveMode] = useState<LearningPathMode>(initialMode);
+  const [activeMode, setActiveMode] = useState<LearningPathMode>(() => {
+    if (initialMode && LEARNING_PATH_MODES[initialMode]) {
+      return initialMode;
+    }
+    return 'one_on_one_online';
+  });
   const [customPrompt, setCustomPrompt] = useState<string>('');
 
-  const config = LEARNING_PATH_MODES[activeMode] || LEARNING_PATH_MODES.one_on_one_online;
-  const IconComp = config.icon;
+  const config = (activeMode && LEARNING_PATH_MODES[activeMode])
+    ? LEARNING_PATH_MODES[activeMode]
+    : LEARNING_PATH_MODES.one_on_one_online;
+  const IconComp = config?.icon || Users;
+  const highlights = config?.structureHighlights || [];
+  const samples = config?.sampleTopics || [];
 
   const handleQuickLaunch = (topic: string) => {
     onLaunchCourse(topic, activeMode);
@@ -558,6 +576,155 @@ export default function LearningPathModeView({
           </div>
         </div>
       </div>
+
+      {/* Previously Created Learning Paths & Modules */}
+      {sessions && sessions.filter((s) => s.messages && s.messages.length > 0).length > 0 && (
+        <div
+          style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '1.25rem',
+            padding: '1.5rem 1.75rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <GraduationCap size={18} color="var(--accent-primary)" />
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
+                Previously Created Learning Paths & Modules
+              </h3>
+            </div>
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+              Select a path to access its interactive slides, lessons, and AI coaching materials
+            </span>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+              gap: '0.85rem',
+            }}
+          >
+            {sessions
+              .filter((s) => s.messages && s.messages.length > 0)
+              .map((s) => (
+                <div
+                  key={s.id}
+                  className="interactive-card glass-panel"
+                  style={{
+                    padding: '1rem 1.15rem',
+                    borderRadius: '0.85rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: '0.75rem',
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                      <span
+                        style={{
+                          fontSize: '0.65rem',
+                          fontWeight: 700,
+                          padding: '0.1rem 0.5rem',
+                          borderRadius: '9999px',
+                          background: 'rgba(99, 102, 241, 0.15)',
+                          color: '#a5b4fc',
+                          border: '1px solid rgba(99, 102, 241, 0.3)',
+                        }}
+                      >
+                        {s.studiedBy || 'General Curriculum'}
+                      </span>
+                      <span style={{ fontSize: '0.68rem', color: 'var(--text-subtle)' }}>
+                        {new Date(s.updatedAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <h4
+                      style={{
+                        fontSize: '0.9rem',
+                        fontWeight: 700,
+                        color: 'var(--text-main)',
+                        margin: 0,
+                        lineHeight: '1.35',
+                      }}
+                    >
+                      {s.title || 'Curriculum Path'}
+                    </h4>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                      {s.messages.length} conversational blocks & curriculum units
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => onSelectCourseSession && onSelectCourseSession(s.id)}
+                      style={{
+                        padding: '0.35rem 0.75rem',
+                        borderRadius: '0.5rem',
+                        background: 'var(--accent-gradient)',
+                        border: 'none',
+                        color: '#ffffff',
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                      }}
+                    >
+                      <BookOpen size={12} />
+                      <span>Study Lessons</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onSelectCourseSession) onSelectCourseSession(s.id);
+                        onOpenSlideAi();
+                      }}
+                      style={{
+                        padding: '0.35rem 0.65rem',
+                        borderRadius: '0.5rem',
+                        background: 'rgba(56, 189, 248, 0.15)',
+                        border: '1px solid rgba(56, 189, 248, 0.35)',
+                        color: '#7dd3fc',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Slides
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onSelectCourseSession) onSelectCourseSession(s.id);
+                        onOpenIntelliCoach();
+                      }}
+                      style={{
+                        padding: '0.35rem 0.65rem',
+                        borderRadius: '0.5rem',
+                        background: 'rgba(16, 185, 129, 0.15)',
+                        border: '1px solid rgba(16, 185, 129, 0.35)',
+                        color: '#6ee7b7',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Coach
+                    </button>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
 
       {/* 5. Navigation Hub to other Course Creator Tools */}
       <div

@@ -411,7 +411,7 @@ export default function IntelliCoachView({
         flexDirection: 'column',
         height: isEmbedded ? '100%' : 'calc(100vh - 58px)',
         minHeight: isEmbedded ? '650px' : 'calc(100vh - 58px)',
-        background: 'radial-gradient(ellipse at top right, rgba(16, 185, 129, 0.08) 0%, rgba(15, 23, 42, 0.98) 70%)',
+        background: 'var(--bg-primary)',
         color: 'var(--text-main)',
         position: 'relative',
         overflow: 'hidden',
@@ -421,9 +421,9 @@ export default function IntelliCoachView({
       <div
         style={{
           padding: '0.75rem 1.25rem',
-          background: 'rgba(15, 23, 42, 0.85)',
+          background: 'var(--bg-secondary)',
           backdropFilter: 'blur(16px)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          borderBottom: '1px solid var(--border-subtle)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -451,7 +451,7 @@ export default function IntelliCoachView({
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span style={{ fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#ffffff' }}>
+              <span style={{ fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-main)' }}>
                 IntelliCoach™
               </span>
               <span
@@ -459,9 +459,9 @@ export default function IntelliCoachView({
                   fontSize: '0.65rem',
                   padding: '0.15rem 0.45rem',
                   borderRadius: '9999px',
-                  background: 'rgba(16, 185, 129, 0.2)',
+                  background: 'rgba(16, 185, 129, 0.15)',
                   border: '1px solid rgba(16, 185, 129, 0.4)',
-                  color: '#34d399',
+                  color: '#059669',
                   fontWeight: 700,
                   textTransform: 'uppercase',
                 }}
@@ -494,8 +494,8 @@ export default function IntelliCoachView({
               gap: '0.35rem',
               padding: '0.25rem 0.6rem',
               borderRadius: '9999px',
-              background: 'rgba(255, 255, 255, 0.04)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'var(--subnav-track-bg)',
+              border: '1px solid var(--subnav-track-border)',
             }}
           >
             {[
@@ -520,21 +520,21 @@ export default function IntelliCoachView({
                     padding: '0.2rem 0.5rem',
                     borderRadius: '9999px',
                     background: isCurrent
-                      ? 'rgba(16, 185, 129, 0.25)'
+                      ? 'rgba(16, 185, 129, 0.2)'
                       : isPast
-                      ? 'rgba(99, 102, 241, 0.15)'
+                      ? 'var(--chip-download-bg)'
                       : 'transparent',
                     border: isCurrent
                       ? '1px solid #10b981'
                       : isPast
-                      ? '1px solid rgba(99, 102, 241, 0.3)'
+                      ? '1px solid var(--chip-download-border)'
                       : '1px solid transparent',
-                    color: isCurrent ? '#34d399' : isPast ? '#818cf8' : 'var(--text-muted)',
+                    color: isCurrent ? '#059669' : isPast ? 'var(--accent-primary)' : 'var(--text-muted)',
                     fontSize: '0.68rem',
                     fontWeight: isCurrent ? 700 : 500,
                   }}
                 >
-                  {isPast ? <Check size={10} color="#818cf8" /> : <span>{step.num}.</span>}
+                  {isPast ? <Check size={10} color="var(--accent-primary)" /> : <span>{step.num}.</span>}
                   <span>{step.label}</span>
                 </div>
               );
@@ -550,8 +550,8 @@ export default function IntelliCoachView({
               display: 'flex',
               padding: '0.2rem',
               borderRadius: '9999px',
-              background: 'rgba(0, 0, 0, 0.4)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'var(--subnav-track-bg)',
+              border: '1px solid var(--subnav-track-border)',
             }}
           >
             <button
@@ -578,7 +578,7 @@ export default function IntelliCoachView({
                 padding: '0.25rem 0.65rem',
                 borderRadius: '9999px',
                 border: 'none',
-                background: activeMode === 'live_tutor' ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)' : 'transparent',
+                background: activeMode === 'live_tutor' ? 'var(--accent-gradient)' : 'transparent',
                 color: activeMode === 'live_tutor' ? '#ffffff' : 'var(--text-muted)',
                 fontSize: '0.72rem',
                 fontWeight: 700,
@@ -600,9 +600,9 @@ export default function IntelliCoachView({
             style={{
               padding: '0.35rem 0.55rem',
               borderRadius: '8px',
-              background: autoSpeak ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-              border: autoSpeak ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
-              color: autoSpeak ? '#34d399' : 'var(--text-muted)',
+              background: autoSpeak ? 'var(--chip-download-bg)' : 'var(--bg-card)',
+              border: autoSpeak ? '1px solid var(--chip-download-border)' : '1px solid var(--border-subtle)',
+              color: autoSpeak ? 'var(--accent-primary)' : 'var(--text-muted)',
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
@@ -623,8 +623,8 @@ export default function IntelliCoachView({
             style={{
               padding: '0.35rem 0.55rem',
               borderRadius: '8px',
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-subtle)',
               color: 'var(--text-muted)',
               cursor: 'pointer',
               display: 'inline-flex',
@@ -656,7 +656,7 @@ export default function IntelliCoachView({
             flexDirection: 'column',
             height: '100%',
             overflow: 'hidden',
-            background: 'rgba(10, 15, 29, 0.5)',
+            background: 'var(--bg-primary)',
           }}
         >
           {/* Messages Scroll Area */}
@@ -709,12 +709,12 @@ export default function IntelliCoachView({
                       padding: '0.9rem 1.1rem',
                       borderRadius: isAssistant ? '0.2rem 1rem 1rem 1rem' : '1rem 0.2rem 1rem 1rem',
                       background: isAssistant
-                        ? 'rgba(15, 23, 42, 0.95)'
-                        : 'linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(139, 92, 246, 0.25) 100%)',
+                        ? 'var(--bg-card)'
+                        : 'var(--chip-download-bg)',
                       border: isAssistant
-                        ? '1px solid rgba(16, 185, 129, 0.25)'
-                        : '1px solid rgba(99, 102, 241, 0.4)',
-                      boxShadow: isAssistant ? '0 4px 20px rgba(0, 0, 0, 0.3)' : 'none',
+                        ? '1px solid var(--border-subtle)'
+                        : '1px solid var(--chip-download-border)',
+                      boxShadow: isAssistant ? 'var(--shadow-sm)' : 'none',
                     }}
                   >
                     <div style={{ fontSize: '0.85rem', lineHeight: '1.6', color: 'var(--text-main)' }}>
@@ -730,7 +730,7 @@ export default function IntelliCoachView({
                           flexWrap: 'wrap',
                           gap: '0.4rem',
                           paddingTop: '0.6rem',
-                          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                          borderTop: '1px solid var(--border-subtle)',
                         }}
                       >
                         {msg.suggestedOptions.map((opt, idx) => (
@@ -742,9 +742,9 @@ export default function IntelliCoachView({
                             style={{
                               padding: '0.4rem 0.75rem',
                               borderRadius: '9999px',
-                              background: 'rgba(255, 255, 255, 0.06)',
-                              border: '1px solid rgba(16, 185, 129, 0.3)',
-                              color: '#a7f3d0',
+                              background: 'var(--chip-audience-bg)',
+                              border: '1px solid var(--chip-audience-border)',
+                              color: 'var(--chip-audience-color)',
                               fontSize: '0.74rem',
                               fontWeight: 600,
                               cursor: 'pointer',
@@ -754,13 +754,11 @@ export default function IntelliCoachView({
                               transition: 'all 0.15s ease',
                             }}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.background = 'rgba(16, 185, 129, 0.2)';
-                              e.currentTarget.style.borderColor = '#10b981';
+                              e.currentTarget.style.background = 'var(--chip-audience-hover-bg)';
                               e.currentTarget.style.transform = 'translateY(-1px)';
                             }}
                             onMouseLeave={(e) => {
-                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
-                              e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+                              e.currentTarget.style.background = 'var(--chip-audience-bg)';
                               e.currentTarget.style.transform = 'translateY(0)';
                             }}
                           >
@@ -789,16 +787,16 @@ export default function IntelliCoachView({
                     justifyContent: 'center',
                   }}
                 >
-                  <Loader2 size={16} color="#34d399" className="animate-spin" />
+                  <Loader2 size={16} color="#059669" className="animate-spin" />
                 </div>
                 <div
                   style={{
                     padding: '0.6rem 1rem',
                     borderRadius: '0.2rem 1rem 1rem 1rem',
-                    background: 'rgba(15, 23, 42, 0.9)',
-                    border: '1px solid rgba(16, 185, 129, 0.2)',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-subtle)',
                     fontSize: '0.78rem',
-                    color: '#34d399',
+                    color: 'var(--accent-primary)',
                     fontStyle: 'italic',
                   }}
                 >
@@ -813,8 +811,8 @@ export default function IntelliCoachView({
           <div
             style={{
               padding: '0.75rem 1.25rem',
-              background: 'rgba(15, 23, 42, 0.95)',
-              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'var(--bg-secondary)',
+              borderTop: '1px solid var(--border-subtle)',
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem',
@@ -828,9 +826,9 @@ export default function IntelliCoachView({
                 width: '38px',
                 height: '38px',
                 borderRadius: '50%',
-                background: isListening ? '#ef4444' : 'rgba(255, 255, 255, 0.08)',
-                border: isListening ? '2px solid #ffffff' : '1px solid rgba(255, 255, 255, 0.12)',
-                color: '#ffffff',
+                background: isListening ? '#ef4444' : 'var(--bg-card)',
+                border: isListening ? '2px solid #ffffff' : '1px solid var(--border-subtle)',
+                color: isListening ? '#ffffff' : 'var(--text-main)',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -865,9 +863,9 @@ export default function IntelliCoachView({
                 flex: 1,
                 padding: '0.65rem 1rem',
                 borderRadius: '9999px',
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                color: '#ffffff',
+                background: 'var(--input-bg)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-main)',
                 fontSize: '0.85rem',
                 outline: 'none',
               }}
@@ -903,8 +901,8 @@ export default function IntelliCoachView({
         {/* Right Sidebar: Dynamic Profile Card & Instant Course Launcher */}
         <div
           style={{
-            borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
-            background: 'rgba(15, 23, 42, 0.95)',
+            borderLeft: '1px solid var(--border-subtle)',
+            background: 'var(--bg-secondary)',
             padding: '1.25rem',
             overflowY: 'auto',
             display: 'flex',
@@ -917,13 +915,13 @@ export default function IntelliCoachView({
             style={{
               padding: '1rem',
               borderRadius: '0.75rem',
-              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.05) 100%)',
-              border: '1px solid rgba(16, 185, 129, 0.3)',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-subtle)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-              <Compass size={18} color="#34d399" />
-              <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#ffffff' }}>
+              <Compass size={18} color="#059669" />
+              <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-main)' }}>
                 Diagnostic Blueprint
               </span>
             </div>
@@ -939,14 +937,14 @@ export default function IntelliCoachView({
               style={{
                 padding: '0.65rem 0.85rem',
                 borderRadius: '0.5rem',
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-subtle)',
               }}
             >
               <div style={{ fontSize: '0.65rem', color: 'var(--text-subtle)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Curriculum Focus
               </div>
-              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#38bdf8', marginTop: '0.2rem' }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-primary)', marginTop: '0.2rem' }}>
                 {profile.targetDomain || 'German Language A1-C2'}
               </div>
             </div>
@@ -956,14 +954,14 @@ export default function IntelliCoachView({
               style={{
                 padding: '0.65rem 0.85rem',
                 borderRadius: '0.5rem',
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-subtle)',
               }}
             >
               <div style={{ fontSize: '0.65rem', color: 'var(--text-subtle)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Recommended Department
               </div>
-              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#a855f7', marginTop: '0.2rem' }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#7c3aed', marginTop: '0.2rem' }}>
                 {profile.recommendedDepartment || 'General Student'}
               </div>
             </div>
@@ -973,14 +971,14 @@ export default function IntelliCoachView({
               style={{
                 padding: '0.65rem 0.85rem',
                 borderRadius: '0.5rem',
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-subtle)',
               }}
             >
               <div style={{ fontSize: '0.65rem', color: 'var(--text-subtle)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Target Benchmark
               </div>
-              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#34d399', marginTop: '0.2rem' }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#059669', marginTop: '0.2rem' }}>
                 {profile.recommendedCefrTier || 'A1 Breakthrough'}
               </div>
             </div>
@@ -1002,8 +1000,8 @@ export default function IntelliCoachView({
                       gap: '0.4rem',
                       padding: '0.4rem 0.6rem',
                       borderRadius: '0.4rem',
-                      background: 'rgba(255, 255, 255, 0.02)',
-                      border: '1px solid rgba(255, 255, 255, 0.05)',
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border-subtle)',
                       fontSize: '0.7rem',
                       color: 'var(--text-main)',
                       lineHeight: '1.3',
@@ -1052,9 +1050,9 @@ export default function IntelliCoachView({
                   width: '100%',
                   padding: '0.55rem',
                   borderRadius: '0.55rem',
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  border: '1px solid rgba(56, 189, 248, 0.3)',
-                  color: '#38bdf8',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--text-main)',
                   fontSize: '0.75rem',
                   fontWeight: 700,
                   cursor: 'pointer',
@@ -1064,7 +1062,7 @@ export default function IntelliCoachView({
                   gap: '0.4rem',
                 }}
               >
-                <Presentation size={14} />
+                <Presentation size={14} color="var(--accent-primary)" />
                 <span>Open Slide + AI Decks</span>
               </button>
             )}
@@ -1077,9 +1075,9 @@ export default function IntelliCoachView({
                   width: '100%',
                   padding: '0.55rem',
                   borderRadius: '0.55rem',
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  border: '1px solid rgba(244, 63, 94, 0.3)',
-                  color: '#f43f5e',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--text-main)',
                   fontSize: '0.75rem',
                   fontWeight: 700,
                   cursor: 'pointer',
@@ -1089,7 +1087,7 @@ export default function IntelliCoachView({
                   gap: '0.4rem',
                 }}
               >
-                <Tv size={14} />
+                <Tv size={14} color="#f43f5e" />
                 <span>Open Video + AI Masterclass</span>
               </button>
             )}

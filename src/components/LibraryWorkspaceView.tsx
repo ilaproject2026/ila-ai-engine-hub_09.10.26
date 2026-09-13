@@ -53,6 +53,7 @@ import { LEARNER_CATEGORIES, type ChatSession, type CourseChapter, type LibraryC
 import {
   compileCourseFromChatSession,
   saveLibraryCourse,
+  saveToPermanentStore,
   saveCourseVersionSnapshot,
   restoreCourseVersion,
   batchGenerateAndSaveDepartmentCourses,
@@ -382,9 +383,23 @@ export default function LibraryWorkspaceView({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleCopyFullCourse = () => {
+    if (!compiledCourse) return;
+    const fullDoc = compiledCourse.chapters
+      .map(
+        (c) =>
+          `# Book ${c.chapterNumber}: ${c.title}\n\n${c.summary || ''}\n\n${c.content}\n\n`
+      )
+      .join('---\n\n');
+    navigator.clipboard.writeText(fullDoc);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const handleDownloadDocx = async () => {
     if (!compiledCourse) return;
     try {
+      saveToPermanentStore(compiledCourse, session, { reason: 'download', format: 'docx' });
       const fullDoc = compiledCourse.chapters
         .map(
           (c) =>
@@ -400,6 +415,7 @@ export default function LibraryWorkspaceView({
   const handleDownloadMarkdown = () => {
     if (!compiledCourse) return;
     try {
+      saveToPermanentStore(compiledCourse, session, { reason: 'download', format: 'markdown' });
       const fullDoc = compiledCourse.chapters
         .map(
           (c) =>
@@ -619,31 +635,32 @@ CRITICAL RULES:
           boxShadow: '0 4px 15px -4px rgba(0, 0, 0, 0.35)',
         }}
       >
-        {/* ROW 1: Modules 1 to 7 Learning Tabs + Question Tree + Refine + Version History */}
+        {/* ROW 1: Docked Primary Sub-Tools Tabs & AI Assistants */}
         <div
+          id="course-creator-subtools-dock"
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '0.45rem',
+            gap: '0.65rem',
             width: '100%',
             overflowX: 'auto',
             flexWrap: 'nowrap',
-            paddingBottom: '0.35rem',
+            paddingBottom: '0.45rem',
             borderBottom: '1px solid var(--border-subtle)',
           }}
           className="no-scrollbar"
         >
-          {/* Left: 1 to 7 Core Learning Modules */}
+          {/* Left: 7 Flagship Sub-Tools */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
             {[
-              { id: 'reading', label: '1. Reading', icon: BookOpen, color: '#38bdf8' },
-              { id: 'explanations', label: '2. Tutor Bot', icon: GraduationCap, color: '#a855f7' },
-              { id: 'slides', label: '3. Slide + AI', icon: Presentation, color: '#f472b6' },
-              { id: 'video', label: '4. Video + AI', icon: Video, color: '#f43f5e' },
-              { id: 'coach', label: '5. Intelli Coach', icon: Bot, color: '#10b981' },
-              { id: 'exams', label: '6. Exam Board', icon: Award, color: '#fbbf24' },
-              { id: 'dictionary', label: '7. Glossary', icon: HelpCircle, color: '#2dd4bf' },
+              { id: 'reading', label: 'Reading Tutor Board', icon: BookOpen, color: '#38bdf8' },
+              { id: 'slides', label: 'Slider Board', icon: Presentation, color: '#f472b6' },
+              { id: 'coach', label: 'Inteli Coach', icon: Bot, color: '#10b981' },
+              { id: 'exams', label: 'Exam Board', icon: Award, color: '#fbbf24' },
+              { id: 'dictionary', label: 'Glossary', icon: HelpCircle, color: '#2dd4bf' },
+              { id: 'explanations', label: 'Tutor Bot', icon: GraduationCap, color: '#a855f7' },
+              { id: 'video', label: 'Video AI', icon: Video, color: '#f43f5e' },
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive =
@@ -663,8 +680,8 @@ CRITICAL RULES:
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '0.35rem',
-                    padding: '0.32rem 0.72rem',
+                    gap: '0.4rem',
+                    padding: '0.35rem 0.8rem',
                     borderRadius: '9999px',
                     background: isActive
                       ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.28) 0%, rgba(168, 85, 247, 0.22) 100%)'
@@ -673,7 +690,7 @@ CRITICAL RULES:
                       ? `1.5px solid ${tab.color}`
                       : '1px solid var(--border-subtle)',
                     color: isActive ? '#ffffff' : 'var(--text-muted)',
-                    fontSize: '0.74rem',
+                    fontSize: '0.75rem',
                     fontWeight: isActive ? 800 : 600,
                     cursor: 'pointer',
                     transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -693,16 +710,16 @@ CRITICAL RULES:
                     }
                   }}
                 >
-                  <Icon size={13} color={isActive ? tab.color : 'var(--text-subtle)'} />
+                  <Icon size={14} color={isActive ? tab.color : 'var(--text-subtle)'} />
                   <span>{tab.label}</span>
                 </button>
               );
             })}
           </div>
 
-          {/* Right: Question Tree, Refine, and Version Snapshot */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
-            {/* Question Tree Drawer Toggle if questions exist */}
+          {/* Right: Question Tree + AI Refinement */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0 }}>
+            {/* Question Tree Drawer Toggle */}
             {onOpenQuestionTree && (totalQuestions || 0) > 0 && (
               <button
                 id="workspace-question-tree-btn"
@@ -712,9 +729,9 @@ CRITICAL RULES:
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '0.3rem',
+                  gap: '0.35rem',
                   height: '28px',
-                  padding: '0 0.65rem',
+                  padding: '0 0.75rem',
                   borderRadius: '9999px',
                   background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.22) 0%, rgba(168, 85, 247, 0.22) 100%)',
                   border: '1px solid rgba(165, 180, 252, 0.4)',
@@ -732,7 +749,7 @@ CRITICAL RULES:
               </button>
             )}
 
-            {/* Refine with AI */}
+            {/* AI Refine Button */}
             {activeChapter && (
               <button
                 id="workspace-refine-chapter-btn"
@@ -745,9 +762,9 @@ CRITICAL RULES:
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '0.3rem',
+                  gap: '0.35rem',
                   height: '28px',
-                  padding: '0 0.72rem',
+                  padding: '0 0.8rem',
                   borderRadius: '9999px',
                   background:
                     refiningChapterId === activeChapter.id
@@ -767,102 +784,29 @@ CRITICAL RULES:
                 title="Refine active chapter content with AI"
               >
                 <Wand2 size={12} color="#c084fc" />
-                <span>Refine</span>
+                <span>AI Refine</span>
               </button>
             )}
-
-            {/* Version Snapshot */}
-            <div style={{ display: 'inline-flex', alignItems: 'center' }}>
-              <button
-                id="workspace-save-new-version-btn"
-                type="button"
-                onClick={() => handleUpdateSaveNewVersion(false)}
-                disabled={isAutoSaving}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  height: '28px',
-                  padding: '0 0.72rem',
-                  borderRadius: '9999px 0 0 9999px',
-                  background: versionSaveStatus
-                    ? 'rgba(99, 102, 241, 0.28)'
-                    : 'rgba(255, 255, 255, 0.05)',
-                  border: versionSaveStatus
-                    ? '1px solid rgba(99, 102, 241, 0.6)'
-                    : '1px solid var(--border-medium)',
-                  borderRight: 'none',
-                  color: versionSaveStatus ? '#a5b4fc' : 'var(--text-main)',
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  cursor: isAutoSaving ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                }}
-                title="Create a new immutable version history snapshot"
-              >
-                {isAutoSaving ? (
-                  <>
-                    <Loader2 size={11} className="animate-spin" />
-                    <span>Saving...</span>
-                  </>
-                ) : versionSaveStatus ? (
-                  <>
-                    <Check size={11} color="#a5b4fc" />
-                    <span>{versionSaveStatus}</span>
-                  </>
-                ) : (
-                  <>
-                    <Save size={11} color="#38bdf8" />
-                    <span>Version</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowVersionHistory(!showVersionHistory)}
-                style={{
-                  height: '28px',
-                  padding: '0 0.5rem',
-                  borderRadius: '0 9999px 9999px 0',
-                  background: showVersionHistory
-                    ? 'rgba(99, 102, 241, 0.35)'
-                    : 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid var(--border-medium)',
-                  color: 'var(--text-main)',
-                  fontSize: '0.68rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.2rem',
-                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                }}
-                title="View version iterations"
-              >
-                <Clock size={10} color="var(--text-subtle)" />
-                <span>{(compiledCourse.versions || []).length}</span>
-              </button>
-            </div>
           </div>
         </div>
 
-        {/* ROW 2: Download -> Speaker -> Copy -> Department Selection -> Generate -> Save (Strictly In-Order) */}
+        {/* ROW 2: Docked Secondary Tool Suite (Download & Copy, Departmental Creation, Audio, Versioning) */}
         <div
+          id="course-creator-secondary-actions"
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '0.45rem',
+            gap: '0.55rem',
             width: '100%',
             overflowX: 'auto',
             flexWrap: 'nowrap',
           }}
           className="no-scrollbar"
         >
-          {/* Action Cluster Sequence: Download -> Speaker -> Copy -> Dept -> Generate -> Save */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'nowrap', flexShrink: 0 }}>
-            {/* 1. Download Menu */}
+          {/* Left: Clean Action Group */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'nowrap', flexShrink: 0 }}>
+            {/* 1. Unified Download & Copy Menu */}
             <div style={{ position: 'relative' }}>
               <button
                 id="workspace-download-export-btn"
@@ -872,24 +816,24 @@ CRITICAL RULES:
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '0.3rem',
+                  gap: '0.35rem',
                   height: '28px',
-                  padding: '0 0.72rem',
+                  padding: '0 0.8rem',
                   borderRadius: '9999px',
-                  background: 'rgba(99, 102, 241, 0.15)',
-                  border: '1px solid rgba(99, 102, 241, 0.4)',
-                  color: '#a5b4fc',
-                  fontSize: '0.72rem',
+                  background: isExportMenuOpen ? 'var(--chip-download-hover-bg)' : 'var(--chip-download-bg)',
+                  border: isExportMenuOpen ? '1px solid var(--accent-primary)' : '1px solid var(--chip-download-border)',
+                  color: 'var(--chip-download-color)',
+                  fontSize: '0.74rem',
                   cursor: 'pointer',
-                  fontWeight: 600,
+                  fontWeight: 700,
                   transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                  boxShadow: '0 0 8px rgba(99, 102, 241, 0.15)',
+                  boxShadow: '0 0 8px var(--accent-glow)',
                 }}
-                title="Download Course Documents (DOCX / Markdown)"
+                title="Download & Copy Options (DOCX / Markdown / Clipboard)"
               >
-                <Download size={11} color="#818cf8" />
-                <span>Download</span>
-                <ChevronDown size={9} />
+                <Download size={12} color="var(--chip-download-color)" />
+                <span>Download & Copy</span>
+                <ChevronDown size={10} style={{ transform: isExportMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
               </button>
 
               {isExportMenuOpen && (
@@ -904,20 +848,23 @@ CRITICAL RULES:
                       position: 'absolute',
                       left: 0,
                       top: 'calc(100% + 0.4rem)',
-                      width: '210px',
-                      background: 'var(--bg-glass-elevated)',
+                      width: '240px',
+                      background: 'var(--dropdown-bg)',
                       backdropFilter: 'blur(20px)',
                       WebkitBackdropFilter: 'blur(20px)',
-                      border: '1px solid var(--border-medium)',
+                      border: '1px solid var(--dropdown-border)',
                       borderRadius: '0.75rem',
                       padding: '0.4rem',
-                      boxShadow: 'var(--shadow-lg)',
+                      boxShadow: 'var(--dropdown-shadow)',
                       zIndex: 99999,
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '0.2rem',
+                      gap: '0.25rem',
                     }}
                   >
+                    <div style={{ padding: '0.3rem 0.5rem 0.2rem', fontSize: '0.66rem', fontWeight: 700, color: 'var(--text-subtle)', textTransform: 'uppercase' }}>
+                      Document Export
+                    </div>
                     <button
                       type="button"
                       onClick={() => {
@@ -927,26 +874,26 @@ CRITICAL RULES:
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '0.5rem',
+                        gap: '0.55rem',
                         padding: '0.45rem 0.65rem',
                         borderRadius: '0.45rem',
                         background: 'transparent',
                         border: 'none',
                         color: 'var(--text-main)',
-                        fontSize: '0.74rem',
+                        fontSize: '0.76rem',
                         fontWeight: 600,
                         cursor: 'pointer',
                         textAlign: 'left',
                         transition: 'all 0.15s ease',
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'rgba(99, 102, 241, 0.18)';
+                        e.currentTarget.style.background = 'var(--dropdown-item-hover)';
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.background = 'transparent';
                       }}
                     >
-                      <FileText size={13} color="#818cf8" />
+                      <FileText size={14} color="var(--accent-primary)" />
                       <span>Word Document (.docx)</span>
                     </button>
 
@@ -959,104 +906,103 @@ CRITICAL RULES:
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '0.5rem',
+                        gap: '0.55rem',
                         padding: '0.45rem 0.65rem',
                         borderRadius: '0.45rem',
                         background: 'transparent',
                         border: 'none',
-                        color: 'var(--text-muted)',
-                        fontSize: '0.74rem',
+                        color: 'var(--text-main)',
+                        fontSize: '0.76rem',
                         fontWeight: 600,
                         cursor: 'pointer',
                         textAlign: 'left',
                         transition: 'all 0.15s ease',
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'rgba(56, 189, 248, 0.18)';
-                        e.currentTarget.style.color = '#ffffff';
+                        e.currentTarget.style.background = 'var(--dropdown-item-hover)';
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.background = 'transparent';
-                        e.currentTarget.style.color = 'var(--text-muted)';
                       }}
                     >
-                      <Download size={13} color="#38bdf8" />
+                      <Download size={14} color="var(--accent-primary)" />
                       <span>Markdown (.md)</span>
+                    </button>
+
+                    <div style={{ height: '1px', background: 'var(--border-subtle)', margin: '0.2rem 0' }} />
+
+                    <div style={{ padding: '0.3rem 0.5rem 0.2rem', fontSize: '0.66rem', fontWeight: 700, color: 'var(--text-subtle)', textTransform: 'uppercase' }}>
+                      Clipboard Copy
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleCopyChapter();
+                        setIsExportMenuOpen(false);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.55rem',
+                        padding: '0.45rem 0.65rem',
+                        borderRadius: '0.45rem',
+                        background: 'transparent',
+                        border: 'none',
+                        color: copied ? 'var(--accent-primary)' : 'var(--text-main)',
+                        fontSize: '0.76rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'var(--dropdown-item-hover)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                      }}
+                    >
+                      {copied ? <Check size={14} color="var(--accent-primary)" /> : <Copy size={14} />}
+                      <span>{copied ? 'Chapter Copied!' : 'Copy Active Chapter'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleCopyFullCourse();
+                        setIsExportMenuOpen(false);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.55rem',
+                        padding: '0.45rem 0.65rem',
+                        borderRadius: '0.45rem',
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--text-main)',
+                        fontSize: '0.76rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'var(--dropdown-item-hover)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                      }}
+                    >
+                      <BookOpen size={14} color="#10b981" />
+                      <span>Copy Full Course Curriculum</span>
                     </button>
                   </div>
                 </>
               )}
             </div>
 
-            {/* 2. Speaker Button */}
-            {activeChapter && (
-              <button
-                id="workspace-speak-btn"
-                type="button"
-                onClick={() => onSpeak(activeChapter.content, activeChapter.id, workspaceLanguage)}
-                className="action-chip"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  height: '28px',
-                  padding: '0 0.72rem',
-                  borderRadius: '9999px',
-                  background:
-                    isSpeaking && activeSpeakingId === activeChapter.id
-                      ? 'rgba(99, 102, 241, 0.3)'
-                      : 'rgba(255, 255, 255, 0.05)',
-                  border:
-                    isSpeaking && activeSpeakingId === activeChapter.id
-                      ? '1px solid rgba(99, 102, 241, 0.6)'
-                      : '1px solid var(--border-subtle)',
-                  color:
-                    isSpeaking && activeSpeakingId === activeChapter.id
-                      ? 'var(--accent-primary)'
-                      : 'var(--text-muted)',
-                  fontSize: '0.72rem',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                  boxShadow: isSpeaking && activeSpeakingId === activeChapter.id ? '0 0 10px var(--accent-glow)' : 'none',
-                }}
-                title={isSpeaking && activeSpeakingId === activeChapter.id ? 'Stop reading' : 'Read active chapter aloud'}
-              >
-                {isSpeaking && activeSpeakingId === activeChapter.id ? <VolumeX size={11} /> : <Volume2 size={11} />}
-                <span>{isSpeaking && activeSpeakingId === activeChapter.id ? 'Stop' : 'Speaker'}</span>
-              </button>
-            )}
-
-            {/* 3. Copy Button (Placed near speaker/audio button) */}
-            {activeChapter && (
-              <button
-                id="workspace-copy-chapter-btn"
-                type="button"
-                onClick={handleCopyChapter}
-                className="action-chip"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  height: '28px',
-                  padding: '0 0.72rem',
-                  borderRadius: '9999px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid var(--border-subtle)',
-                  color: copied ? 'var(--success)' : 'var(--text-muted)',
-                  fontSize: '0.72rem',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                }}
-                title="Copy active chapter content to clipboard"
-              >
-                {copied ? <Check size={11} color="var(--success)" /> : <Copy size={11} />}
-                <span>{copied ? 'Copied' : 'Copy'}</span>
-              </button>
-            )}
-
-            {/* 4. Department Selection Button (Followed immediately after Copy) */}
+            {/* 2. Departmental Creation Dropdown & Batch Adaptations */}
             <div style={{ position: 'relative' }}>
               <button
                 id="top-workspace-studied-by-btn"
@@ -1066,24 +1012,24 @@ CRITICAL RULES:
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '0.32rem',
+                  gap: '0.35rem',
                   height: '28px',
-                  padding: '0 0.72rem',
+                  padding: '0 0.8rem',
                   borderRadius: '9999px',
-                  background: isAudienceMenuOpen ? 'rgba(56, 189, 248, 0.28)' : 'rgba(56, 189, 248, 0.12)',
-                  border: isAudienceMenuOpen ? '1px solid #38bdf8' : '1px solid rgba(56, 189, 248, 0.35)',
-                  color: '#7dd3fc',
-                  fontSize: '0.72rem',
+                  background: isAudienceMenuOpen ? 'var(--chip-audience-hover-bg)' : 'var(--chip-audience-bg)',
+                  border: isAudienceMenuOpen ? '1px solid var(--accent-primary)' : '1px solid var(--chip-audience-border)',
+                  color: 'var(--chip-audience-color)',
+                  fontSize: '0.74rem',
                   fontWeight: 700,
                   cursor: 'pointer',
                   transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                  boxShadow: '0 0 8px rgba(56, 189, 248, 0.15)',
+                  boxShadow: '0 0 8px var(--accent-glow)',
                 }}
-                title="Select Target Departments & Multi-Generate Adaptations"
+                title="Departmental Creation: Select Target Departments & Multi-Generate Adaptations"
               >
-                <UserCheck size={11} color="#38bdf8" />
-                <span>Dept ({selectedDepartments.length})</span>
-                <ChevronDown size={10} />
+                <UserCheck size={12} color="var(--chip-audience-color)" />
+                <span>Departmental Creation ({selectedDepartments.length})</span>
+                <ChevronDown size={10} style={{ transform: isAudienceMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
               </button>
 
               {isAudienceMenuOpen && (
@@ -1100,12 +1046,12 @@ CRITICAL RULES:
                       top: 'calc(100% + 0.4rem)',
                       width: '320px',
                       maxWidth: '90vw',
-                      background: 'var(--bg-glass-elevated)',
+                      background: 'var(--dropdown-bg)',
                       backdropFilter: 'blur(20px)',
                       WebkitBackdropFilter: 'blur(20px)',
-                      border: '1px solid var(--border-medium)',
+                      border: '1px solid var(--dropdown-border)',
                       borderRadius: '0.85rem',
-                      boxShadow: 'var(--shadow-lg)',
+                      boxShadow: 'var(--dropdown-shadow)',
                       zIndex: 99999,
                       padding: '0.65rem',
                       display: 'flex',
@@ -1115,11 +1061,11 @@ CRITICAL RULES:
                   >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.2rem 0.4rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.45rem' }}>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                           Target Departments
                         </span>
-                        <span style={{ fontSize: '0.62rem', color: '#93c5fd' }}>
-                          Click or Ctrl+Click to select
+                        <span style={{ fontSize: '0.64rem', color: 'var(--text-muted)' }}>
+                          Select departments for adaptation
                         </span>
                       </div>
                       <button
@@ -1135,7 +1081,7 @@ CRITICAL RULES:
                         style={{
                           background: 'transparent',
                           border: 'none',
-                          color: '#38bdf8',
+                          color: 'var(--accent-primary)',
                           fontSize: '0.68rem',
                           fontWeight: 700,
                           cursor: 'pointer',
@@ -1153,16 +1099,10 @@ CRITICAL RULES:
                         return (
                           <div
                             key={cat.id}
-                            onClick={(e) => {
-                              if (e.ctrlKey || e.metaKey) {
-                                setSelectedDepartments((prev) =>
-                                  prev.includes(cat.id) ? prev.filter((id) => id !== cat.id) : [...prev, cat.id]
-                                );
-                              } else {
-                                setSelectedDepartments((prev) =>
-                                  prev.includes(cat.id) ? prev.filter((id) => id !== cat.id) : [...prev, cat.id]
-                                );
-                              }
+                            onClick={() => {
+                              setSelectedDepartments((prev) =>
+                                prev.includes(cat.id) ? prev.filter((id) => id !== cat.id) : [...prev, cat.id]
+                              );
                               setSelectedAudience(cat.name);
                             }}
                             style={{
@@ -1171,37 +1111,41 @@ CRITICAL RULES:
                               gap: '0.5rem',
                               padding: '0.45rem 0.55rem',
                               borderRadius: '0.5rem',
-                              background: isChecked ? 'rgba(99, 102, 241, 0.22)' : 'rgba(255, 255, 255, 0.03)',
-                              border: isChecked ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid transparent',
+                              background: isChecked ? 'var(--dropdown-item-selected)' : 'transparent',
+                              border: isChecked ? '1px solid var(--accent-primary)' : '1px solid transparent',
                               cursor: 'pointer',
                               transition: 'all 0.15s ease',
                             }}
-                            title="Click or Ctrl+Click to toggle department selection"
                           >
-                            {isChecked ? (
-                              <CheckSquare size={14} color="#38bdf8" style={{ flexShrink: 0 }} />
-                            ) : (
-                              <Square size={14} color="var(--text-subtle)" style={{ flexShrink: 0 }} />
-                            )}
-                            <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                              <span style={{ fontSize: '0.74rem', fontWeight: 700, color: isChecked ? '#ffffff' : 'var(--text-main)' }}>
-                                {cat.name}
-                              </span>
-                              <span style={{ fontSize: '0.64rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {cat.description}
-                              </span>
+                            <div
+                              style={{
+                                width: '15px',
+                                height: '15px',
+                                borderRadius: '4px',
+                                border: isChecked ? '1px solid var(--accent-primary)' : '1px solid var(--border-medium)',
+                                background: isChecked ? 'var(--accent-primary)' : 'transparent',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                              }}
+                            >
+                              {isChecked && <Check size={10} color="#ffffff" />}
                             </div>
+                            <span style={{ fontSize: '0.74rem', fontWeight: isChecked ? 700 : 500, color: isChecked ? 'var(--text-main)' : 'var(--text-muted)' }}>
+                              {cat.name}
+                            </span>
                           </div>
                         );
                       })}
                     </div>
 
-                    <div style={{ paddingTop: '0.45rem', borderTop: '1px solid var(--border-subtle)' }}>
+                    <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '0.45rem', marginTop: '0.2rem' }}>
                       <button
                         type="button"
                         onClick={() => {
-                          handleBatchDepartmentGeneration();
                           setIsAudienceMenuOpen(false);
+                          handleBatchDepartmentGeneration();
                         }}
                         disabled={isBatchGenerating || selectedDepartments.length === 0}
                         style={{
@@ -1209,21 +1153,21 @@ CRITICAL RULES:
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: '0.35rem',
-                          padding: '0.55rem',
-                          borderRadius: '0.55rem',
-                          background: selectedDepartments.length > 0 ? 'var(--accent-gradient)' : 'rgba(255, 255, 255, 0.05)',
+                          gap: '0.4rem',
+                          background: 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)',
                           border: 'none',
+                          borderRadius: '0.55rem',
+                          padding: '0.5rem',
                           color: '#ffffff',
-                          fontSize: '0.74rem',
-                          fontWeight: 800,
+                          fontSize: '0.76rem',
+                          fontWeight: 700,
                           cursor: isBatchGenerating || selectedDepartments.length === 0 ? 'not-allowed' : 'pointer',
                           boxShadow: selectedDepartments.length > 0 ? '0 0 16px rgba(236, 72, 153, 0.4)' : 'none',
                           transition: 'all 0.2s ease',
                         }}
                       >
                         {isBatchGenerating ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                        <span>{isBatchGenerating ? 'Generating...' : `Generate ${selectedDepartments.length} Dept Courses`}</span>
+                        <span>{isBatchGenerating ? 'Generating...' : `Generate ${selectedDepartments.length} Department Adaptations`}</span>
                       </button>
                     </div>
                   </div>
@@ -1231,36 +1175,46 @@ CRITICAL RULES:
               )}
             </div>
 
-            {/* 5. Generate Button (Then Generate) */}
-            <button
-              id="workspace-generate-department-courses-btn"
-              type="button"
-              onClick={handleBatchDepartmentGeneration}
-              disabled={isBatchGenerating || selectedDepartments.length === 0}
-              className="action-chip"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.32rem',
-                height: '28px',
-                padding: '0 0.85rem',
-                borderRadius: '9999px',
-                background: 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)',
-                border: 'none',
-                color: '#ffffff',
-                fontSize: '0.72rem',
-                fontWeight: 800,
-                cursor: isBatchGenerating || selectedDepartments.length === 0 ? 'not-allowed' : 'pointer',
-                boxShadow: '0 0 12px rgba(236, 72, 153, 0.4)',
-                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-              }}
-              title="Batch generate adapted course versions for selected departments"
-            >
-              {isBatchGenerating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-              <span>{isBatchGenerating ? 'Generating...' : 'Generate'}</span>
-            </button>
+            {/* 3. Audio Speaker Button */}
+            {activeChapter && (
+              <button
+                id="workspace-speak-btn"
+                type="button"
+                onClick={() => onSpeak(activeChapter.content, activeChapter.id, workspaceLanguage)}
+                className="action-chip"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  height: '28px',
+                  padding: '0 0.75rem',
+                  borderRadius: '9999px',
+                  background:
+                    isSpeaking && activeSpeakingId === activeChapter.id
+                      ? 'rgba(99, 102, 241, 0.3)'
+                      : 'rgba(255, 255, 255, 0.05)',
+                  border:
+                    isSpeaking && activeSpeakingId === activeChapter.id
+                      ? '1px solid rgba(99, 102, 241, 0.6)'
+                      : '1px solid var(--border-subtle)',
+                  color:
+                    isSpeaking && activeSpeakingId === activeChapter.id
+                      ? 'var(--accent-primary)'
+                      : 'var(--text-muted)',
+                  fontSize: '0.74rem',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                  boxShadow: isSpeaking && activeSpeakingId === activeChapter.id ? '0 0 10px var(--accent-glow)' : 'none',
+                }}
+                title={isSpeaking && activeSpeakingId === activeChapter.id ? 'Stop reading' : 'Read active chapter aloud'}
+              >
+                {isSpeaking && activeSpeakingId === activeChapter.id ? <VolumeX size={12} /> : <Volume2 size={12} />}
+                <span>{isSpeaking && activeSpeakingId === activeChapter.id ? 'Stop Audio' : 'Speaker'}</span>
+              </button>
+            )}
 
-            {/* 6. Save Button (At the very end of the sequence) */}
+            {/* 4. Save to Main Library */}
             <button
               id="workspace-save-library-btn"
               type="button"
@@ -1269,48 +1223,124 @@ CRITICAL RULES:
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '0.3rem',
+                gap: '0.35rem',
                 height: '28px',
-                padding: '0 0.75rem',
+                padding: '0 0.8rem',
                 borderRadius: '9999px',
                 background: savedToLib
-                  ? 'rgba(16, 185, 129, 0.28)'
-                  : 'linear-gradient(135deg, rgba(99, 102, 241, 0.35) 0%, rgba(168, 85, 247, 0.35) 100%)',
+                  ? 'rgba(16, 185, 129, 0.15)'
+                  : 'var(--accent-gradient)',
                 border: savedToLib
-                  ? '1px solid rgba(16, 185, 129, 0.6)'
-                  : '1px solid rgba(165, 180, 252, 0.5)',
-                color: savedToLib ? '#34d399' : '#ffffff',
-                fontSize: '0.72rem',
+                  ? '1px solid rgba(16, 185, 129, 0.5)'
+                  : 'none',
+                color: savedToLib ? '#059669' : '#ffffff',
+                fontSize: '0.74rem',
                 fontWeight: 700,
                 cursor: 'pointer',
-                boxShadow: '0 0 12px rgba(99, 102, 241, 0.3)',
+                boxShadow: savedToLib ? 'none' : '0 2px 10px var(--accent-glow)',
                 transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
               }}
-              title="Save course to SQLite & IndexedDB"
+              title="Save course to SQLite & IndexedDB Library"
             >
-              {savedToLib ? <Check size={11} /> : <Bookmark size={11} />}
-              <span>{savedToLib ? 'Saved' : 'Save'}</span>
+              {savedToLib ? <Check size={12} color="#059669" /> : <Bookmark size={12} color="#ffffff" />}
+              <span>{savedToLib ? 'Saved to Library' : 'Save Course'}</span>
             </button>
 
-            {/* Feedback banner */}
+            {/* 5. Version Snapshot */}
+            <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+              <button
+                id="workspace-save-new-version-btn"
+                type="button"
+                onClick={() => handleUpdateSaveNewVersion(false)}
+                disabled={isAutoSaving}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  height: '28px',
+                  padding: '0 0.75rem',
+                  borderRadius: '9999px 0 0 9999px',
+                  background: versionSaveStatus
+                    ? 'var(--chip-download-bg)'
+                    : 'var(--btn-default-bg)',
+                  border: versionSaveStatus
+                    ? '1px solid var(--chip-download-border)'
+                    : '1px solid var(--border-medium)',
+                  borderRight: 'none',
+                  color: versionSaveStatus ? 'var(--accent-primary)' : 'var(--text-main)',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  cursor: isAutoSaving ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                }}
+                title="Create a new immutable version history snapshot"
+              >
+                {isAutoSaving ? (
+                  <>
+                    <Loader2 size={11} className="animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : versionSaveStatus ? (
+                  <>
+                    <Check size={11} color="var(--accent-primary)" />
+                    <span>{versionSaveStatus}</span>
+                  </>
+                ) : (
+                  <>
+                    <Save size={11} color="var(--accent-primary)" />
+                    <span>Snapshot</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowVersionHistory(!showVersionHistory)}
+                style={{
+                  height: '28px',
+                  padding: '0 0.55rem',
+                  borderRadius: '0 9999px 9999px 0',
+                  background: showVersionHistory
+                    ? 'rgba(99, 102, 241, 0.35)'
+                    : 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid var(--border-medium)',
+                  color: 'var(--text-main)',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.2rem',
+                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                }}
+                title="View version iterations"
+              >
+                <Clock size={11} color="var(--text-subtle)" />
+                <span>{(compiledCourse.versions || []).length}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Right: Feedback Banners */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
             {batchSuccessMessage && (
               <div
                 className="animate-pop-in"
                 style={{
-                  fontSize: '0.68rem',
+                  fontSize: '0.72rem',
                   color: '#34d399',
                   fontWeight: 700,
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '0.25rem',
+                  gap: '0.3rem',
                   background: 'rgba(16, 185, 129, 0.15)',
                   border: '1px solid rgba(16, 185, 129, 0.4)',
-                  padding: '0.18rem 0.6rem',
+                  padding: '0.22rem 0.7rem',
                   borderRadius: '9999px',
                   flexShrink: 0,
                 }}
               >
-                <Check size={10} />
+                <Check size={11} />
                 <span>{batchSuccessMessage}</span>
               </div>
             )}
@@ -1383,212 +1413,114 @@ CRITICAL RULES:
               }}
             >
               Curriculum Books ({compiledCourse.chapters.length})
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+            </div>            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
               {filteredChapters.map((chap) => {
                 const originalIndex = compiledCourse.chapters.findIndex((c) => c.id === chap.id);
                 const isCurrent = originalIndex === activeChapterIndex;
-                const isExpanded = expandedChapterId === chap.id;
+
+                const subTopicsList = chap.subTopics && chap.subTopics.length > 0
+                  ? chap.subTopics
+                  : [
+                      { id: `st_1_${chap.id}`, topicNumber: `${chap.chapterNumber}.1`, title: 'Core Foundations & Architecture' },
+                      { id: `st_2_${chap.id}`, topicNumber: `${chap.chapterNumber}.2`, title: 'Operational Workflows & Methods' },
+                      { id: `st_3_${chap.id}`, topicNumber: `${chap.chapterNumber}.3`, title: 'Applied Practice & Case Studies' },
+                      { id: `st_4_${chap.id}`, topicNumber: `${chap.chapterNumber}.4`, title: 'Assessments & Certification' },
+                    ];
 
                 return (
                   <div
                     key={chap.id}
-                    className="interactive-card"
                     style={{
-                      background: isCurrent
-                        ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.22) 0%, rgba(168, 85, 247, 0.16) 100%)'
-                        : 'rgba(255, 255, 255, 0.03)',
-                      border: isCurrent
-                        ? '1.5px solid var(--border-focus)'
-                        : '1px solid var(--border-subtle)',
-                      borderRadius: '0.85rem',
-                      overflow: 'hidden',
-                      transition: 'all 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
-                      boxShadow: isCurrent ? '0 0 16px var(--accent-glow)' : 'none',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.2rem',
                     }}
                   >
-                    {/* Chapter Accordion Header Row */}
-                    <div
-                      onClick={() => handleToggleAccordion(chap.id, originalIndex)}
+                    {/* Book Header Link */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveChapterIndex(originalIndex);
+                        setActiveWorkspaceTab('reading');
+                      }}
                       style={{
-                        padding: '0.65rem 0.75rem',
-                        cursor: 'pointer',
                         display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.25rem',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0.35rem 0.5rem',
+                        borderRadius: '0.45rem',
+                        background: isCurrent ? 'rgba(99, 102, 241, 0.12)' : 'transparent',
+                        border: 'none',
+                        borderLeft: isCurrent ? '3px solid var(--accent-primary)' : '3px solid transparent',
+                        color: isCurrent ? 'var(--text-main)' : 'var(--text-muted)',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.15s ease',
                       }}
                     >
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        Book {chap.chapterNumber}: {chap.title}
+                      </span>
+                    </button>
+
+                    {/* Simple text-based 1.1, 1.2 index list */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', paddingLeft: '0.65rem' }}>
+                      {subTopicsList.map((st) => (
+                        <button
+                          key={st.id}
+                          type="button"
+                          onClick={() => handleJumpToSubTopic(st.title, originalIndex)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'baseline',
+                            gap: '0.45rem',
+                            padding: '0.25rem 0.45rem',
+                            borderRadius: '0.35rem',
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--text-muted)',
+                            fontSize: '0.74rem',
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'color 0.15s, background 0.15s',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.color = 'var(--text-main)';
+                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.color = 'var(--text-muted)';
+                            e.currentTarget.style.background = 'transparent';
+                          }}
+                          title={`Jump to section ${st.topicNumber}: ${st.title}`}
+                        >
                           <span
                             style={{
-                              fontSize: '0.68rem',
+                              fontFamily: 'monospace',
                               fontWeight: 700,
                               color: isCurrent ? 'var(--accent-primary)' : 'var(--text-subtle)',
+                              fontSize: '0.72rem',
+                              flexShrink: 0,
                             }}
                           >
-                            Book {chap.chapterNumber}
+                            {st.topicNumber}
                           </span>
-                          {isCurrent && (
-                            <span
-                              style={{
-                                fontSize: '0.6rem',
-                                fontWeight: 700,
-                                padding: '0.05rem 0.35rem',
-                                borderRadius: '9999px',
-                                background: 'rgba(10, 185, 129, 0.2)',
-                                color: '#34d399',
-                              }}
-                            >
-                              Active
-                            </span>
-                          )}
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          {/* Inline Edit Icon next to chapter */}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveChapterIndex(originalIndex);
-                              setRefiningChapterId((prev) => (prev === chap.id ? null : chap.id));
-                              setTargetSectionTitle(null);
-                            }}
+                          <span
                             style={{
-                              background: 'transparent',
-                              border: 'none',
-                              color: refiningChapterId === chap.id ? '#c084fc' : 'var(--text-subtle)',
-                              cursor: 'pointer',
-                              padding: '0.2rem',
-                              borderRadius: '0.25rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                            }}
-                            title="Edit chapter with AI"
-                          >
-                            <Sparkles size={13} />
-                          </button>
-
-                          {/* Accordion Chevron */}
-                          <div
-                            style={{
-                              color: 'var(--text-subtle)',
-                              transition: 'transform 0.25s ease',
-                              transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              flex: 1,
                             }}
                           >
-                            <ChevronDown size={14} />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div
-                        style={{
-                          fontSize: '0.82rem',
-                          fontWeight: 600,
-                          color: isCurrent ? '#ffffff' : 'var(--text-main)',
-                          lineHeight: '1.3',
-                        }}
-                      >
-                        {chap.title}
-                      </div>
+                            {st.title}
+                          </span>
+                        </button>
+                      ))}
                     </div>
-
-                    {/* Interactive Hyperlinks Subtopics Tray */}
-                    {isExpanded && (
-                      <div
-                        style={{
-                          padding: '0.4rem 0.75rem 0.65rem 0.75rem',
-                          background: 'rgba(0, 0, 0, 0.25)',
-                          borderTop: '1px solid rgba(255, 255, 255, 0.05)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.3rem',
-                          animation: 'fadeIn 0.2s ease-out',
-                        }}
-                      >
-                        <div style={{ fontSize: '0.64rem', color: 'var(--text-subtle)', fontWeight: 600 }}>
-                          Subtopics & Sections (Click to scroll)
-                        </div>
-                        {chap.subTopics && chap.subTopics.length > 0 ? (
-                          chap.subTopics.map((st) => (
-                            <div
-                              key={st.id}
-                              onClick={() => handleJumpToSubTopic(st.title, originalIndex)}
-                              style={{
-                                fontSize: '0.72rem',
-                                color: isCurrent ? '#c7d2fe' : 'var(--text-muted)',
-                                padding: '0.25rem 0.45rem',
-                                borderRadius: '0.35rem',
-                                background: 'rgba(255, 255, 255, 0.03)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease',
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = 'rgba(99, 102, 241, 0.18)';
-                                e.currentTarget.style.color = '#ffffff';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
-                                e.currentTarget.style.color = isCurrent ? '#c7d2fe' : 'var(--text-muted)';
-                              }}
-                            >
-                              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                <strong style={{ color: 'var(--accent-primary)', marginRight: '0.3rem' }}>
-                                  {st.topicNumber}
-                                </strong>
-                                <span>{st.title}</span>
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setActiveChapterIndex(originalIndex);
-                                    setActiveVideoTopicNumber(st.topicNumber);
-                                    setActiveWorkspaceTab('video');
-                                    const reader = document.getElementById('workspace-content-scroll');
-                                    if (reader) reader.scrollTo({ top: 0, behavior: 'smooth' });
-                                  }}
-                                  style={{
-                                    background: 'rgba(236, 72, 153, 0.15)',
-                                    border: '1px solid rgba(236, 72, 153, 0.35)',
-                                    borderRadius: '0.25rem',
-                                    color: '#f472b6',
-                                    fontSize: '0.65rem',
-                                    padding: '0.1rem 0.35rem',
-                                    cursor: 'pointer',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '0.2rem',
-                                  }}
-                                  title={`Play Class Video for ${st.topicNumber}`}
-                                >
-                                  <Video size={10} />
-                                  <span>Video</span>
-                                </button>
-                                <ExternalLink size={10} style={{ opacity: 0.45 }} />
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>
-                            1.1 Core Architecture • 1.2 Enterprise Labs
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                 );
               })}
@@ -3214,8 +3146,8 @@ CRITICAL RULES:
                     flexShrink: 0,
                     height: '100%',
                     overflowY: 'auto',
-                    background: 'rgba(12, 18, 32, 0.95)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    background: 'var(--sidebar-bg)',
+                    border: '1px solid var(--sidebar-border)',
                     borderRadius: '1rem',
                     padding: '0.85rem',
                     display: 'flex',
@@ -3223,14 +3155,14 @@ CRITICAL RULES:
                     gap: '0.65rem',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '1px solid var(--sidebar-border)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <BookOpen size={15} color="#38bdf8" />
-                      <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.01em' }}>
+                      <BookOpen size={15} color="var(--accent-primary)" />
+                      <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.01em' }}>
                         Course Index & Outline
                       </span>
                     </div>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#38bdf8', background: 'rgba(56, 189, 248, 0.15)', padding: '0.1rem 0.45rem', borderRadius: '9999px' }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--accent-primary)', background: 'var(--dropdown-item-selected)', padding: '0.1rem 0.45rem', borderRadius: '9999px' }}>
                       {compiledCourse.chapters.length} Books
                     </span>
                   </div>
@@ -3244,11 +3176,11 @@ CRITICAL RULES:
                           key={chap.id}
                           style={{
                             background: isCurrent
-                              ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(168, 85, 247, 0.15) 100%)'
-                              : 'rgba(255, 255, 255, 0.02)',
+                              ? 'var(--dropdown-item-selected)'
+                              : 'var(--bg-card)',
                             border: isCurrent
-                              ? '1px solid rgba(99, 102, 241, 0.5)'
-                              : '1px solid rgba(255, 255, 255, 0.05)',
+                              ? '1px solid var(--accent-primary)'
+                              : '1px solid var(--border-subtle)',
                             borderRadius: '0.75rem',
                             overflow: 'hidden',
                             transition: 'all 0.15s ease',
@@ -3268,38 +3200,40 @@ CRITICAL RULES:
                             }}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <span style={{ fontSize: '0.66rem', fontWeight: 700, color: isCurrent ? '#38bdf8' : 'var(--text-subtle)' }}>
+                              <span style={{ fontSize: '0.66rem', fontWeight: 700, color: isCurrent ? 'var(--accent-primary)' : 'var(--text-subtle)' }}>
                                 Book {chap.chapterNumber}
                               </span>
                               {isCurrent && (
-                                <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#34d399', background: 'rgba(52, 211, 153, 0.15)', padding: '0.05rem 0.35rem', borderRadius: '9999px' }}>
+                                <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--success)', background: 'var(--success-bg)', padding: '0.05rem 0.35rem', borderRadius: '9999px' }}>
                                   Active
                                 </span>
                               )}
                             </div>
-                            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: isCurrent ? '#ffffff' : 'var(--text-main)', lineHeight: '1.3' }}>
+                            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: isCurrent ? 'var(--accent-primary)' : 'var(--text-main)', lineHeight: '1.3' }}>
                               {chap.title}
                             </div>
                           </div>
 
                           {isExpanded && chap.subTopics && chap.subTopics.length > 0 && (
-                            <div style={{ padding: '0.35rem 0.65rem 0.55rem', background: 'rgba(0,0,0,0.25)', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            <div style={{ padding: '0.35rem 0.65rem 0.55rem', background: 'var(--bg-tertiary)', borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                               {chap.subTopics.map((st) => (
                                 <div
                                   key={st.id}
                                   onClick={() => handleJumpToSubTopic(st.title, idx)}
                                   style={{
                                     fontSize: '0.7rem',
-                                    color: isCurrent ? '#c7d2fe' : 'var(--text-muted)',
-                                    padding: '0.2rem 0.4rem',
+                                    color: isCurrent ? 'var(--accent-primary)' : 'var(--text-main)',
+                                    padding: '0.25rem 0.45rem',
                                     borderRadius: '0.35rem',
+                                    background: 'var(--bg-card)',
+                                    border: '1px solid var(--border-subtle)',
                                     cursor: 'pointer',
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: '0.35rem',
                                   }}
                                 >
-                                  <span style={{ color: '#818cf8', fontWeight: 700, fontSize: '0.65rem' }}>{st.topicNumber}</span>
+                                  <span style={{ color: 'var(--accent-primary)', fontWeight: 700, fontSize: '0.65rem' }}>{st.topicNumber}</span>
                                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{st.title}</span>
                                 </div>
                               ))}

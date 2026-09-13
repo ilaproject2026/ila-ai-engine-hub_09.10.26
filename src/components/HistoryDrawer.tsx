@@ -113,13 +113,13 @@ export default function HistoryDrawer({
           width: '100%',
           maxWidth: '520px',
           height: '100%',
-          background: 'rgba(13, 17, 28, 0.96)',
+          background: 'var(--modal-bg, var(--bg-card))',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
           borderLeft: '1px solid var(--border-subtle)',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '-10px 0 30px rgba(0, 0, 0, 0.7)',
+          boxShadow: 'var(--modal-shadow)',
           overflow: 'hidden',
         }}
         onClick={(e) => e.stopPropagation()}
@@ -133,7 +133,7 @@ export default function HistoryDrawer({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            background: 'rgba(18, 24, 38, 0.5)',
+            background: 'var(--modal-header-bg, var(--bg-secondary))',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -171,10 +171,10 @@ export default function HistoryDrawer({
             type="button"
             onClick={onClose}
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid var(--border-subtle)',
+              background: 'var(--btn-default-bg)',
+              border: '1px solid var(--btn-default-border)',
               borderRadius: '0.5rem',
-              color: 'var(--text-muted)',
+              color: 'var(--btn-default-color, var(--text-main))',
               cursor: 'pointer',
               padding: '0.4rem',
               display: 'flex',
@@ -203,8 +203,8 @@ export default function HistoryDrawer({
               position: 'relative',
               display: 'flex',
               alignItems: 'center',
-              background: 'rgba(10, 13, 20, 0.8)',
-              border: '1px solid var(--border-subtle)',
+              background: 'var(--input-bg)',
+              border: '1px solid var(--border-medium)',
               borderRadius: '0.625rem',
               padding: '0.4rem 0.75rem',
             }}
@@ -252,10 +252,10 @@ export default function HistoryDrawer({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '0.35rem',
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid var(--border-subtle)',
+                background: 'var(--btn-default-bg)',
+                border: '1px solid var(--btn-default-border)',
                 borderRadius: '0.5rem',
-                color: history.length === 0 ? 'var(--text-subtle)' : 'var(--text-muted)',
+                color: history.length === 0 ? 'var(--text-subtle)' : 'var(--btn-default-color, var(--text-main))',
                 padding: '0.4rem 0.75rem',
                 fontSize: '0.78rem',
                 fontWeight: 500,
@@ -481,7 +481,8 @@ export default function HistoryDrawer({
                       WebkitLineClamp: 3,
                       WebkitBoxOrient: 'vertical',
                       whiteSpace: 'pre-wrap',
-                      background: 'rgba(0, 0, 0, 0.25)',
+                      background: 'var(--bg-tertiary)',
+                      border: '1px solid var(--border-subtle)',
                       padding: '0.5rem 0.65rem',
                       borderRadius: '0.5rem',
                     }}
@@ -496,7 +497,7 @@ export default function HistoryDrawer({
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       paddingTop: '0.25rem',
-                      borderTop: '1px solid rgba(255, 255, 255, 0.04)',
+                      borderTop: '1px solid var(--border-subtle)',
                     }}
                   >
                     <button

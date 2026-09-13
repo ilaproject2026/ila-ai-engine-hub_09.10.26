@@ -52,6 +52,7 @@ import {
   getAllLibraryCourses,
   deleteLibraryCourse,
   saveLibraryCourse,
+  saveToPermanentStore,
   saveCourseVersionSnapshot,
   restoreCourseVersion,
   batchGenerateAndSaveDepartmentCourses,
@@ -351,6 +352,7 @@ export default function DedicatedLibraryView({
     if (e) e.stopPropagation();
     const targetCourse = course || selectedCourse;
     if (!targetCourse) return;
+    saveToPermanentStore(targetCourse, undefined, { reason: 'download', format: 'markdown' });
     const fullMd = targetCourse.chapters
       .map((ch) => `# Book ${ch.chapterNumber}: ${ch.title}\n\n${ch.content}`)
       .join('\n\n---\n\n');
@@ -513,7 +515,19 @@ export default function DedicatedLibraryView({
   };
 
   const handleDeleteCourse = async (courseId: string) => {
-    await deleteLibraryCourse(courseId);
+    const course = courses.find((c) => c.id === courseId);
+    if (course?.locked || course?.isPermanent) {
+      const confirmed = window.confirm(
+        `"${course.title}" is locked in permanent storage to protect token work.\n\nAre you sure you want to permanently delete this course?`
+      );
+      if (!confirmed) {
+        setCourseToDelete(null);
+        return;
+      }
+      await deleteLibraryCourse(courseId, { confirmManualDelete: true });
+    } else {
+      await deleteLibraryCourse(courseId);
+    }
     setCourses((prev) => prev.filter((c) => c.id !== courseId));
     if (selectedCourse?.id === courseId) {
       const remaining = courses.filter((c) => c.id !== courseId);
@@ -527,6 +541,7 @@ export default function DedicatedLibraryView({
 
   const handleDownloadDocx = async (course: LibraryCourse, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    saveToPermanentStore(course, undefined, { reason: 'download', format: 'docx' });
     const fullContent = course.chapters
       .map((ch) => `# Book ${ch.chapterNumber}: ${ch.title}\n\n${ch.content}`)
       .join('\n\n---\n\n');
@@ -745,8 +760,8 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
           zIndex: 20,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-          {/* Top-Level Library Navigation Tabs: Catalog vs Split Reader */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
+          {/* Top-Level Library Navigation Tabs: Catalog vs Reader */}
           <div
             style={{
               display: 'inline-flex',
@@ -759,13 +774,14 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
             }}
           >
             <button
+              id="library-toggle-catalog-btn"
               type="button"
               onClick={() => setActiveTab('catalog')}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '0.4rem',
-                padding: '0.35rem 0.9rem',
+                gap: '0.35rem',
+                padding: '0.35rem 0.85rem',
                 borderRadius: '9999px',
                 background:
                   activeTab === 'catalog'
@@ -773,7 +789,7 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                     : 'transparent',
                 border: 'none',
                 color: activeTab === 'catalog' ? '#ffffff' : 'var(--text-muted)',
-                fontSize: '0.8rem',
+                fontSize: '0.78rem',
                 fontWeight: 700,
                 cursor: 'pointer',
                 boxShadow:
@@ -781,39 +797,70 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                 transition: 'all 0.15s ease',
               }}
             >
-              <Layers size={14} />
-              <span>Course Catalog ({courses.length})</span>
+              <Layers size={13} />
+              <span>Catalog Mode</span>
             </button>
 
-            {selectedCourse && (
-              <button
-                type="button"
-                onClick={() => setActiveTab('reader')}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  padding: '0.35rem 0.9rem',
-                  borderRadius: '9999px',
-                  background:
-                    activeTab === 'reader'
-                      ? 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)'
-                      : 'transparent',
-                  border: 'none',
-                  color: activeTab === 'reader' ? '#ffffff' : 'var(--text-muted)',
-                  fontSize: '0.8rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  boxShadow:
-                    activeTab === 'reader' ? '0 2px 10px rgba(99, 102, 241, 0.35)' : 'none',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <BookOpen size={14} />
-                <span>Active Reader: {selectedCourse.title.slice(0, 24)}...</span>
-              </button>
-            )}
+            <button
+              id="library-toggle-reader-btn"
+              type="button"
+              onClick={() => {
+                if (selectedCourse) {
+                  setActiveTab('reader');
+                } else if (courses.length > 0) {
+                  handleSelectCourseToRead(courses[0]);
+                }
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: '0.35rem 0.85rem',
+                borderRadius: '9999px',
+                background:
+                  activeTab === 'reader'
+                    ? 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)'
+                    : 'transparent',
+                border: 'none',
+                color: activeTab === 'reader' ? '#ffffff' : 'var(--text-muted)',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow:
+                  activeTab === 'reader' ? '0 2px 10px rgba(99, 102, 241, 0.35)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <BookOpen size={13} />
+              <span>Reader Mode</span>
+            </button>
           </div>
+
+          {/* Sleek Active Reader indicator alongside toggles */}
+          {selectedCourse && (
+            <div
+              id="library-active-reader-indicator"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.28rem 0.75rem',
+                borderRadius: '9999px',
+                background: 'rgba(99, 102, 241, 0.12)',
+                border: '1px solid rgba(99, 102, 241, 0.28)',
+                color: '#c7d2fe',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                maxWidth: '300px',
+              }}
+              title={selectedCourse.title}
+            >
+              <span style={{ color: 'var(--accent-primary)', fontWeight: 700, whiteSpace: 'nowrap' }}>Active:</span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {selectedCourse.title}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Right Actions */}
@@ -895,25 +942,6 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
               }}
             >
               <div>
-                <div
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    background: 'rgba(99, 102, 241, 0.2)',
-                    border: '1px solid rgba(99, 102, 241, 0.4)',
-                    borderRadius: '9999px',
-                    padding: '0.25rem 0.75rem',
-                    fontSize: '0.75rem',
-                    color: '#a5b4fc',
-                    fontWeight: 700,
-                    marginBottom: '0.75rem',
-                  }}
-                >
-                  <BookOpen size={13} />
-                  <span>Enterprise Knowledge Base • SQLite DB</span>
-                </div>
-
                 <h1
                   style={{
                     fontSize: '2.1rem',
@@ -1001,8 +1029,8 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.4rem',
-                    background: 'rgba(10, 13, 20, 0.65)',
-                    border: '1px solid var(--border-subtle)',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-medium)',
                     borderRadius: '0.6rem',
                     padding: '0.45rem 0.75rem',
                   }}
@@ -1020,22 +1048,22 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                       cursor: 'pointer',
                     }}
                   >
-                    <option value="all" style={{ background: '#0f172a' }}>All Categories</option>
+                    <option value="all" style={{ background: 'var(--bg-secondary)', color: 'var(--text-main)' }}>All Categories</option>
                     {categories.length > 0 ? (
                       categories.map((cat) => (
-                        <option key={cat.id} value={cat.name} style={{ background: '#0f172a' }}>
+                        <option key={cat.id} value={cat.name} style={{ background: 'var(--bg-secondary)', color: 'var(--text-main)' }}>
                           {cat.name} {cat.department ? `(${cat.department})` : ''}
                         </option>
                       ))
                     ) : (
                       <>
-                        <option value="German Language" style={{ background: '#0f172a' }}>German Language (A1–C2)</option>
-                        <option value="IELTS" style={{ background: '#0f172a' }}>IELTS & Academic Prep</option>
-                        <option value="Enterprise ERP" style={{ background: '#0f172a' }}>Enterprise ERP & SAP</option>
-                        <option value="Cloud Architecture" style={{ background: '#0f172a' }}>Cloud & Architecture</option>
-                        <option value="AI & Machine Learning" style={{ background: '#0f172a' }}>AI & Machine Learning</option>
-                        <option value="Full-Stack Engineering" style={{ background: '#0f172a' }}>Full-Stack Engineering</option>
-                        <option value="Finance & Healthcare" style={{ background: '#0f172a' }}>Finance & Healthcare Tracks</option>
+                        <option value="German Language" style={{ background: 'var(--bg-secondary)', color: 'var(--text-main)' }}>German Language (A1–C2)</option>
+                        <option value="IELTS" style={{ background: 'var(--bg-secondary)', color: 'var(--text-main)' }}>IELTS & Academic Prep</option>
+                        <option value="Enterprise ERP" style={{ background: 'var(--bg-secondary)', color: 'var(--text-main)' }}>Enterprise ERP & SAP</option>
+                        <option value="Cloud Architecture" style={{ background: 'var(--bg-secondary)', color: 'var(--text-main)' }}>Cloud & Architecture</option>
+                        <option value="AI & Machine Learning" style={{ background: 'var(--bg-secondary)', color: 'var(--text-main)' }}>AI & Machine Learning</option>
+                        <option value="Full-Stack Engineering" style={{ background: 'var(--bg-secondary)', color: 'var(--text-main)' }}>Full-Stack Engineering</option>
+                        <option value="Finance & Healthcare" style={{ background: 'var(--bg-secondary)', color: 'var(--text-main)' }}>Finance & Healthcare Tracks</option>
                       </>
                     )}
                   </select>
@@ -1269,7 +1297,7 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                         style={{
                           fontSize: '1.1rem',
                           fontWeight: 700,
-                          color: '#ffffff',
+                          color: 'var(--text-main)',
                           letterSpacing: '-0.02em',
                           lineHeight: '1.3',
                           marginBottom: '0.4rem',
@@ -1312,14 +1340,16 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '0.35rem',
-                            background: 'rgba(99, 102, 241, 0.2)',
-                            border: '1px solid rgba(99, 102, 241, 0.4)',
+                            background: 'var(--accent-primary)',
+                            border: '1px solid var(--accent-primary-hover)',
                             borderRadius: '0.5rem',
-                            padding: '0.35rem 0.75rem',
-                            color: '#a5b4fc',
-                            fontSize: '0.78rem',
-                            fontWeight: 600,
+                            padding: '0.38rem 0.85rem',
+                            color: '#ffffff',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
                             cursor: 'pointer',
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
+                            transition: 'all 0.15s ease',
                           }}
                         >
                           <span>Read Course</span>
@@ -1470,7 +1500,7 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                             style={{
                               fontSize: '0.94rem',
                               fontWeight: 700,
-                              color: '#ffffff',
+                              color: 'var(--text-main)',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
                               whiteSpace: 'nowrap',
@@ -1585,19 +1615,19 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                   minWidth: '270px',
                   maxWidth: '270px',
                   height: '100%',
-                  background: 'rgba(10, 13, 22, 0.95)',
-                  borderRight: '1px solid var(--border-subtle)',
+                  background: 'var(--sidebar-bg)',
+                  borderRight: '1px solid var(--sidebar-border)',
                   display: 'flex',
                   flexDirection: 'column',
                   overflowY: 'auto',
                 }}
               >
                 {/* Course Title Header */}
-                <div style={{ padding: '0.85rem 1rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                <div style={{ padding: '0.85rem 1rem', borderBottom: '1px solid var(--sidebar-border)', background: 'var(--sidebar-header-bg)' }}>
                   <div style={{ fontSize: '0.68rem', color: 'var(--accent-primary)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
                     Reading Course
                   </div>
-                  <h3 style={{ fontSize: '0.94rem', fontWeight: 800, color: '#ffffff', lineHeight: 1.3 }}>
+                  <h3 style={{ fontSize: '0.94rem', fontWeight: 800, color: 'var(--text-main)', lineHeight: 1.3 }}>
                     {selectedCourse.title}
                   </h3>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '0.35rem' }}>
@@ -1617,11 +1647,11 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                           key={chap.id}
                           style={{
                             background: isCurrent
-                              ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(168, 85, 247, 0.12) 100%)'
-                              : 'rgba(255, 255, 255, 0.02)',
+                              ? 'var(--dropdown-item-selected)'
+                              : 'var(--bg-card)',
                             border: isCurrent
-                              ? '1px solid rgba(99, 102, 241, 0.45)'
-                              : '1px solid rgba(255, 255, 255, 0.05)',
+                              ? '1px solid var(--accent-primary)'
+                              : '1px solid var(--border-subtle)',
                             borderRadius: '0.75rem',
                             overflow: 'hidden',
                             transition: 'all 0.2s ease',
@@ -1659,8 +1689,8 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                                       fontWeight: 700,
                                       padding: '0.05rem 0.35rem',
                                       borderRadius: '9999px',
-                                      background: 'rgba(16, 185, 129, 0.2)',
-                                      color: '#34d399',
+                                      background: 'var(--success-bg)',
+                                      color: 'var(--success)',
                                     }}
                                   >
                                     Active
@@ -1680,7 +1710,7 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                                   style={{
                                     background: 'transparent',
                                     border: 'none',
-                                    color: refiningChapterId === chap.id ? '#c084fc' : 'var(--text-subtle)',
+                                    color: refiningChapterId === chap.id ? 'var(--accent-primary)' : 'var(--text-subtle)',
                                     cursor: 'pointer',
                                     padding: '0.15rem',
                                   }}
@@ -1703,7 +1733,7 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                               style={{
                                 fontSize: '0.82rem',
                                 fontWeight: 600,
-                                color: isCurrent ? '#ffffff' : 'var(--text-main)',
+                                color: isCurrent ? 'var(--accent-primary)' : 'var(--text-main)',
                                 lineHeight: '1.3',
                               }}
                             >
@@ -1716,8 +1746,8 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                             <div
                               style={{
                                 padding: '0.4rem 0.75rem 0.65rem 0.75rem',
-                                background: 'rgba(0, 0, 0, 0.25)',
-                                borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                                background: 'var(--bg-tertiary)',
+                                borderTop: '1px solid var(--border-subtle)',
                                 display: 'flex',
                                 flexDirection: 'column',
                                 gap: '0.3rem',
@@ -1733,10 +1763,11 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                                     onClick={() => handleJumpToSubTopic(st.title, idx)}
                                     style={{
                                       fontSize: '0.72rem',
-                                      color: isCurrent ? '#c7d2fe' : 'var(--text-muted)',
+                                      color: isCurrent ? 'var(--accent-primary)' : 'var(--text-main)',
                                       padding: '0.25rem 0.45rem',
                                       borderRadius: '0.35rem',
-                                      background: 'rgba(255, 255, 255, 0.03)',
+                                      background: 'var(--bg-card)',
+                                      border: '1px solid var(--border-subtle)',
                                       display: 'flex',
                                       alignItems: 'center',
                                       justifyContent: 'space-between',
@@ -4807,11 +4838,11 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
             style={{
               width: '100%',
               maxWidth: '520px',
-              background: '#0d1322',
+              background: 'var(--modal-bg)',
               borderRadius: '1.25rem',
-              border: '1px solid rgba(99, 102, 241, 0.35)',
+              border: '1px solid var(--modal-border)',
               padding: '1.75rem',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)',
+              boxShadow: 'var(--modal-shadow)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
@@ -4821,16 +4852,17 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                     width: '36px',
                     height: '36px',
                     borderRadius: '0.6rem',
-                    background: 'rgba(99, 102, 241, 0.2)',
+                    background: 'var(--chip-download-bg)',
+                    border: '1px solid var(--chip-download-border)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#a5b4fc',
+                    color: 'var(--chip-download-color)',
                   }}
                 >
                   <Plus size={18} />
                 </div>
-                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#ffffff' }}>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)' }}>
                   Create Course Category
                 </h3>
               </div>
@@ -4849,7 +4881,7 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#a5b4fc', marginBottom: '0.35rem' }}>
+                <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
                   Category Name *
                 </label>
                 <input
@@ -4861,9 +4893,9 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                     width: '100%',
                     padding: '0.65rem 0.85rem',
                     borderRadius: '0.5rem',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    color: '#ffffff',
+                    background: 'var(--input-bg)',
+                    border: '1px solid var(--border-subtle)',
+                    color: 'var(--text-main)',
                     fontSize: '0.82rem',
                     outline: 'none',
                     boxSizing: 'border-box',
@@ -4872,7 +4904,7 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#a5b4fc', marginBottom: '0.35rem' }}>
+                <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
                   Department / Track (Optional)
                 </label>
                 <input
@@ -4884,9 +4916,9 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                     width: '100%',
                     padding: '0.65rem 0.85rem',
                     borderRadius: '0.5rem',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    color: '#ffffff',
+                    background: 'var(--input-bg)',
+                    border: '1px solid var(--border-subtle)',
+                    color: 'var(--text-main)',
                     fontSize: '0.82rem',
                     outline: 'none',
                     boxSizing: 'border-box',
@@ -4895,7 +4927,7 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#a5b4fc', marginBottom: '0.35rem' }}>
+                <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
                   Description (Optional)
                 </label>
                 <textarea
@@ -4907,9 +4939,9 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                     width: '100%',
                     padding: '0.65rem 0.85rem',
                     borderRadius: '0.5rem',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    color: '#ffffff',
+                    background: 'var(--input-bg)',
+                    border: '1px solid var(--border-subtle)',
+                    color: 'var(--text-main)',
                     fontSize: '0.82rem',
                     outline: 'none',
                     resize: 'none',
@@ -4918,8 +4950,8 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                 />
               </div>
 
-                <div>
-                <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#a5b4fc', marginBottom: '0.45rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.45rem' }}>
                   Badge Accent Color
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -4933,7 +4965,7 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                         borderRadius: '50%',
                         background: col,
                         cursor: 'pointer',
-                        border: newCatColor === col ? '2px solid #ffffff' : '2px solid transparent',
+                        border: newCatColor === col ? '2px solid var(--text-main)' : '2px solid transparent',
                         transform: newCatColor === col ? 'scale(1.2)' : 'scale(1)',
                         transition: 'all 0.15s ease',
                       }}
@@ -4944,7 +4976,7 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
 
               {categories.length > 0 && (
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#a5b4fc', marginBottom: '0.45rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.45rem' }}>
                     Existing Categories ({categories.length})
                   </label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '120px', overflowY: 'auto' }}>
@@ -4957,13 +4989,13 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                           justifyContent: 'space-between',
                           padding: '0.35rem 0.65rem',
                           borderRadius: '0.45rem',
-                          background: 'rgba(255, 255, 255, 0.03)',
-                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          background: 'var(--bg-tertiary)',
+                          border: '1px solid var(--border-subtle)',
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                           <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: cat.color || '#38bdf8' }} />
-                          <span style={{ fontSize: '0.78rem', color: '#ffffff', fontWeight: 600 }}>{cat.name}</span>
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-main)', fontWeight: 600 }}>{cat.name}</span>
                           {cat.department && (
                             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>({cat.department})</span>
                           )}
@@ -4974,7 +5006,7 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                           style={{
                             background: 'transparent',
                             border: 'none',
-                            color: '#f87171',
+                            color: '#ef4444',
                             cursor: 'pointer',
                             padding: '0.2rem',
                           }}
@@ -4996,9 +5028,9 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                 style={{
                   padding: '0.5rem 1rem',
                   borderRadius: '0.5rem',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  color: '#ffffff',
+                  background: 'var(--btn-default-bg)',
+                  border: '1px solid var(--btn-default-border)',
+                  color: 'var(--btn-default-color)',
                   fontSize: '0.8rem',
                   fontWeight: 600,
                   cursor: 'pointer',
@@ -5016,14 +5048,14 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                   gap: '0.4rem',
                   padding: '0.5rem 1.35rem',
                   borderRadius: '0.5rem',
-                  background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                  background: 'var(--accent-gradient)',
                   border: 'none',
                   color: '#ffffff',
                   fontSize: '0.8rem',
                   fontWeight: 800,
                   cursor: !newCatName.trim() || isSavingCategory ? 'not-allowed' : 'pointer',
                   opacity: !newCatName.trim() || isSavingCategory ? 0.6 : 1,
-                  boxShadow: '0 0 12px rgba(99, 102, 241, 0.4)',
+                  boxShadow: '0 0 12px var(--accent-glow)',
                 }}
               >
                 {isSavingCategory ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}

@@ -71,9 +71,15 @@ export default class CourseErrorBoundary extends Component<ErrorBoundaryProps, E
             {this.props.fallbackTitle || 'Course View Temporarily Unavailable'}
           </h3>
 
-          <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)', maxWidth: '480px', lineHeight: '1.5', marginBottom: '1.5rem' }}>
+          <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)', maxWidth: '480px', lineHeight: '1.5', marginBottom: '1rem' }}>
             A rendering issue occurred while loading this course component. Your sub-navigation and saved data remain completely safe.
           </p>
+
+          {this.state.error && (
+            <div style={{ maxWidth: '560px', padding: '0.5rem 0.85rem', borderRadius: '0.45rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)', color: '#f87171', fontSize: '0.76rem', fontFamily: 'monospace', marginBottom: '1.25rem', textAlign: 'left', wordBreak: 'break-word' }}>
+              {this.state.error.message}
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: '0.75rem' }}>
             <button

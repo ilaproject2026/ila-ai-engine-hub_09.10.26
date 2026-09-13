@@ -127,20 +127,22 @@ export default function AIHubDropdown({
 
   // Close dropdown on outside click
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
+    function handleClickOutside(event: MouseEvent | TouchEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     }
     if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('mousedown', handleClickOutside, true);
+      document.addEventListener('touchstart', handleClickOutside, true);
       // Auto-focus search input when opened
       setTimeout(() => {
         searchInputRef.current?.focus();
       }, 50);
     }
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside, true);
+      document.removeEventListener('touchstart', handleClickOutside, true);
     };
   }, [isOpen]);
 
@@ -199,18 +201,18 @@ export default function AIHubDropdown({
           padding: isSidebar ? '0.65rem 0.85rem' : '0.35rem 0.85rem',
           borderRadius: isSidebar ? '0.75rem' : '9999px',
           background: isSidebar
-            ? 'linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%)'
-            : 'rgba(255, 255, 255, 0.08)',
+            ? 'var(--sidebar-input-bg, var(--input-bg))'
+            : 'var(--btn-default-bg, rgba(255, 255, 255, 0.08))',
           border: isSidebar
-            ? `1px solid ${isOpen ? 'var(--accent-primary)' : 'rgba(99, 102, 241, 0.35)'}`
-            : '1px solid var(--border-subtle)',
+            ? `1px solid ${isOpen ? 'var(--accent-primary)' : 'var(--border-medium)'}`
+            : '1px solid var(--btn-default-border, var(--border-medium))',
           color: 'var(--text-main)',
           fontSize: isSidebar ? '0.86rem' : '0.78rem',
           fontWeight: 700,
           cursor: 'pointer',
           boxShadow: isSidebar
-            ? '0 4px 14px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
-            : 'none',
+            ? 'var(--shadow-sm)'
+            : 'var(--btn-default-shadow, none)',
           transition: 'all 0.2s ease',
           outline: 'none',
         }}
@@ -249,7 +251,7 @@ export default function AIHubDropdown({
               style={{
                 fontSize: isSidebar ? '0.84rem' : '0.78rem',
                 fontWeight: 700,
-                color: '#ffffff',
+                color: 'var(--text-main)',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -304,6 +306,7 @@ export default function AIHubDropdown({
       {isOpen && (
         <div
           id="ai-hub-dropdown-menu"
+          className="dropdown-menu-popover"
           style={{
             position: 'absolute',
             top: 'calc(100% + 0.45rem)',
@@ -311,12 +314,12 @@ export default function AIHubDropdown({
             right: isSidebar ? 'auto' : 0,
             width: isSidebar ? '340px' : '360px',
             maxHeight: '520px',
-            background: 'rgba(15, 23, 42, 0.98)',
+            background: 'var(--dropdown-bg)',
             backdropFilter: 'blur(24px)',
             WebkitBackdropFilter: 'blur(24px)',
-            border: '1px solid rgba(99, 102, 241, 0.35)',
+            border: '1px solid var(--dropdown-border)',
             borderRadius: '1rem',
-            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.65), 0 0 30px rgba(99, 102, 241, 0.2)',
+            boxShadow: 'var(--dropdown-shadow)',
             zIndex: 100,
             display: 'flex',
             flexDirection: 'column',
@@ -329,7 +332,7 @@ export default function AIHubDropdown({
             style={{
               padding: '0.85rem 1rem 0.75rem 1rem',
               borderBottom: '1px solid var(--border-subtle)',
-              background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%)',
+              background: 'var(--dropdown-header-bg)',
             }}
           >
             <div
@@ -358,7 +361,7 @@ export default function AIHubDropdown({
                   style={{
                     fontSize: '0.78rem',
                     fontWeight: 700,
-                    color: '#ffffff',
+                    color: 'var(--text-main)',
                     letterSpacing: '0.03em',
                     textTransform: 'uppercase',
                   }}
@@ -372,9 +375,9 @@ export default function AIHubDropdown({
                   fontWeight: 700,
                   padding: '0.15rem 0.45rem',
                   borderRadius: '9999px',
-                  background: 'rgba(99, 102, 241, 0.25)',
-                  border: '1px solid rgba(99, 102, 241, 0.4)',
-                  color: '#c7d2fe',
+                  background: 'var(--accent-gradient-subtle)',
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--accent-primary)',
                 }}
               >
                 16 AI Engines
@@ -387,8 +390,8 @@ export default function AIHubDropdown({
                 position: 'relative',
                 display: 'flex',
                 alignItems: 'center',
-                background: 'rgba(2, 6, 23, 0.75)',
-                border: '1px solid var(--border-subtle)',
+                background: 'var(--input-bg)',
+                border: '1px solid var(--border-medium)',
                 borderRadius: '0.55rem',
                 padding: '0.35rem 0.65rem',
               }}
@@ -405,7 +408,7 @@ export default function AIHubDropdown({
                   background: 'transparent',
                   border: 'none',
                   outline: 'none',
-                  color: '#ffffff',
+                  color: 'var(--text-main)',
                   fontSize: '0.78rem',
                 }}
               />
@@ -438,29 +441,29 @@ export default function AIHubDropdown({
                     borderRadius: '0.65rem',
                     background:
                       activeProductId === 'central_dashboard'
-                        ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(168, 85, 247, 0.2) 100%)'
-                        : 'rgba(255, 255, 255, 0.04)',
+                        ? 'var(--dropdown-item-selected)'
+                        : 'var(--bg-card)',
                     border:
                       activeProductId === 'central_dashboard'
-                        ? '1px solid rgba(168, 85, 247, 0.6)'
-                        : '1px solid rgba(255, 255, 255, 0.06)',
+                        ? '1px solid var(--dropdown-item-selected-border)'
+                        : '1px solid var(--border-subtle)',
                     cursor: 'pointer',
                     textAlign: 'left',
                     transition: 'all 0.15s ease',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)';
-                    e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.5)';
+                    e.currentTarget.style.background = 'var(--dropdown-item-hover)';
+                    e.currentTarget.style.borderColor = 'var(--border-medium)';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background =
                       activeProductId === 'central_dashboard'
-                        ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(168, 85, 247, 0.2) 100%)'
-                        : 'rgba(255, 255, 255, 0.04)';
+                        ? 'var(--dropdown-item-selected)'
+                        : 'var(--bg-card)';
                     e.currentTarget.style.borderColor =
                       activeProductId === 'central_dashboard'
-                        ? 'rgba(168, 85, 247, 0.6)'
-                        : 'rgba(255, 255, 255, 0.06)';
+                        ? 'var(--dropdown-item-selected-border)'
+                        : 'var(--border-subtle)';
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0 }}>
@@ -482,7 +485,7 @@ export default function AIHubDropdown({
                     </div>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#ffffff' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-main)' }}>
                           Central Dashboard
                         </span>
                         <span
@@ -491,19 +494,19 @@ export default function AIHubDropdown({
                             fontWeight: 700,
                             padding: '0.05rem 0.35rem',
                             borderRadius: '3px',
-                            background: 'rgba(99, 102, 241, 0.3)',
-                            color: '#a5b4fc',
+                            background: 'var(--accent-gradient-subtle)',
+                            color: 'var(--accent-primary)',
                           }}
                         >
                           Home
                         </span>
                       </div>
-                      <div style={{ fontSize: '0.68rem', color: '#c7d2fe', marginTop: '0.1rem' }}>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-subtle)', marginTop: '0.1rem' }}>
                         Global Overview & Output Counters
                       </div>
                     </div>
                   </div>
-                  {activeProductId === 'central_dashboard' && <Check size={14} color="#a5b4fc" />}
+                  {activeProductId === 'central_dashboard' && <Check size={14} color="var(--accent-primary)" />}
                 </button>
               </div>
             )}
@@ -554,10 +557,10 @@ export default function AIHubDropdown({
                             padding: '0.55rem 0.65rem',
                             borderRadius: '0.625rem',
                             background: isSelected
-                              ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.22) 0%, rgba(168, 85, 247, 0.22) 100%)'
+                              ? 'var(--dropdown-item-selected)'
                               : 'transparent',
                             border: isSelected
-                              ? '1px solid rgba(165, 180, 252, 0.45)'
+                              ? '1px solid var(--dropdown-item-selected-border)'
                               : '1px solid transparent',
                             cursor: 'pointer',
                             textAlign: 'left',
@@ -565,8 +568,8 @@ export default function AIHubDropdown({
                           }}
                           onMouseEnter={(e) => {
                             if (!isSelected) {
-                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                              e.currentTarget.style.background = 'var(--dropdown-item-hover)';
+                              e.currentTarget.style.borderColor = 'var(--border-subtle)';
                             }
                           }}
                           onMouseLeave={(e) => {
@@ -583,7 +586,7 @@ export default function AIHubDropdown({
                                 width: '28px',
                                 height: '28px',
                                 borderRadius: '0.45rem',
-                                background: isSelected ? product.gradient : 'rgba(255, 255, 255, 0.07)',
+                                background: isSelected ? product.gradient : 'var(--bg-tertiary)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
@@ -601,7 +604,7 @@ export default function AIHubDropdown({
                                   style={{
                                     fontSize: '0.82rem',
                                     fontWeight: 700,
-                                    color: isSelected ? '#ffffff' : 'var(--text-main)',
+                                    color: isSelected ? 'var(--accent-primary)' : 'var(--text-main)',
                                     whiteSpace: 'nowrap',
                                     overflow: 'hidden',
                                     textOverflow: 'ellipsis',
@@ -674,8 +677,8 @@ export default function AIHubDropdown({
           <div
             style={{
               padding: '0.5rem 0.85rem',
-              borderTop: '1px solid var(--border-subtle)',
-              background: 'rgba(10, 15, 26, 0.95)',
+              borderTop: '1px solid var(--dropdown-border, var(--border-subtle))',
+              background: 'var(--dropdown-header-bg, var(--bg-secondary))',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',

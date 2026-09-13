@@ -35,9 +35,9 @@ export default function AuthorizedCurriculumBanner({
       style={{
         margin: '0.75rem 0 1.25rem 0',
         borderRadius: '0.85rem',
-        background: 'linear-gradient(135deg, rgba(17, 24, 39, 0.95) 0%, rgba(30, 27, 75, 0.85) 100%)',
-        border: '1px solid rgba(168, 85, 247, 0.35)',
-        boxShadow: '0 8px 25px rgba(0, 0, 0, 0.35), 0 0 15px rgba(99, 102, 241, 0.15)',
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border-subtle)',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08), 0 0 12px rgba(168, 85, 247, 0.12)',
         overflow: 'hidden',
         transition: 'all 0.2s ease',
       }}
@@ -51,8 +51,8 @@ export default function AuthorizedCurriculumBanner({
           justifyContent: 'space-between',
           gap: '0.75rem',
           cursor: 'pointer',
-          background: 'rgba(255, 255, 255, 0.03)',
-          borderBottom: isExpanded ? '1px solid rgba(255, 255, 255, 0.08)' : 'none',
+          background: 'var(--bg-secondary)',
+          borderBottom: isExpanded ? '1px solid var(--border-subtle)' : 'none',
         }}
         onClick={() => setIsExpanded(!isExpanded)}
       >
@@ -65,9 +65,9 @@ export default function AuthorizedCurriculumBanner({
               width: '28px',
               height: '28px',
               borderRadius: '0.5rem',
-              background: 'rgba(168, 85, 247, 0.2)',
-              border: '1px solid rgba(168, 85, 247, 0.4)',
-              color: '#d8b4fe',
+              background: 'rgba(168, 85, 247, 0.15)',
+              border: '1px solid rgba(168, 85, 247, 0.35)',
+              color: 'var(--accent-primary)',
             }}
           >
             <ShieldCheck size={16} />
@@ -75,7 +75,7 @@ export default function AuthorizedCurriculumBanner({
 
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ffffff' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)' }}>
                 {info.bodyName}
               </span>
               <span
@@ -100,7 +100,7 @@ export default function AuthorizedCurriculumBanner({
                   padding: '0.08rem 0.4rem',
                   borderRadius: '9999px',
                   background: 'rgba(16, 185, 129, 0.15)',
-                  color: '#6ee7b7',
+                  color: '#059669',
                   border: '1px solid rgba(16, 185, 129, 0.35)',
                 }}
               >
@@ -108,7 +108,7 @@ export default function AuthorizedCurriculumBanner({
               </span>
             </div>
             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-              Standard Framework: <strong style={{ color: 'var(--text-main)' }}>{info.frameworkName}</strong> ({info.levelOrCode})
+              Standard Framework: <strong style={{ color: 'var(--accent-primary)' }}>{info.frameworkName}</strong> ({info.levelOrCode})
             </span>
           </div>
         </div>
@@ -142,8 +142,8 @@ export default function AuthorizedCurriculumBanner({
             style={{
               padding: '0.65rem 0.85rem',
               borderRadius: '0.6rem',
-              background: 'rgba(255, 255, 255, 0.04)',
-              border: '1px solid rgba(255, 255, 255, 0.06)',
+              background: 'var(--bg-tertiary)',
+              border: '1px solid var(--border-subtle)',
               fontSize: '0.74rem',
               color: 'var(--text-main)',
               lineHeight: '1.45',
@@ -152,11 +152,11 @@ export default function AuthorizedCurriculumBanner({
               gap: '0.35rem',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#c084fc', fontWeight: 600 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#7c3aed', fontWeight: 700 }}>
               <Globe2 size={13} />
               <span>International Governing Authority: {info.governingAuthority}</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#34d399', fontSize: '0.7rem', fontWeight: 600 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#059669', fontSize: '0.7rem', fontWeight: 700 }}>
               <CheckCheck size={12} />
               <span>Nature of Approval & Access: {info.approvalNature}</span>
             </div>
@@ -199,13 +199,13 @@ export default function AuthorizedCurriculumBanner({
                     gap: '0.4rem',
                     padding: '0.4rem 0.6rem',
                     borderRadius: '0.45rem',
-                    background: 'rgba(255, 255, 255, 0.025)',
-                    border: '1px solid rgba(255, 255, 255, 0.05)',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
                     fontSize: '0.72rem',
                     color: 'var(--text-main)',
                   }}
                 >
-                  <CheckCircle2 size={12} color="#34d399" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <CheckCircle2 size={12} color="#10b981" style={{ flexShrink: 0, marginTop: '2px' }} />
                   <span>{pillar}</span>
                 </div>
               ))}
@@ -227,7 +227,7 @@ export default function AuthorizedCurriculumBanner({
                 gap: '0.35rem',
               }}
             >
-              <Award size={12} color="#f59e0b" />
+              <Award size={12} color="#d97706" />
               <span>Official Authoritative & Open-Access Reference Portals</span>
             </div>
             <div
@@ -249,29 +249,27 @@ export default function AuthorizedCurriculumBanner({
                     justifyContent: 'space-between',
                     padding: '0.45rem 0.75rem',
                     borderRadius: '0.5rem',
-                    background: 'rgba(99, 102, 241, 0.1)',
-                    border: '1px solid rgba(99, 102, 241, 0.25)',
-                    color: '#c7d2fe',
+                    background: 'var(--chip-download-bg)',
+                    border: '1px solid var(--chip-download-border)',
+                    color: 'var(--chip-download-color)',
                     textDecoration: 'none',
                     fontSize: '0.74rem',
                     transition: 'all 0.15s ease',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)';
-                    e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.5)';
+                    e.currentTarget.style.background = 'var(--chip-download-hover-bg)';
                     e.currentTarget.style.transform = 'translateX(2px)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(99, 102, 241, 0.1)';
-                    e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.25)';
+                    e.currentTarget.style.background = 'var(--chip-download-bg)';
                     e.currentTarget.style.transform = 'translateX(0)';
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                    <ExternalLink size={12} color="#818cf8" style={{ flexShrink: 0 }} />
+                    <ExternalLink size={12} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
                     <div>
-                      <strong style={{ color: '#ffffff' }}>{link.title}</strong>
-                      <div style={{ fontSize: '0.67rem', color: 'var(--text-muted)' }}>
+                      <strong style={{ color: 'var(--text-main)' }}>{link.title}</strong>
+                      <div style={{ fontSize: '0.67rem', color: 'var(--text-subtle)' }}>
                         {link.description}
                       </div>
                     </div>
@@ -283,9 +281,10 @@ export default function AuthorizedCurriculumBanner({
                           fontSize: '0.58rem',
                           padding: '0.08rem 0.35rem',
                           borderRadius: '9999px',
-                          background: 'rgba(168, 85, 247, 0.2)',
-                          color: '#d8b4fe',
-                          border: '1px solid rgba(168, 85, 247, 0.4)',
+                          background: 'rgba(168, 85, 247, 0.15)',
+                          color: '#7c3aed',
+                          border: '1px solid rgba(168, 85, 247, 0.3)',
+                          fontWeight: 600,
                         }}
                       >
                         {link.approvalNature}
@@ -298,9 +297,9 @@ export default function AuthorizedCurriculumBanner({
                           fontWeight: 700,
                           padding: '0.1rem 0.4rem',
                           borderRadius: '9999px',
-                          background: 'rgba(16, 185, 129, 0.2)',
-                          color: '#6ee7b7',
-                          border: '1px solid rgba(16, 185, 129, 0.4)',
+                          background: 'rgba(16, 185, 129, 0.15)',
+                          color: '#059669',
+                          border: '1px solid rgba(16, 185, 129, 0.3)',
                         }}
                       >
                         Open-Access

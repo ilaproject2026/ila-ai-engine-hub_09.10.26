@@ -1142,9 +1142,9 @@ export default function StudentLibraryView({
                                     flex: 1,
                                     padding: '0.22rem 0.35rem',
                                     borderRadius: '0.35rem',
-                                    background: isSelected && activeTab === 'slides' ? 'rgba(56, 189, 248, 0.25)' : 'rgba(255, 255, 255, 0.04)',
-                                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                                    color: isSelected && activeTab === 'slides' ? '#38bdf8' : '#cbd5e1',
+                                    background: isSelected && activeTab === 'slides' ? 'var(--dropdown-item-selected)' : 'var(--bg-card)',
+                                    border: isSelected && activeTab === 'slides' ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                                    color: isSelected && activeTab === 'slides' ? 'var(--text-main)' : 'var(--text-muted)',
                                     fontSize: '0.65rem',
                                     fontWeight: 600,
                                     cursor: 'pointer',
@@ -1154,7 +1154,7 @@ export default function StudentLibraryView({
                                     gap: '0.2rem',
                                   }}
                                 >
-                                  <Presentation size={10} />
+                                  <Presentation size={10} color={isSelected && activeTab === 'slides' ? 'var(--accent-primary)' : 'var(--text-subtle)'} />
                                   <span>Slides</span>
                                 </button>
                               ) : (
@@ -1169,9 +1169,9 @@ export default function StudentLibraryView({
                                     flex: 1,
                                     padding: '0.22rem 0.35rem',
                                     borderRadius: '0.35rem',
-                                    background: isSelected && activeTab === 'video' ? 'rgba(236, 72, 153, 0.25)' : 'rgba(255, 255, 255, 0.04)',
-                                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                                    color: isSelected && activeTab === 'video' ? '#f472b6' : '#cbd5e1',
+                                    background: isSelected && activeTab === 'video' ? 'rgba(236, 72, 153, 0.2)' : 'var(--bg-card)',
+                                    border: isSelected && activeTab === 'video' ? '1px solid #ec4899' : '1px solid var(--border-subtle)',
+                                    color: isSelected && activeTab === 'video' ? 'var(--text-main)' : 'var(--text-muted)',
                                     fontSize: '0.65rem',
                                     fontWeight: 600,
                                     cursor: 'pointer',
@@ -1181,7 +1181,7 @@ export default function StudentLibraryView({
                                     gap: '0.2rem',
                                   }}
                                 >
-                                  <Tv size={10} />
+                                  <Tv size={10} color={isSelected && activeTab === 'video' ? '#ec4899' : 'var(--text-subtle)'} />
                                   <span>Video AI</span>
                                 </button>
                               )}
@@ -1197,9 +1197,9 @@ export default function StudentLibraryView({
                                   flex: 1,
                                   padding: '0.22rem 0.35rem',
                                   borderRadius: '0.35rem',
-                                  background: isSelected && activeTab === 'reading' ? 'rgba(99, 102, 241, 0.25)' : 'rgba(255, 255, 255, 0.04)',
-                                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                                  color: isSelected && activeTab === 'reading' ? '#a5b4fc' : '#cbd5e1',
+                                  background: isSelected && activeTab === 'reading' ? 'var(--dropdown-item-selected)' : 'var(--bg-card)',
+                                  border: isSelected && activeTab === 'reading' ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                                  color: isSelected && activeTab === 'reading' ? 'var(--text-main)' : 'var(--text-muted)',
                                   fontSize: '0.65rem',
                                   fontWeight: 600,
                                   cursor: 'pointer',
@@ -1325,16 +1325,16 @@ export default function StudentLibraryView({
                             gap: '0.3rem',
                             padding: '0.3rem 0.65rem',
                             borderRadius: '0.45rem',
-                            background: isActive ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                            border: isActive ? `1.5px solid ${tab.color}` : '1px solid rgba(255, 255, 255, 0.08)',
-                            color: isActive ? '#ffffff' : 'var(--text-muted)',
+                            background: isActive ? 'var(--dropdown-item-selected)' : 'var(--bg-card)',
+                            border: isActive ? '1.5px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                            color: isActive ? 'var(--text-main)' : 'var(--text-muted)',
                             fontSize: '0.74rem',
                             fontWeight: isActive ? 700 : 500,
                             cursor: 'pointer',
                             transition: 'all 0.15s ease',
                           }}
                         >
-                          <Icon size={12} color={isActive ? tab.color : 'var(--text-subtle)'} />
+                          <Icon size={12} color={isActive ? 'var(--accent-primary)' : 'var(--text-subtle)'} />
                           <span>{tab.label}</span>
                         </button>
                       );
