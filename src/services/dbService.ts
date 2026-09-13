@@ -6,6 +6,7 @@ import {
   convertPermanentToLibraryCourse,
   deletePermanentCourse,
   recordCourseDownload,
+  PRESEEDED_ENTERPRISE_AI_COURSE,
   type PermanentCourseItem,
 } from './permanentCourseStore';
 

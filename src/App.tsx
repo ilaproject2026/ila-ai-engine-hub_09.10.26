@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { useCourseUrlParams } from './hooks/useCourseUrlParams';
 import ChatSidebar from './components/ChatSidebar';
 import ChatHomeView from './components/ChatHomeView';
 import SearchBox, { type CourseInputParams } from './components/SearchBox';
@@ -46,6 +47,7 @@ import {
   Briefcase,
   BookOpen,
   ArrowRight,
+  ArrowLeft,
   LayoutDashboard,
   GraduationCap,
   Plus,
@@ -278,6 +280,17 @@ export default function App() {
     setParameterModalTab(tab);
     setIsParameterModalOpen(true);
   };
+
+  // Inbound Course Ingestion State (from Admin Portal / URL parameters)
+  const inboundCourse = useCourseUrlParams();
+  const [inboundPrompt, setInboundPrompt] = useState<string>('');
+  const [inboundCourseName, setInboundCourseName] = useState<string>('');
+  const [inboundCourseId, setInboundCourseId] = useState<string>('');
+  const [inboundCategory, setInboundCategory] = useState<string | undefined>(undefined);
+  const [inboundSubCategory, setInboundSubCategory] = useState<string | undefined>(undefined);
+  const [inboundReturnUrl, setInboundReturnUrl] = useState<string | null>(() => {
+    return sessionStorage.getItem('ila_admin_portal_return_url') || null;
+  });
 
   // Unified Course Creator sessions: include course_creator, unassigned, and ila_chat sessions
   const courseCreatorSessions = useMemo(() => {
@@ -1455,6 +1468,79 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
     }
   };
 
+  // React to Inbound Course Ingestion Parameters from Admin Portal
+  useEffect(() => {
+    if (!inboundCourse) return;
+
+    // 1. Synthesize a comprehensive academic textbook prompt
+    const synthesizedPrompt = `Create a complete academic course curriculum and textbook for "${inboundCourse.courseName}".
+Category: ${inboundCourse.category || 'General'} / Track: ${inboundCourse.subCategory || 'Standard'}
+Total Chapters: ${inboundCourse.chapters || '10'} Chapters
+Pacing & Duration: ${inboundCourse.duration || 'Standard Term'}
+Delivery Method: ${inboundCourse.methods || 'AI + Adaptive Tutoring'}
+${inboundCourse.staff ? `Assigned Staff / Lead: ${inboundCourse.staff}` : ''}
+${inboundCourse.pathName ? `Education Path: ${inboundCourse.pathName}` : ''}
+${inboundCourse.batchName ? `Cohort / Batch: ${inboundCourse.batchName}` : ''}
+${inboundCourse.courseStructure ? `\nSyllabus & Module Guidance:\n${inboundCourse.courseStructure}` : ''}
+
+Structure each chapter with detailed pedagogical breakdowns, real-world examples, chapter summaries, diagnostic quiz questions, and slide presentation outlines.`;
+
+    setInboundPrompt(synthesizedPrompt);
+    setInboundCourseName(inboundCourse.courseName);
+    if (inboundCourse.compositeId) {
+      setInboundCourseId(inboundCourse.compositeId);
+    }
+    if (inboundCourse.category) {
+      setInboundCategory(inboundCourse.category);
+    }
+    if (inboundCourse.subCategory) {
+      setInboundSubCategory(inboundCourse.subCategory);
+    }
+    if (inboundCourse.returnUrl) {
+      setInboundReturnUrl(inboundCourse.returnUrl);
+      sessionStorage.setItem('ila_admin_portal_return_url', inboundCourse.returnUrl);
+    }
+
+    // Ensure we switch to Course Creator Home view
+    setPrimaryNavView('course_creator');
+    setActiveModule('course_creator');
+    setCourseCreatorTab('home');
+
+    // Adapt learner category / target audience if provided or inferred
+    const potentialAudience =
+      inboundCourse.subCategory ||
+      inboundCourse.category ||
+      inboundCourse.pathName;
+    if (potentialAudience) {
+      localStorage.setItem('ila_learner_category', potentialAudience);
+    }
+
+    // If autoGenerate is true, autonomously trigger course generation
+    if (inboundCourse.autoGenerate) {
+      const effectiveCourseParams: CourseInputParams = {
+        courseName: inboundCourse.courseName,
+        courseId: inboundCourse.compositeId || `CRS-${Date.now()}`,
+        category: inboundCourse.category || 'general',
+        subCategory: inboundCourse.subCategory || 'standard',
+        deliveryPath: inboundCourse.methods || 'standard',
+        batch: inboundCourse.batchName || 'Default Batch',
+        slot: 'Morning',
+        batchSlot: `${inboundCourse.batchName || 'Default Batch'} - Morning`,
+      };
+
+      const timer = setTimeout(() => {
+        handleSendMessage(
+          synthesizedPrompt,
+          [],
+          potentialAudience || 'General Student / Lifelong Learner',
+          effectiveCourseParams
+        );
+      }, 400);
+
+      return () => clearTimeout(timer);
+    }
+  }, [inboundCourse]);
+
   // Jump to specific message element smoothly
   const handleJumpToMessage = (messageId: string) => {
     setActiveQuestionId(messageId);
@@ -1950,8 +2036,42 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
           )}
         </div>
 
-        {/* Right Corner: Module-Specific Menus (Right-Aligned) */}
+        {/* Right Corner: Module-Specific Menus & Inbound Return Navigation */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {inboundReturnUrl && (
+            <a
+              id="nav-return-to-portal-btn"
+              href={inboundReturnUrl}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.42rem',
+                padding: '0.34rem 0.85rem',
+                borderRadius: '9999px',
+                background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%)',
+                border: '1px solid rgba(148, 163, 184, 0.35)',
+                color: '#ffffff',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                textDecoration: 'none',
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
+                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(51, 65, 85, 1) 0%, rgba(30, 41, 59, 1) 100%)';
+                e.currentTarget.style.borderColor = 'var(--accent-primary)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%)';
+                e.currentTarget.style.borderColor = 'rgba(148, 163, 184, 0.35)';
+              }}
+              title="Return to ILA Admin Portal"
+            >
+              <ArrowLeft size={13} />
+              <span>Return to Admin Portal</span>
+            </a>
+          )}
           {activeModule === 'course_creator' ? (
             /* Course Creator Mode: Course Creator | Library | Delivery Paths */
             <nav
@@ -3201,12 +3321,17 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
                         onNewChat={handleNewCourse}
                         isBulkPlannerActive={isBulkPlannerActive}
                         onToggleBulkPlanner={setIsBulkPlannerActive}
+                        initialQuery={inboundPrompt}
+                        initialCategory={inboundCategory}
+                        initialSubCategory={inboundSubCategory}
+                        initialCourseId={inboundCourseId}
                         initialCourseName={
-                          activeCourseSession &&
+                          inboundCourseName ||
+                          (activeCourseSession &&
                           activeCourseSession.title !== 'New Course Workspace' &&
                           activeCourseSession.title !== 'Untitled Course'
                             ? activeCourseSession.title
-                            : ''
+                            : '')
                         }
                       />
                     </div>

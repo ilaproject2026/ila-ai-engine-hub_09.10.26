@@ -1,4 +1,4 @@
-import { useState, useMemo, type FormEvent, type KeyboardEvent, type ChangeEvent } from 'react';
+import { useState, useEffect, useMemo, type FormEvent, type KeyboardEvent, type ChangeEvent } from 'react';
 import {
   Sparkles,
   Loader2,
@@ -47,6 +47,9 @@ interface SearchBoxProps {
   onTargetAudienceChange?: (aud: string) => void;
   initialCourseName?: string;
   initialCourseId?: string;
+  initialQuery?: string;
+  initialCategory?: string;
+  initialSubCategory?: string;
 }
 
 export default function SearchBox({
@@ -61,8 +64,11 @@ export default function SearchBox({
   targetAudience: propTargetAudience,
   initialCourseName = '',
   initialCourseId = '',
+  initialQuery = '',
+  initialCategory,
+  initialSubCategory,
 }: SearchBoxProps) {
-  const [query, setQuery] = useState<string>('');
+  const [query, setQuery] = useState<string>(initialQuery || '');
   const [showUploadZone, setShowUploadZone] = useState<boolean>(false);
   const targetAudience = propTargetAudience || 'General Student / Lifelong Learner';
 
@@ -76,6 +82,50 @@ export default function SearchBox({
     return initialCourseId || generateStandardCourseId(COURSE_TAXONOMY_CATEGORIES[0].id, COURSE_TAXONOMY_CATEGORIES[0].subCategories[0].id);
   });
   const [copyIdFeedback, setCopyIdFeedback] = useState<boolean>(false);
+
+  // Sync initial props into state
+  useEffect(() => {
+    if (initialQuery) {
+      setQuery(initialQuery);
+    }
+  }, [initialQuery]);
+
+  useEffect(() => {
+    if (initialCourseName) {
+      setCourseName(initialCourseName);
+    }
+  }, [initialCourseName]);
+
+  useEffect(() => {
+    if (initialCourseId) {
+      setCourseId(initialCourseId);
+    }
+  }, [initialCourseId]);
+
+  useEffect(() => {
+    if (initialCategory) {
+      const matchedCat = COURSE_TAXONOMY_CATEGORIES.find(
+        (c) =>
+          c.id === initialCategory ||
+          c.name.toLowerCase().includes(initialCategory.toLowerCase()) ||
+          c.code.toLowerCase() === initialCategory.toLowerCase()
+      );
+      if (matchedCat) {
+        setSelectedCategory(matchedCat.id);
+        if (initialSubCategory) {
+          const matchedSub = matchedCat.subCategories.find(
+            (s) =>
+              s.id === initialSubCategory ||
+              s.name.toLowerCase().includes(initialSubCategory.toLowerCase()) ||
+              s.code.toLowerCase() === initialSubCategory.toLowerCase()
+          );
+          if (matchedSub) {
+            setSelectedSubCategory(matchedSub.id);
+          }
+        }
+      }
+    }
+  }, [initialCategory, initialSubCategory]);
 
   // 2. Main Parameter Selection: Delivery Path, Batch & Slot
   const [selectedPath, setSelectedPath] = useState<string>(COURSE_DELIVERY_PATHS[0].id);
