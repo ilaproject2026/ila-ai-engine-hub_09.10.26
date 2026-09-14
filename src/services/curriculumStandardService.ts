@@ -801,7 +801,7 @@ export async function fetchDynamicAuthorizedStandard(
   try {
     const { GoogleGenAI } = await import('@google/genai');
     const ai = new GoogleGenAI({ apiKey });
-    const activeModel = modelOverride || 'gemini-2.5-flash';
+    const activeModel = (modelOverride && modelOverride !== 'gemini-3.1-pro') ? modelOverride : 'gemini-3.1-pro';
 
     const audienceClause = targetAudience
       ? `Tailor the governance standard and open-source materials specifically for the learner audience: ${targetAudience}.`

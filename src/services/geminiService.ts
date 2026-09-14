@@ -16,12 +16,11 @@ export const GEMINI_MODEL = ILA_MODEL;
 export function getIlaModelDisplayName(model: string = ILA_MODEL): string {
   const modelMap: Record<string, string> = {
     'gemini-3.1-pro-preview': 'ILA Pro AI (3.1)',
+    'gemini-3.7-flash': 'ILA Flash AI (3.7)',
     'gemini-2.5-flash': 'ILA Flash AI (2.5)',
-    'gemini-2.5-pro': 'ILA Pro AI (2.5)',
     'gemini-2.0-flash': 'ILA Flash AI (2.0)',
     'gemini-1.5-flash': 'ILA Flash AI (1.5)',
     'gemini-1.5-pro': 'ILA Pro AI (1.5)',
-    'gemini-3.7-flash': 'ILA Flash AI (3.7)',
   };
 
   if (modelMap[model]) {
@@ -124,12 +123,12 @@ export async function generateIlaResponse(
   }
 
   const candidateModels = [
-    modelOverride,
+    modelOverride === 'gemini-2.5-pro' ? 'gemini-3.1-pro-preview' : modelOverride,
     ILA_MODEL,
+    'gemini-3.1-pro-preview',
     'gemini-2.5-flash',
     'gemini-2.0-flash',
     'gemini-1.5-flash',
-    'gemini-2.5-pro',
   ].filter(Boolean) as string[];
 
   // Audience Personalization Block
@@ -471,7 +470,7 @@ export async function translateCourseContent(
 
   try {
     const ai = new GoogleGenAI({ apiKey });
-    const activeModel = modelOverride || 'gemini-2.5-flash';
+    const activeModel = (modelOverride && modelOverride !== 'gemini-2.5-pro') ? modelOverride : 'gemini-3.1-pro-preview';
 
     const prompt = `You are a master educational content localization and bilingual course authoring specialist for Ila Academy.
 Translate the following course chapter, teaching slides, video narration, and lesson content fluently, naturally, and accurately into native ${targetLanguageName}.
@@ -540,7 +539,7 @@ export async function generateDepartmentCourseAdaptation(
 
   try {
     const ai = new GoogleGenAI({ apiKey });
-    const activeModel = modelOverride || 'gemini-2.5-flash';
+    const activeModel = (modelOverride && modelOverride !== 'gemini-2.5-pro') ? modelOverride : 'gemini-3.1-pro-preview';
 
     const prompt = `You are a master curriculum engineer at Ila Academy.
 Adapt the following Masterclass Course content ("${baseCourseTitle}") from scratch-to-advanced specifically for learners in the department/category: "${targetDepartment}".
@@ -650,12 +649,12 @@ export async function generateAIHubResponse(
   const fullPrompt = `${productConfig.systemPrompt}\n\n${dynamicParamsBlock}${paramsBlock}${conversationContext}${docContextBlock}USER QUERY & TASK:\n${trimmedPrompt}\n\nOUTPUT REQUIREMENTS: Deliver an in-depth, professional, beautifully formatted Markdown response tailored specifically to the ${productConfig.name} workflow and the selected parameters above.`;
 
   const candidateModels = [
-    modelOverride,
+    modelOverride === 'gemini-2.5-pro' ? 'gemini-3.1-pro-preview' : modelOverride,
     ILA_MODEL,
+    'gemini-3.1-pro-preview',
     'gemini-2.5-flash',
     'gemini-2.0-flash',
     'gemini-1.5-flash',
-    'gemini-2.5-pro',
   ].filter(Boolean) as string[];
 
   const ai = new GoogleGenAI({ apiKey });
