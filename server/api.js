@@ -47,6 +47,14 @@ import {
   sendBatchOutreach,
   sendOutreachEmail,
 } from './smtpService.js';
+import {
+  getOAuthStatus,
+  saveClientCredentials,
+  startLocalAuth,
+  logoutOAuth,
+  sendBatchOAuthOutreach,
+  sendGmailOAuthEmail,
+} from './googleAuthService.js';
 
 /**
  * Helper to read request JSON body
@@ -538,6 +546,90 @@ export async function handleApiRequest(req, res) {
         sendJson(res, 200, result);
       } catch (err) {
         console.error('[API /outreach/send-single-smtp Error]:', err);
+        sendJson(res, 500, { success: false, error: err?.message || String(err) });
+      }
+      return true;
+    }
+
+    // -------------------------------------------------------------
+    // GOOGLE OAUTH 2.0 (@google-cloud/local-auth) & GMAIL API DISPATCH
+    // (Bypasses SMTP port blocks and operates cleanly over HTTPS 443)
+    // -------------------------------------------------------------
+    if (endpoint === '/outreach/oauth-status' && method === 'GET') {
+      try {
+        const status = await getOAuthStatus();
+        sendJson(res, 200, status);
+      } catch (err) {
+        console.error('[API /outreach/oauth-status Error]:', err);
+        sendJson(res, 500, { configured: false, authenticated: false, error: err?.message || String(err) });
+      }
+      return true;
+    }
+
+    if (endpoint === '/outreach/oauth-save-credentials' && method === 'POST') {
+      try {
+        const body = await readJsonBody(req);
+        const result = saveClientCredentials(body);
+        sendJson(res, 200, result);
+      } catch (err) {
+        console.error('[API /outreach/oauth-save-credentials Error]:', err);
+        sendJson(res, 400, { success: false, error: err?.message || String(err) });
+      }
+      return true;
+    }
+
+    if (endpoint === '/outreach/oauth-authenticate' && method === 'POST') {
+      try {
+        const body = await readJsonBody(req);
+        const result = await startLocalAuth(body);
+        sendJson(res, 200, result);
+      } catch (err) {
+        console.error('[API /outreach/oauth-authenticate Error]:', err);
+        sendJson(res, 500, { success: false, error: err?.message || String(err) });
+      }
+      return true;
+    }
+
+    if (endpoint === '/outreach/oauth-logout' && method === 'POST') {
+      try {
+        const result = await logoutOAuth();
+        sendJson(res, 200, result);
+      } catch (err) {
+        console.error('[API /outreach/oauth-logout Error]:', err);
+        sendJson(res, 500, { success: false, error: err?.message || String(err) });
+      }
+      return true;
+    }
+
+    if (endpoint === '/outreach/dispatch-oauth' && method === 'POST') {
+      try {
+        const body = await readJsonBody(req);
+        const result = await sendBatchOAuthOutreach({
+          senderEmail: body.senderEmail,
+          subjectTemplate: body.subject,
+          bodyTemplate: body.bodyTemplate,
+          leads: body.leads || [],
+        });
+        sendJson(res, 200, result);
+      } catch (err) {
+        console.error('[API /outreach/dispatch-oauth Error]:', err);
+        sendJson(res, 500, { success: false, error: err?.message || String(err) });
+      }
+      return true;
+    }
+
+    if (endpoint === '/outreach/send-single-oauth' && method === 'POST') {
+      try {
+        const body = await readJsonBody(req);
+        const result = await sendGmailOAuthEmail({
+          from: body.senderEmail,
+          to: typeof body.recipientEmail === 'string' ? body.recipientEmail.trim() : body.recipientEmail,
+          subject: body.subject,
+          text: body.body,
+        });
+        sendJson(res, 200, result);
+      } catch (err) {
+        console.error('[API /outreach/send-single-oauth Error]:', err);
         sendJson(res, 500, { success: false, error: err?.message || String(err) });
       }
       return true;

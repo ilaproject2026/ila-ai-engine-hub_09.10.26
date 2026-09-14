@@ -60,8 +60,12 @@ import {
   EyeOff,
   Maximize2,
   Minimize2,
+  LogIn,
+  LogOut,
+  Cloud,
+  HelpCircle,
 } from 'lucide-react';
-import type { ChatSession, ChatMessage, AttachedDocument, TieupLeadItem, OutreachStatusLogItem, OurPartnershipPolicies, TieupSavedList } from '../services/dbService';
+import type { ChatSession, ChatMessage, AttachedDocument, TieupLeadItem, OutreachStatusLogItem, OurPartnershipPolicies, TieupSavedList, GoogleOAuthStatus } from '../services/dbService';
 import {
   fetchTieupLeads,
   saveTieupLeadsBatch,
@@ -81,7 +85,13 @@ import {
   deleteTieupSavedList,
   verifyGmailSmtp,
   dispatchSmtpBulkOutreach,
-  dispatchSingleSmtpOutreach
+  dispatchSingleSmtpOutreach,
+  getGoogleOAuthStatus,
+  saveGoogleOAuthCredentials,
+  startGoogleOAuthLogin,
+  logoutGoogleOAuth,
+  dispatchOAuthBulkOutreach,
+  dispatchSingleOAuthOutreach,
 } from '../services/dbService';
 import { generateTieupResearchLeads, getIlaModelDisplayName, isValidDirectUrl } from '../services/geminiService';
 import { useVoice } from '../hooks/useVoice';
@@ -1172,6 +1182,98 @@ export default function TieupResearchEngineView({
     }
   };
 
+  // Transporter Mode: 'oauth' (Google OAuth 2.0 via @google-cloud/local-auth) vs 'smtp' (Gmail App Password)
+  const [transporterMode, setTransporterMode] = useState<'oauth' | 'smtp'>(() => {
+    return (localStorage.getItem('ila_transporter_mode') as 'oauth' | 'smtp') || 'oauth';
+  });
+
+  // Google OAuth State
+  const [googleOAuthStatus, setGoogleOAuthStatus] = useState<GoogleOAuthStatus | null>(null);
+  const [isLoadingOAuthStatus, setIsLoadingOAuthStatus] = useState<boolean>(false);
+  const [isAuthenticatingOAuth, setIsAuthenticatingOAuth] = useState<boolean>(false);
+  const [isOAuthCredsModalOpen, setIsOAuthCredsModalOpen] = useState<boolean>(false);
+  const [oauthClientIdInput, setOauthClientIdInput] = useState<string>('');
+  const [oauthClientSecretInput, setOauthClientSecretInput] = useState<string>('');
+  const [oauthJsonInput, setOauthJsonInput] = useState<string>('');
+  const [oauthNotice, setOauthNotice] = useState<string | null>(null);
+
+  const refreshGoogleOAuthStatus = async () => {
+    setIsLoadingOAuthStatus(true);
+    try {
+      const status = await getGoogleOAuthStatus();
+      setGoogleOAuthStatus(status);
+      if (status.email && (!senderEmail || senderEmail === 'rafiaquafqu@gmail.com')) {
+        setSenderEmail(status.email);
+      }
+    } catch (e) {
+      console.warn('Failed to load Google OAuth status:', e);
+    } finally {
+      setIsLoadingOAuthStatus(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshGoogleOAuthStatus();
+  }, []);
+
+  const handleStartGoogleOAuth = async () => {
+    setIsAuthenticatingOAuth(true);
+    setOauthNotice('Launching Google Cloud Local Auth... A browser window will open to authorize Gmail.');
+    try {
+      const res = await startGoogleOAuthLogin();
+      if (res.success && res.authenticated) {
+        setOauthNotice(`✓ Successfully authenticated with Google as ${res.email}!`);
+        await refreshGoogleOAuthStatus();
+      } else {
+        setOauthNotice(`⚠ ${res.error || 'Authentication could not complete.'}`);
+      }
+    } catch (err: any) {
+      setOauthNotice(`❌ OAuth error: ${err.message || 'Failed to authenticate.'}`);
+    } finally {
+      setIsAuthenticatingOAuth(false);
+      setTimeout(() => setOauthNotice(null), 8000);
+    }
+  };
+
+  const handleDisconnectGoogleOAuth = async () => {
+    if (!window.confirm('Disconnect your connected Google account?')) return;
+    try {
+      await logoutGoogleOAuth();
+      await refreshGoogleOAuthStatus();
+      setOauthNotice('Google account disconnected.');
+      setTimeout(() => setOauthNotice(null), 4000);
+    } catch (err: any) {
+      setOauthNotice(`Failed to disconnect: ${err.message}`);
+    }
+  };
+
+  const handleSaveOAuthCredentials = async () => {
+    try {
+      let res;
+      if (oauthJsonInput.trim()) {
+        res = await saveGoogleOAuthCredentials({ credentialsJson: oauthJsonInput.trim() });
+      } else if (oauthClientIdInput.trim() && oauthClientSecretInput.trim()) {
+        res = await saveGoogleOAuthCredentials({
+          clientId: oauthClientIdInput.trim(),
+          clientSecret: oauthClientSecretInput.trim(),
+        });
+      } else {
+        alert('Please enter your Client ID & Client Secret or paste credentials JSON.');
+        return;
+      }
+      if (res.success) {
+        setIsOAuthCredsModalOpen(false);
+        setOauthNotice('✓ Google OAuth credentials saved successfully.');
+        await refreshGoogleOAuthStatus();
+        setTimeout(() => setOauthNotice(null), 5000);
+      } else {
+        alert(res.error || 'Failed to save credentials.');
+      }
+    } catch (err: any) {
+      alert(`Error saving credentials: ${err.message}`);
+    }
+  };
+
   // AI Auto-Reply Assistant State
   const [aiReplyModalLog, setAiReplyModalLog] = useState<OutreachStatusLogItem | null>(null);
   const [isGeneratingAiReply, setIsGeneratingAiReply] = useState<boolean>(false);
@@ -2001,7 +2103,7 @@ export default function TieupResearchEngineView({
     });
   }, [sessionLeads, sortBy, ieltsFilter, germanLevelFilter, tuitionFilter, scholarshipFilter, minCommissionFilter]);
 
-  // Phase 1: Simultaneous Bulk Send Outreach Action with Configured Gmail SMTP Transporter
+  // Phase 1: Simultaneous Bulk Send Outreach Action with Configured Transporter (Google OAuth or SMTP)
   const handleSendBulkOutreach = async () => {
     const selectedIds = Array.from(phase1SelectedLeadIds);
     if (selectedIds.length === 0) return;
@@ -2013,65 +2115,115 @@ export default function TieupResearchEngineView({
       .filter((l): l is TieupLeadItem => Boolean(l && (l.contactEmail || (l as any).email)));
 
     try {
-      const cleanAppPassword = (gmailAppPassword || '').replace(/\s+/g, '').trim();
-      // Save credentials preference in browser storage
-      localStorage.setItem('ila_gmail_sender_email', fromAddress);
-      if (cleanAppPassword) {
-        localStorage.setItem('ila_gmail_app_password', cleanAppPassword);
-      }
+      if (transporterMode === 'oauth') {
+        // Mode 1: Google OAuth 2.0 dispatch (@google-cloud/local-auth)
+        if (!googleOAuthStatus?.authenticated) {
+          if (!googleOAuthStatus?.configured) {
+            setIsOAuthCredsModalOpen(true);
+            setBulkSendNotice('⚠ Google OAuth Credentials required. Please configure your Client ID & Secret or switch to SMTP mode.');
+            setIsBulkSending(false);
+            return;
+          }
+          setBulkSendNotice('⚠ Please click "Connect with Google" in the Transporter panel to authorize before sending.');
+          setIsBulkSending(false);
+          return;
+        }
 
-      // Dispatch via backend Gmail SMTP service
-      const dispatchResult = await dispatchSmtpBulkOutreach({
-        senderEmail: fromAddress,
-        appPassword: cleanAppPassword,
-        subject: phase1EmailSubject,
-        bodyTemplate: phase1EmailBody,
-        leads: selectedLeadItems,
-      });
+        const effectiveSender = googleOAuthStatus.email || fromAddress;
+        const dispatchResult = await dispatchOAuthBulkOutreach({
+          senderEmail: effectiveSender,
+          subject: phase1EmailSubject,
+          bodyTemplate: phase1EmailBody,
+          leads: selectedLeadItems,
+        });
 
-      if (dispatchResult.logs && dispatchResult.logs.length > 0) {
-        setOutreachLogs((prev) => [...dispatchResult.logs, ...prev]);
-      }
+        if (dispatchResult.logs && dispatchResult.logs.length > 0) {
+          setOutreachLogs((prev) => [...dispatchResult.logs, ...prev]);
+        }
 
-      setPhase1SelectedLeadIds(new Set());
+        setPhase1SelectedLeadIds(new Set());
 
-      if (dispatchResult.deliveredCount > 0) {
-        setBulkSendNotice(
-          `✓ LIVE GMAIL SMTP DISPATCH SUCCESS: Successfully sent ${dispatchResult.deliveredCount} personalized outreach email(s) from ${fromAddress} to target test inboxes in real-time!`
-        );
-      } else if (dispatchResult.simulatedCount > 0) {
-        setBulkSendNotice(
-          `ℹ TEST DISPATCH COMPLETED: Generated ${dispatchResult.simulatedCount} personalized outreach email(s). (To send live emails to inboxes, enter your 16-character Google App Password in the SMTP Transporter panel).`
-        );
+        if (dispatchResult.deliveredCount > 0) {
+          setBulkSendNotice(
+            `✓ LIVE GOOGLE OAUTH DISPATCH SUCCESS: Successfully sent ${dispatchResult.deliveredCount} personalized outreach email(s) from ${effectiveSender} over HTTPS (Port 443)!`
+          );
+        } else {
+          setBulkSendNotice(
+            `⚠ Outreach dispatch completed with ${dispatchResult.failedCount} issue(s). Check logs for details: ${dispatchResult.error || ''}`
+          );
+        }
       } else {
-        setBulkSendNotice(
-          `⚠ Outreach dispatch completed with ${dispatchResult.failedCount} issue(s). Check logs for details.`
-        );
+        // Mode 2: Legacy Gmail SMTP dispatch (Ports 465/587)
+        const cleanAppPassword = (gmailAppPassword || '').replace(/\s+/g, '').trim();
+        // Save credentials preference in browser storage
+        localStorage.setItem('ila_gmail_sender_email', fromAddress);
+        if (cleanAppPassword) {
+          localStorage.setItem('ila_gmail_app_password', cleanAppPassword);
+        }
+
+        // Dispatch via backend Gmail SMTP service
+        const dispatchResult = await dispatchSmtpBulkOutreach({
+          senderEmail: fromAddress,
+          appPassword: cleanAppPassword,
+          subject: phase1EmailSubject,
+          bodyTemplate: phase1EmailBody,
+          leads: selectedLeadItems,
+        });
+
+        if (dispatchResult.logs && dispatchResult.logs.length > 0) {
+          setOutreachLogs((prev) => [...dispatchResult.logs, ...prev]);
+        }
+
+        setPhase1SelectedLeadIds(new Set());
+
+        if (dispatchResult.deliveredCount > 0) {
+          setBulkSendNotice(
+            `✓ LIVE GMAIL SMTP DISPATCH SUCCESS: Successfully sent ${dispatchResult.deliveredCount} personalized outreach email(s) from ${fromAddress} to target test inboxes in real-time!`
+          );
+        } else if (dispatchResult.simulatedCount > 0) {
+          setBulkSendNotice(
+            `ℹ TEST DISPATCH COMPLETED: Generated ${dispatchResult.simulatedCount} personalized outreach email(s). (To send live emails to inboxes, enter your 16-character Google App Password in the SMTP Transporter panel).`
+          );
+        } else {
+          setBulkSendNotice(
+            `⚠ Outreach dispatch completed with ${dispatchResult.failedCount} issue(s). Check logs for details.`
+          );
+        }
       }
     } catch (err: any) {
       console.error('Outreach dispatch error:', err);
       setBulkSendNotice(`❌ Dispatch error: ${err.message || 'Failed to dispatch emails.'}`);
     } finally {
       setIsBulkSending(false);
-      setTimeout(() => setBulkSendNotice(null), 6500);
+      setTimeout(() => setBulkSendNotice(null), 7000);
     }
   };
 
-  // Phase 1 & 2: Re-trigger / Retry Outreach Record Immediately with Live SMTP
+  // Phase 1 & 2: Re-trigger / Retry Outreach Record Immediately (via Google OAuth or SMTP)
   const handleRetriggerDelivery = async (log: OutreachStatusLogItem, overrideEmail?: string) => {
     const targetEmail = (overrideEmail || log.recipientEmail).trim();
     const fromAddress = senderEmail.trim() || 'rafiaquafqu@gmail.com';
-    const cleanAppPassword = (gmailAppPassword || '').replace(/\s+/g, '').trim();
     const isGeneric = targetEmail.includes('noreply') || targetEmail.includes('info@');
 
     try {
-      const res = await dispatchSingleSmtpOutreach({
-        senderEmail: fromAddress,
-        appPassword: cleanAppPassword,
-        recipientEmail: targetEmail,
-        subject: log.subject,
-        body: phase1EmailBody,
-      });
+      let res: { success: boolean; error?: string };
+      if (transporterMode === 'oauth' && googleOAuthStatus?.authenticated) {
+        res = await dispatchSingleOAuthOutreach({
+          senderEmail: googleOAuthStatus.email || fromAddress,
+          recipientEmail: targetEmail,
+          subject: log.subject,
+          body: phase1EmailBody,
+        });
+      } else {
+        const cleanAppPassword = (gmailAppPassword || '').replace(/\s+/g, '').trim();
+        res = await dispatchSingleSmtpOutreach({
+          senderEmail: fromAddress,
+          appPassword: cleanAppPassword,
+          recipientEmail: targetEmail,
+          subject: log.subject,
+          body: phase1EmailBody,
+        });
+      }
 
       const updatedLog: OutreachStatusLogItem = {
         ...log,
@@ -2080,7 +2232,7 @@ export default function TieupResearchEngineView({
         flagReason: isGeneric
           ? 'Generic alias retained. Dropped into generic sandbox.'
           : (res.error || undefined),
-        spamScore: isGeneric ? 80 : 8,
+        spamScore: isGeneric ? 80 : (transporterMode === 'oauth' ? 5 : 8),
         phase: isGeneric ? 'outreach' : 'followup',
         sentAt: Date.now(),
         retryCount: (log.retryCount || 0) + 1,
@@ -2092,7 +2244,7 @@ export default function TieupResearchEngineView({
       setBulkSendNotice(`✓ Re-triggered delivery sequence for ${log.institutionName} (${targetEmail}). Dispatched.`);
       setTimeout(() => setBulkSendNotice(null), 4000);
     } catch (err) {
-      console.error('Single SMTP retrigger error:', err);
+      console.error('Retrigger outreach error:', err);
     }
   };
 
@@ -7099,40 +7251,131 @@ export default function TieupResearchEngineView({
                   </div>
                 </div>
 
-                {/* Dedicated Gmail SMTP Dispatch Transporter Configuration Card */}
+                {/* Dedicated Gmail Transporter Configuration Card (Dual-Mode: Google OAuth 2.0 vs SMTP) */}
                 <div
                   style={{
                     background: 'var(--bg-secondary)',
                     border: '1px solid var(--border-medium)',
-                    borderRadius: '0.65rem',
-                    padding: '0.85rem 1rem',
+                    borderRadius: '0.75rem',
+                    padding: '0.95rem 1.15rem',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '0.65rem',
+                    gap: '0.85rem',
                   }}
                 >
+                  {/* Mode Selector Header Tabs */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                      <Key size={16} color="var(--accent-primary)" />
-                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                        Gmail SMTP Transporter Hook
-                      </span>
-                      <span
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'var(--bg-card)', padding: '0.2rem', borderRadius: '0.5rem', border: '1px solid var(--border-medium)' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTransporterMode('oauth');
+                          try { localStorage.setItem('ila_transporter_mode', 'oauth'); } catch {}
+                        }}
                         style={{
-                          fontSize: '0.68rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                          padding: '0.35rem 0.8rem',
+                          borderRadius: '0.4rem',
+                          background: transporterMode === 'oauth' ? 'var(--accent-primary)' : 'transparent',
+                          color: transporterMode === 'oauth' ? '#ffffff' : 'var(--text-muted)',
+                          border: 'none',
+                          fontSize: '0.8rem',
                           fontWeight: 700,
-                          padding: '0.12rem 0.45rem',
-                          borderRadius: '0.35rem',
-                          background: 'rgba(16, 185, 129, 0.12)',
-                          color: '#10b981',
-                          border: '1px solid rgba(16, 185, 129, 0.3)',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
                         }}
                       >
-                        smtp.gmail.com:465 (SSL)
-                      </span>
+                        <Cloud size={14} />
+                        <span>Google OAuth 2.0 (HTTPS / Port 443)</span>
+                        <span
+                          style={{
+                            fontSize: '0.65rem',
+                            background: transporterMode === 'oauth' ? 'rgba(255,255,255,0.25)' : 'rgba(16,185,129,0.15)',
+                            color: transporterMode === 'oauth' ? '#ffffff' : '#10b981',
+                            padding: '0.08rem 0.38rem',
+                            borderRadius: '0.25rem',
+                            fontWeight: 800,
+                          }}
+                        >
+                          Recommended
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTransporterMode('smtp');
+                          try { localStorage.setItem('ila_transporter_mode', 'smtp'); } catch {}
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                          padding: '0.35rem 0.8rem',
+                          borderRadius: '0.4rem',
+                          background: transporterMode === 'smtp' ? 'var(--accent-primary)' : 'transparent',
+                          color: transporterMode === 'smtp' ? '#ffffff' : 'var(--text-muted)',
+                          border: 'none',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <Key size={14} />
+                        <span>Gmail App Password (SMTP 465)</span>
+                      </button>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {transporterMode === 'oauth' ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => setIsOAuthCredsModalOpen(true)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.32rem',
+                            padding: '0.32rem 0.75rem',
+                            borderRadius: '0.45rem',
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border-medium)',
+                            color: 'var(--text-main)',
+                            fontSize: '0.78rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                          title="Configure Google Cloud OAuth Client ID & Secret"
+                        >
+                          <Settings size={13} />
+                          <span>Credentials Config</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={refreshGoogleOAuthStatus}
+                          disabled={isLoadingOAuthStatus}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.32rem',
+                            padding: '0.32rem 0.75rem',
+                            borderRadius: '0.45rem',
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border-medium)',
+                            color: 'var(--text-main)',
+                            fontSize: '0.78rem',
+                            fontWeight: 600,
+                            cursor: isLoadingOAuthStatus ? 'not-allowed' : 'pointer',
+                          }}
+                          title="Refresh Google OAuth connection status"
+                        >
+                          <RotateCcw size={13} className={isLoadingOAuthStatus ? 'animate-spin' : ''} />
+                          <span>Status</span>
+                        </button>
+                      </div>
+                    ) : (
                       <button
                         type="button"
                         onClick={handleVerifyGmailSmtp}
@@ -7155,180 +7398,320 @@ export default function TieupResearchEngineView({
                         {isVerifyingSmtp ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
                         <span>{isVerifyingSmtp ? 'Verifying...' : 'Test SMTP Connection'}</span>
                       </button>
-                    </div>
+                    )}
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
-                        Designated Sender Gmail Address:
-                      </label>
-                      <input
-                        type="email"
-                        value={senderEmail}
-                        onChange={(e) => setSenderEmail(e.target.value)}
-                        onBlur={(e) => setSenderEmail(e.target.value.trim())}
-                        placeholder="rafiaquafqu@gmail.com"
-                        style={{
-                          width: '100%',
-                          padding: '0.45rem 0.65rem',
-                          borderRadius: '0.45rem',
-                          background: 'var(--bg-card)',
-                          border: '1px solid var(--border-medium)',
-                          color: 'var(--text-main)',
-                          fontSize: '0.84rem',
-                          outline: 'none',
-                        }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
-                        Gmail App Password (16-character):
-                      </label>
-                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                        <input
-                          type={showAppPassword ? 'text' : 'password'}
-                          value={gmailAppPassword}
-                          onChange={(e) => setGmailAppPassword(e.target.value)}
-                          onBlur={(e) => setGmailAppPassword(e.target.value.trim())}
-                          placeholder="e.g. abcd efgh ijkl mnop"
-                          style={{
-                            width: '100%',
-                            padding: '0.45rem 2.2rem 0.45rem 0.65rem',
-                            borderRadius: '0.45rem',
-                            background: 'var(--bg-card)',
-                            border: '1px solid var(--border-medium)',
-                            color: 'var(--text-main)',
-                            fontSize: '0.84rem',
-                            letterSpacing: showAppPassword ? 'normal' : '0.1em',
-                            outline: 'none',
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowAppPassword(!showAppPassword)}
-                          style={{
-                            position: 'absolute',
-                            right: '0.5rem',
-                            background: 'transparent',
-                            border: 'none',
-                            color: 'var(--text-subtle)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                          }}
-                          title={showAppPassword ? 'Hide password' : 'Show password'}
-                        >
-                          {showAppPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Verification Status Notification Pill */}
-                  {smtpVerifyStatus && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {/* MODE 1: GOOGLE OAUTH 2.0 PANEL */}
+                  {transporterMode === 'oauth' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                      {/* Live Status Pill */}
                       <div
                         style={{
-                          padding: '0.45rem 0.75rem',
-                          borderRadius: '0.45rem',
-                          fontSize: '0.78rem',
-                          fontWeight: 500,
+                          padding: '0.75rem 1rem',
+                          borderRadius: '0.55rem',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '0.4rem',
-                          background: smtpVerifyStatus.connected
-                            ? 'rgba(16, 185, 129, 0.12)'
-                            : smtpVerifyStatus.simulated
-                            ? 'rgba(59, 130, 246, 0.12)'
-                            : 'rgba(239, 68, 68, 0.12)',
+                          justifyContent: 'space-between',
+                          flexWrap: 'wrap',
+                          gap: '0.75rem',
+                          background: googleOAuthStatus?.authenticated
+                            ? 'rgba(16, 185, 129, 0.08)'
+                            : googleOAuthStatus?.configured
+                            ? 'rgba(59, 130, 246, 0.08)'
+                            : 'rgba(245, 158, 11, 0.08)',
                           border: `1px solid ${
-                            smtpVerifyStatus.connected
-                              ? 'rgba(16, 185, 129, 0.35)'
-                              : smtpVerifyStatus.simulated
-                              ? 'rgba(59, 130, 246, 0.35)'
-                              : 'rgba(239, 68, 68, 0.35)'
+                            googleOAuthStatus?.authenticated
+                              ? 'rgba(16, 185, 129, 0.3)'
+                              : googleOAuthStatus?.configured
+                              ? 'rgba(59, 130, 246, 0.3)'
+                              : 'rgba(245, 158, 11, 0.3)'
                           }`,
-                          color: smtpVerifyStatus.connected
-                            ? '#10b981'
-                            : smtpVerifyStatus.simulated
-                            ? '#3b82f6'
-                            : '#ef4444',
                         }}
                       >
-                        {smtpVerifyStatus.connected ? (
-                          <CheckCircle2 size={14} />
-                        ) : smtpVerifyStatus.simulated ? (
-                          <Sparkles size={14} />
-                        ) : (
-                          <AlertCircle size={14} />
-                        )}
-                        <span>{smtpVerifyStatus.message}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                          {googleOAuthStatus?.authenticated ? (
+                            <CheckCircle2 size={20} color="#10b981" />
+                          ) : googleOAuthStatus?.configured ? (
+                            <Cloud size={20} color="#3b82f6" />
+                          ) : (
+                            <AlertTriangle size={20} color="#f59e0b" />
+                          )}
+                          <div>
+                            <div style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <span>
+                                {googleOAuthStatus?.authenticated
+                                  ? `Connected to Google: ${googleOAuthStatus.email}`
+                                  : googleOAuthStatus?.configured
+                                  ? 'Google OAuth Ready to Authorize'
+                                  : 'Google Cloud Credentials Needed'}
+                              </span>
+                              {googleOAuthStatus?.authenticated && (
+                                <span
+                                  style={{
+                                    fontSize: '0.68rem',
+                                    fontWeight: 800,
+                                    padding: '0.1rem 0.4rem',
+                                    borderRadius: '0.3rem',
+                                    background: '#10b981',
+                                    color: '#ffffff',
+                                  }}
+                                >
+                                  ACTIVE
+                                </span>
+                              )}
+                            </div>
+                            <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              {googleOAuthStatus?.authenticated
+                                ? 'Authenticated via official Google OAuth 2.0. Dispatches run over HTTPS (Port 443) with zero port blocks.'
+                                : googleOAuthStatus?.configured
+                                ? 'Credentials found. Click "Connect with Google" to complete one-click browser authorization via @google-cloud/local-auth.'
+                                : 'Configure your Google Cloud Client ID & Secret to enable zero-friction OAuth email dispatching.'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          {googleOAuthStatus?.authenticated ? (
+                            <button
+                              type="button"
+                              onClick={handleDisconnectGoogleOAuth}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                padding: '0.35rem 0.75rem',
+                                borderRadius: '0.45rem',
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                border: '1px solid rgba(239, 68, 68, 0.3)',
+                                color: '#ef4444',
+                                fontSize: '0.78rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <LogOut size={13} />
+                              <span>Disconnect</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleStartGoogleOAuth}
+                              disabled={isAuthenticatingOAuth}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.45rem',
+                                padding: '0.45rem 1rem',
+                                borderRadius: '0.45rem',
+                                background: '#4285f4',
+                                border: 'none',
+                                color: '#ffffff',
+                                fontSize: '0.82rem',
+                                fontWeight: 700,
+                                cursor: isAuthenticatingOAuth ? 'not-allowed' : 'pointer',
+                                boxShadow: '0 2px 6px rgba(66, 133, 244, 0.3)',
+                                transition: 'all 0.15s ease',
+                              }}
+                            >
+                              {isAuthenticatingOAuth ? (
+                                <>
+                                  <Loader2 size={14} className="animate-spin" />
+                                  <span>Opening Google Consent...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <LogIn size={14} />
+                                  <span>Connect with Google</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
                       </div>
 
-                      {/* Detailed 535 Remediation Card */}
-                      {smtpVerifyStatus.statusCode === 535 && (
+                      {/* OAuth Notice Banner */}
+                      {oauthNotice && (
                         <div
                           style={{
-                            padding: '0.75rem 0.9rem',
-                            borderRadius: '0.5rem',
-                            fontSize: '0.76rem',
-                            background: 'rgba(239, 68, 68, 0.05)',
-                            border: '1px solid rgba(239, 68, 68, 0.25)',
-                            color: 'var(--text-main)',
+                            padding: '0.45rem 0.75rem',
+                            borderRadius: '0.45rem',
+                            fontSize: '0.78rem',
+                            fontWeight: 500,
                             display: 'flex',
-                            flexDirection: 'column',
+                            alignItems: 'center',
                             gap: '0.4rem',
+                            background: oauthNotice.startsWith('✓') ? 'rgba(16, 185, 129, 0.12)' : 'rgba(59, 130, 246, 0.12)',
+                            border: `1px solid ${oauthNotice.startsWith('✓') ? 'rgba(16, 185, 129, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`,
+                            color: oauthNotice.startsWith('✓') ? '#10b981' : '#3b82f6',
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span style={{ fontWeight: 700, color: '#ef4444' }}>
-                              ⚠️ Google SMTP Handshake: Successful | Credentials: BadCredentials (535)
-                            </span>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>
-                              Host: smtp.gmail.com:465 (SSL)
-                            </span>
-                          </div>
-                          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                            Google's SMTP server answered and completed the SSL handshake, but rejected this App Password for <strong>{senderEmail}</strong>. To resolve this:
-                          </div>
-                          <ul style={{ margin: 0, paddingLeft: '1.2rem', color: 'var(--text-subtle)', lineHeight: 1.5 }}>
-                            <li>
-                              <strong>Account Mismatch Check:</strong> If you are logged into multiple Google Accounts in your browser, make sure you generated the App Password under <strong>{senderEmail}</strong> (check the account profile circle at the top-right of the Google tab).
-                            </li>
-                            <li>
-                              <strong>2-Step Verification:</strong> Must remain <strong>turned ON</strong> for <em>{senderEmail}</em>. If 2FA was toggled off, existing App Passwords are automatically deleted by Google.
-                            </li>
-                            <li>
-                              <strong>Generate Fresh App Password:</strong> Open{' '}
-                              <a
-                                href="https://myaccount.google.com/apppasswords"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{ color: 'var(--accent-primary)', textDecoration: 'underline', fontWeight: 600 }}
-                              >
-                                myaccount.google.com/apppasswords
-                              </a>
-                              , create a new 16-letter password (e.g. named "Ila Outreach"), copy all 16 characters, and paste them above.
-                            </li>
-                          </ul>
+                          <Sparkles size={14} />
+                          <span>{oauthNotice}</span>
                         </div>
                       )}
+
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', lineHeight: 1.4 }}>
+                        🔒 <strong>Google Cloud Local Auth:</strong> Runs via <code>@google-cloud/local-auth</code> and Google Gmail API. Completely eliminates SMTP port 465/587 firewall blocking, requires no App Passwords, and dispatches directly from your verified Google identity.
+                      </div>
                     </div>
                   )}
 
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', lineHeight: 1.4 }}>
-                    🔒 Zero paid gateway fees. Connects directly to Google's authenticated SMTP server. If 2FA is active on your Google account, generate a free 16-character App Password at{' '}
-                    <a
-                      href="https://myaccount.google.com/apppasswords"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ color: 'var(--accent-primary)', textDecoration: 'underline' }}
-                    >
-                      Google Account &gt; Security &gt; App Passwords
-                    </a>.
-                  </div>
+                  {/* MODE 2: LEGACY SMTP APP PASSWORD PANEL */}
+                  {transporterMode === 'smtp' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
+                            Designated Sender Gmail Address:
+                          </label>
+                          <input
+                            type="email"
+                            value={senderEmail}
+                            onChange={(e) => setSenderEmail(e.target.value)}
+                            onBlur={(e) => setSenderEmail(e.target.value.trim())}
+                            placeholder="rafiaquafqu@gmail.com"
+                            style={{
+                              width: '100%',
+                              padding: '0.45rem 0.65rem',
+                              borderRadius: '0.45rem',
+                              background: 'var(--bg-card)',
+                              border: '1px solid var(--border-medium)',
+                              color: 'var(--text-main)',
+                              fontSize: '0.84rem',
+                              outline: 'none',
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
+                            Gmail App Password (16-character):
+                          </label>
+                          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                            <input
+                              type={showAppPassword ? 'text' : 'password'}
+                              value={gmailAppPassword}
+                              onChange={(e) => setGmailAppPassword(e.target.value)}
+                              onBlur={(e) => setGmailAppPassword(e.target.value.trim())}
+                              placeholder="e.g. abcd efgh ijkl mnop"
+                              style={{
+                                width: '100%',
+                                padding: '0.45rem 2.2rem 0.45rem 0.65rem',
+                                borderRadius: '0.45rem',
+                                background: 'var(--bg-card)',
+                                border: '1px solid var(--border-medium)',
+                                color: 'var(--text-main)',
+                                fontSize: '0.84rem',
+                                letterSpacing: showAppPassword ? 'normal' : '0.1em',
+                                outline: 'none',
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowAppPassword(!showAppPassword)}
+                              style={{
+                                position: 'absolute',
+                                right: '0.5rem',
+                                background: 'transparent',
+                                border: 'none',
+                                color: 'var(--text-subtle)',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                              }}
+                              title={showAppPassword ? 'Hide password' : 'Show password'}
+                            >
+                              {showAppPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Verification Status Notification Pill */}
+                      {smtpVerifyStatus && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          <div
+                            style={{
+                              padding: '0.45rem 0.75rem',
+                              borderRadius: '0.45rem',
+                              fontSize: '0.78rem',
+                              fontWeight: 500,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.4rem',
+                              background: smtpVerifyStatus.connected
+                                ? 'rgba(16, 185, 129, 0.12)'
+                                : smtpVerifyStatus.simulated
+                                ? 'rgba(59, 130, 246, 0.12)'
+                                : 'rgba(239, 68, 68, 0.12)',
+                              border: `1px solid ${
+                                smtpVerifyStatus.connected
+                                  ? 'rgba(16, 185, 129, 0.35)'
+                                  : smtpVerifyStatus.simulated
+                                  ? 'rgba(59, 130, 246, 0.35)'
+                                  : 'rgba(239, 68, 68, 0.35)'
+                              }`,
+                              color: smtpVerifyStatus.connected
+                                ? '#10b981'
+                                : smtpVerifyStatus.simulated
+                                ? '#3b82f6'
+                                : '#ef4444',
+                            }}
+                          >
+                            {smtpVerifyStatus.connected ? (
+                              <CheckCircle2 size={14} />
+                            ) : smtpVerifyStatus.simulated ? (
+                              <Sparkles size={14} />
+                            ) : (
+                              <AlertCircle size={14} />
+                            )}
+                            <span>{smtpVerifyStatus.message}</span>
+                          </div>
+
+                          {/* Detailed 535 Remediation Card */}
+                          {smtpVerifyStatus.statusCode === 535 && (
+                            <div
+                              style={{
+                                padding: '0.75rem 0.9rem',
+                                borderRadius: '0.5rem',
+                                fontSize: '0.76rem',
+                                background: 'rgba(239, 68, 68, 0.05)',
+                                border: '1px solid rgba(239, 68, 68, 0.25)',
+                                color: 'var(--text-main)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.4rem',
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <span style={{ fontWeight: 700, color: '#ef4444' }}>
+                                  ⚠️ Google SMTP Handshake: Successful | Credentials: BadCredentials (535)
+                                </span>
+                                <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>
+                                  Host: smtp.gmail.com:465 (SSL)
+                                </span>
+                              </div>
+                              <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                                Google's SMTP server answered and completed the SSL handshake, but rejected this App Password for <strong>{senderEmail}</strong>.
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', lineHeight: 1.4 }}>
+                        🔒 Connects directly to Google's authenticated SMTP server. If 2FA is active, generate a 16-character App Password at{' '}
+                        <a
+                          href="https://myaccount.google.com/apppasswords"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: 'var(--accent-primary)', textDecoration: 'underline' }}
+                        >
+                          Google Account &gt; Security &gt; App Passwords
+                        </a>.
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Email Subject Line */}
@@ -10409,6 +10792,254 @@ export default function TieupResearchEngineView({
                   <span>Send AI Response</span>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GOOGLE CLOUD OAUTH CREDENTIALS CONFIGURATION MODAL */}
+      {isOAuthCredsModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '1rem',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsOAuthCredsModalOpen(false);
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '560px',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-medium)',
+              borderRadius: '0.85rem',
+              boxShadow: '0 20px 45px rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              animation: 'fadeIn 0.2s ease',
+            }}
+          >
+            {/* Header */}
+            <div
+              style={{
+                padding: '1.1rem 1.4rem',
+                borderBottom: '1px solid var(--border-subtle)',
+                background: 'var(--bg-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <Cloud size={20} color="var(--accent-primary)" />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                    Google Cloud OAuth 2.0 Configuration
+                  </h3>
+                  <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                    Used by @google-cloud/local-auth to send bulk emails over HTTPS (Port 443)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsOAuthCredsModalOpen(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '0.3rem',
+                  borderRadius: '0.3rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '1.25rem 1.4rem', display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '72vh', overflowY: 'auto' }}>
+              {/* Quick Explanation */}
+              <div
+                style={{
+                  padding: '0.75rem 0.9rem',
+                  borderRadius: '0.5rem',
+                  background: 'rgba(59, 130, 246, 0.08)',
+                  border: '1px solid rgba(59, 130, 246, 0.25)',
+                  fontSize: '0.76rem',
+                  color: 'var(--text-main)',
+                  lineHeight: 1.5,
+                }}
+              >
+                <div style={{ fontWeight: 700, color: '#3b82f6', marginBottom: '0.25rem' }}>
+                  Why Google OAuth 2.0?
+                </div>
+                Traditional SMTP (Ports 465/587) requires 16-character App Passwords and is frequently blocked by local ISP/firewall networks. Google OAuth connects directly via Google APIs on Port 443 (HTTPS) for 100% reliable inbox delivery.
+              </div>
+
+              {/* Input: Client ID */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.3rem' }}>
+                  Google Client ID:
+                </label>
+                <input
+                  type="text"
+                  value={oauthClientIdInput}
+                  onChange={(e) => setOauthClientIdInput(e.target.value)}
+                  placeholder={googleOAuthStatus?.clientId || 'e.g. 1234567890-abcdefg.apps.googleusercontent.com'}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '0.45rem',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-medium)',
+                    color: 'var(--text-main)',
+                    fontSize: '0.82rem',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              {/* Input: Client Secret */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.3rem' }}>
+                  Google Client Secret:
+                </label>
+                <input
+                  type="password"
+                  value={oauthClientSecretInput}
+                  onChange={(e) => setOauthClientSecretInput(e.target.value)}
+                  placeholder="GOCSPX-xxxxxxxxxxxxxxxxxxxxxxxx"
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '0.45rem',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-medium)',
+                    color: 'var(--text-main)',
+                    fontSize: '0.82rem',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              {/* Divider */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.72rem', fontWeight: 600 }}>
+                <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
+                <span>OR PASTE CREDENTIALS.JSON</span>
+                <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
+              </div>
+
+              {/* Input: Raw JSON */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.3rem' }}>
+                  Direct JSON (from Google Cloud Console Download):
+                </label>
+                <textarea
+                  rows={4}
+                  value={oauthJsonInput}
+                  onChange={(e) => setOauthJsonInput(e.target.value)}
+                  placeholder='{"installed": {"client_id": "...", "client_secret": "..."}}'
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '0.45rem',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-medium)',
+                    color: 'var(--text-main)',
+                    fontSize: '0.78rem',
+                    fontFamily: 'monospace',
+                    outline: 'none',
+                    resize: 'vertical',
+                  }}
+                />
+              </div>
+
+              {/* 4-Step Setup Guide */}
+              <div
+                style={{
+                  padding: '0.75rem 0.9rem',
+                  borderRadius: '0.5rem',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-subtle)',
+                  fontSize: '0.72rem',
+                  color: 'var(--text-muted)',
+                  lineHeight: 1.5,
+                }}
+              >
+                <div style={{ fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.2rem' }}>
+                  How to get your credentials (Free Google Cloud):
+                </div>
+                <ol style={{ margin: 0, paddingLeft: '1.1rem' }}>
+                  <li>Go to Google Cloud Console (<code>console.cloud.google.com</code>).</li>
+                  <li>Enable the <strong>Gmail API</strong> under "APIs & Services".</li>
+                  <li>Go to <strong>Credentials &gt; Create Credentials &gt; OAuth Client ID</strong>.</li>
+                  <li>Choose Application Type: <strong>Desktop App</strong> (or Web App).</li>
+                  <li>Copy Client ID & Secret or download <code>credentials.json</code> and paste above.</li>
+                </ol>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div
+              style={{
+                padding: '0.9rem 1.4rem',
+                borderTop: '1px solid var(--border-subtle)',
+                background: 'var(--bg-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: '0.6rem',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setIsOAuthCredsModalOpen(false)}
+                style={{
+                  padding: '0.45rem 0.95rem',
+                  borderRadius: '0.45rem',
+                  background: 'transparent',
+                  border: '1px solid var(--border-medium)',
+                  color: 'var(--text-muted)',
+                  fontSize: '0.82rem',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveOAuthCredentials}
+                style={{
+                  padding: '0.48rem 1.25rem',
+                  borderRadius: '0.45rem',
+                  background: 'var(--accent-primary)',
+                  border: 'none',
+                  color: '#ffffff',
+                  fontSize: '0.84rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                }}
+              >
+                <Check size={14} />
+                <span>Save Credentials</span>
+              </button>
             </div>
           </div>
         </div>

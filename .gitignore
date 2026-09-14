@@ -37,3 +37,7 @@ tsconfig.tsbuildinfo
 # SQLite temp files
 data/*.db-shm
 data/*.db-wal
+
+# Google OAuth tokens & credentials
+data/credentials.json
+data/google_token.json

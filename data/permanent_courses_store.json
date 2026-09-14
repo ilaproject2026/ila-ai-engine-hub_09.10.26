@@ -1,5 +1,223 @@
 [
   {
+    "id": "course_1789402687803_g4fgeh1",
+    "courseId": "course_1789402687803_g4fgeh1",
+    "title": "Foundations of Cognitive Architecture & RAG Pipelines",
+    "subtitle": "Comprehensive Masterclass • 4 Modules",
+    "category": "Enterprise Education",
+    "overview": "Complete step-by-step masterclass curriculum for Foundations of Cognitive Architecture & RAG Pipelines created with Ila Course Creator & VELA search.",
+    "studiedBy": "General Student",
+    "targetAudience": "General Audience",
+    "totalChapters": 4,
+    "chapters": [
+      {
+        "id": "ch_1789402687803_1",
+        "chapterNumber": 1,
+        "title": "Book 1: Foundations of Cognitive Architecture & RAG Pipelines",
+        "summary": "[SLIDE: 1 | Foundations of Modern Cognitive Architectures | From Static LLMs to Stateful Reasoning Engines | Key Takeaways: Decoupling reaso",
+        "subTopics": [
+          {
+            "id": "sub_1789402687803_1_1",
+            "topicNumber": "1.1",
+            "title": "1.1 Foundations of Modern Cognitive Architectures",
+            "summary": "Detailed topic overview and implementation"
+          },
+          {
+            "id": "sub_1789402687803_1_2",
+            "topicNumber": "1.2",
+            "title": "1.2 Enterprise Retrieval-Augmented Generation (RAG)",
+            "summary": "Detailed topic overview and implementation"
+          }
+        ],
+        "content": "# Book 1: Foundations of Cognitive Architecture & RAG Pipelines\n\n### 1.1 Foundations of Modern Cognitive Architectures\n\n[SLIDE: 1 | Foundations of Modern Cognitive Architectures | From Static LLMs to Stateful Reasoning Engines | Key Takeaways: Decoupling reasoning from storage ensures enterprise durability.]\n[VIDEO_CUE: 00:00 - Introduction to Stateful Cognitive Loops]\n\n#### Architectural Overview\nModern enterprise AI systems have evolved beyond simple monolithic chat completions into **stateful cognitive architectures**. A cognitive architecture separates high-level strategic reasoning from deterministic tool execution and data retrieval.\n\n```\n+-------------------------------------------------------------+\n|                Cognitive Orchestrator                       |\n|  +-------------------+  +-------------------+  +----------+ |\n|  | Context & Memory  |  | Reasoning Engine  |  | Tool Bus | |\n|  +-------------------+  +-------------------+  +----------+ |\n+-------------------------------------------------------------+\n               |                       |\n               v                       v\n    [Vector Index / RAG]       [Autonomous Agents]\n```\n\n#### Core Architectural Pillars\n1. **Separation of Reasoning and Storage:** Foundation models serve as stateless reasoning engines, while external vector databases and SQLite provide durable state.\n2. **Context Window Engineering:** Dynamic sliding windows, hierarchical context compression, and kv-cache utilization maximize reasoning depth while bounding latency.\n3. **Deterministic Guardrails:** Semantic safety layers, JSON schema validators, and output parsers enforce strict contractual boundaries.\n\n```typescript\n// Architectural contract for stateful cognitive loops\ninterface CognitiveLoopState {\n  sessionId: string;\n  stepIndex: number;\n  memoryStore: DurableStore;\n  toolRegistry: Map<string, ToolDefinition>;\n  activeGuardrails: GuardrailPipeline[];\n}\n```\n\n#### Key Takeaways\n- Cognitive architectures separate strategic planning from deterministic tool execution.\n- External durable state stores prevent context window bloat and catastrophic forgetting.\n- Structured schema validation ensures reliable orchestration in mission-critical environments.\n\n---\n\n### 1.2 Enterprise Retrieval-Augmented Generation (RAG)\n\n[SLIDE: 2 | Production Hybrid RAG Architecture | Dense Semantics Combined with Lexical Precision | Key Takeaways: Hybrid dense-sparse retrieval prevents catastrophic terminology misses.]\n[VIDEO_CUE: 03:45 - Hybrid Sparse-Dense Retrieval Architecture]\n\n#### The Production RAG Pipeline\nNaive vector search fails in production due to embedding collisions and semantic drift. Enterprise RAG combines **dense embeddings** (for semantic similarity) with **sparse BM25 lexical search** (for exact keyword/part-number matching).\n\n```\nUser Query ---> Hybrid Query Rewriter\n                    |--> Dense Vector Search (HNSW)\n                    |--> Sparse Lexical Search (BM25)\n                    |--> Reciprocal Rank Fusion (RRF)\n                    |--> Cross-Encoder Reranker\n                    v\n            Grounded LLM Generation\n```\n\n#### Production Best Practices\n- **Parent-Document Retrieval:** Index small semantic chunks for search precision, but inject the broader parent section into LLM context.\n- **Cross-Encoder Reranking:** Re-score top 50 candidates using a dedicated cross-encoder before prompt assembly.\n- **Strict Grounding Citations:** Enforce traceable snippet anchors for every factual claim.\n\n```python\n# Hybrid RRF Fusion Algorithm\ndef reciprocal_rank_fusion(dense_ranks, sparse_ranks, k=60):\n    scores = {}\n    for rank, doc_id in enumerate(dense_ranks):\n        scores[doc_id] = scores.get(doc_id, 0.0) + 1.0 / (k + rank)\n    for rank, doc_id in enumerate(sparse_ranks):\n        scores[doc_id] = scores.get(doc_id, 0.0) + 1.0 / (k + rank)\n    return sorted(scores.items(), key=lambda x: x[1], reverse=True)\n```\n\n#### Key Takeaways\n- Hybrid dense-sparse search prevents accuracy degradation on technical terms.\n- Cross-encoder reranking provides a 15-25% boost in contextual retrieval precision.\n- Parent-document retrieval balances high search granularity with rich reading context.",
+        "isCompleted": false
+      },
+      {
+        "id": "ch_1789402687803_2",
+        "chapterNumber": 2,
+        "title": "Book 2: Autonomous Multi-Agent Orchestration & Tool Systems",
+        "summary": "[SLIDE: 3 | Specialized Multi-Agent Topologies | Dividing Cognitive Labor for Flawless Execution | Key Takeaways: Cognitive decomposition is",
+        "subTopics": [
+          {
+            "id": "sub_1789402687803_2_1",
+            "topicNumber": "2.1",
+            "title": "2.1 Multi-Agent Collaboration & Role Specialization",
+            "summary": "Detailed topic overview and implementation"
+          },
+          {
+            "id": "sub_1789402687803_2_2",
+            "topicNumber": "2.2",
+            "title": "2.2 Tool Execution, Function Calling & Schema Contracts",
+            "summary": "Detailed topic overview and implementation"
+          }
+        ],
+        "content": "# Book 2: Autonomous Multi-Agent Orchestration & Tool Systems\n\n### 2.1 Multi-Agent Collaboration & Role Specialization\n\n[SLIDE: 3 | Specialized Multi-Agent Topologies | Dividing Cognitive Labor for Flawless Execution | Key Takeaways: Cognitive decomposition is the secret to zero-hallucination agent systems.]\n[VIDEO_CUE: 07:15 - Director-Worker Topologies and State Synchronization]\n\n#### Agent Topology Patterns\nIn complex workflows, single prompts collapse under high cognitive load. Splitting responsibilities among **specialized agents** produces superior reliability:\n\n```\n                  +-----------------------+\n                  |    Director / Planner |\n                  +-----------+-----------+\n                              |\n             +----------------+----------------+\n             v                                 v\n  +--------------------+             +--------------------+\n  | Researcher Worker  |             | Code Author Worker |\n  +----------+---------+             +---------+----------+\n             |                                 |\n             +----------------+----------------+\n                              v\n                  +-----------------------+\n                  | Critic / Synthesizer  |\n                  +-----------------------+\n```\n\n1. **Director-Worker Topology:** A central planner decomposes the task and delegates specialized sub-goals to worker agents.\n2. **Reviewer-Critic Loop:** A generator agent creates candidate outputs while a critic agent enforces rubric criteria and formatting constraints.\n3. **Consensus Aggregators:** Multiple independent agents solve the same problem; a synthesizer combines the strongest reasoning branches.\n\n#### Key Takeaways\n- Specialized personas outperform generalist prompts on complex multi-step workflows.\n- Critic-generator loops achieve self-correction without human intervention.\n- Structured inter-agent messaging formats prevent compounding semantic errors.\n\n---\n\n### 2.2 Tool Execution, Function Calling & Schema Contracts\n\n[SLIDE: 4 | Deterministic Tool Calling Contracts | Guaranteed Execution and Error Recovery | Key Takeaways: Treat model tool arguments as untrusted user input.]\n[VIDEO_CUE: 10:30 - Safe Tool Calling and Idempotency Validation]\n\n#### Contractual Reliability\nAgents interact with the physical world through tool calling. Every tool call must be bounded by:\n- **Strict JSON Schema Contracts:** Required parameter types, enums, and bounds checking.\n- **Idempotency Keys:** Guaranteeing that retrying a network timeout does not double-execute transactions.\n- **Execution Sandboxing:** Isolating database mutations and code interpreters in secure containers.\n\n```json\n{\n  \"name\": \"execute_database_query\",\n  \"description\": \"Executes an auditable read-only query against SQLite analytics replica\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"query\": { \"type\": \"string\", \"description\": \"SQL SELECT statement\" },\n      \"idempotency_key\": { \"type\": \"string\", \"description\": \"Unique UUIDv4 per request\" },\n      \"max_rows\": { \"type\": \"integer\", \"maximum\": 500 }\n    },\n    \"required\": [\"query\", \"idempotency_key\"]\n  }\n}\n```\n\n#### Key Takeaways\n- Idempotency keys prevent duplicate side-effects during network retries.\n- Schema validation at the agent boundary catches hallucinations before execution.\n- Sandboxed runtimes prevent untrusted generated code from harming production environments.",
+        "isCompleted": false
+      },
+      {
+        "id": "ch_1789402687803_3",
+        "chapterNumber": 3,
+        "title": "Book 3: Autonomous Workflow Resilience & Continuous Evaluation",
+        "summary": "[SLIDE: 5 | Autonomous Workflow Resilience | Durable Checkpoints and Circuit Breakers | Key Takeaways: Never run long-running autonomous age",
+        "subTopics": [
+          {
+            "id": "sub_1789402687803_3_1",
+            "topicNumber": "3.1",
+            "title": "3.1 Autonomous Workflow Engineering & Resilience",
+            "summary": "Detailed topic overview and implementation"
+          },
+          {
+            "id": "sub_1789402687803_3_2",
+            "topicNumber": "3.2",
+            "title": "3.2 Evaluation, Benchmarking & Safety Guardrails",
+            "summary": "Detailed topic overview and implementation"
+          }
+        ],
+        "content": "# Book 3: Autonomous Workflow Resilience & Continuous Evaluation\n\n### 3.1 Autonomous Workflow Engineering & Resilience\n\n[SLIDE: 5 | Autonomous Workflow Resilience | Durable Checkpoints and Circuit Breakers | Key Takeaways: Never run long-running autonomous agents without durable step persistence.]\n[VIDEO_CUE: 14:00 - Distributed Workflow Checkpointing and Fault Recovery]\n\n#### Distributed Resilience Patterns\nAutonomous agent workflows often run for minutes or hours. Production reliability requires:\n- **Durable Checkpoints:** Persisting step state to disk/database after every execution phase.\n- **Circuit Breakers:** Tripping execution when repeated tool errors exceed threshold limits.\n- **Self-Healing Retries:** Prompting the agent with the exact error stack to trigger recursive parameter correction.\n\n```\nStep 1: Plan ---> [Durable Checkpoint 1]\nStep 2: Tool Call -> Failure -> Error Reflected -> Self-Heal -> [Durable Checkpoint 2]\nStep 3: Synthesis -> [Durable Checkpoint 3] ---> Verified Deliverable\n```\n\n#### Key Takeaways\n- Durable checkpointing allows workflows to resume instantly after process crashes.\n- Circuit breakers prevent token burn during catastrophic API outages.\n- In-context error reflection enables autonomous self-healing without developer intervention.\n\n---\n\n### 3.2 Evaluation, Benchmarking & Safety Guardrails\n\n[SLIDE: 6 | Automated AI Evaluation Pipelines | Quantitative Benchmarking and Continuous Verification | Key Takeaways: Continuous regression benchmarking prevents prompt degradation over time.]\n[VIDEO_CUE: 17:45 - Quantitative Hallucination and Faithfulness Scoring]\n\n#### Continuous Quality Verification\nDeploying AI with confidence requires quantitative quality benchmarks:\n- **Faithfulness & Groundedness:** Verifying that 100% of claims originate directly from retrieved reference context.\n- **Answer Relevance:** Measuring alignment between the user's initial inquiry and the final synthesized response.\n- **Automated Regression Suites:** Executing automated LLM-as-a-judge evaluations against curated test suites on every PR.\n\n$$\\text{Faithfulness} = \\frac{|\\text{Verified Claims Supported by Context}|}{|\\text{Total Claims Made in Response}|}$$\n\n#### Key Takeaways\n- Quantitative evaluation metrics replace subjective human spot-checks.\n- Faithfulness scoring guarantees compliance and eliminates legal risk.\n- Continuous regression benchmarking prevents prompt degradation over time.",
+        "isCompleted": false
+      },
+      {
+        "id": "ch_1789402687803_4",
+        "chapterNumber": 4,
+        "title": "Book 4: Production Serving & Domain Adaptation",
+        "summary": "[SLIDE: 7 | High-Throughput Production Serving | Maximizing GPU Efficiency with PagedAttention | Key Takeaways: System-level inference optim",
+        "subTopics": [
+          {
+            "id": "sub_1789402687803_4_1",
+            "topicNumber": "4.1",
+            "title": "4.1 Production Deployment & Low-Latency Serving",
+            "summary": "Detailed topic overview and implementation"
+          },
+          {
+            "id": "sub_1789402687803_4_2",
+            "topicNumber": "4.2",
+            "title": "4.2 Domain Specialization & Fine-Tuning Strategies",
+            "summary": "Detailed topic overview and implementation"
+          }
+        ],
+        "content": "# Book 4: Production Serving & Domain Adaptation\n\n### 4.1 Production Deployment & Low-Latency Serving\n\n[SLIDE: 7 | High-Throughput Production Serving | Maximizing GPU Efficiency with PagedAttention | Key Takeaways: System-level inference optimizations dramatically lower enterprise operating cost.]\n[VIDEO_CUE: 21:10 - Continuous Batching & Memory Optimization with vLLM]\n\n#### High-Throughput Inference Optimization\nScaling AI workloads to thousands of concurrent enterprise users requires modern serving techniques:\n- **Continuous Batching:** Dynamic iteration-level scheduling (vLLM / TensorRT-LLM) maximizing GPU memory utilization.\n- **PagedAttention:** Virtual memory paging for KV-cache, eliminating memory fragmentation.\n- **Speculative Decoding:** Employing a tiny draft model to propose tokens validated in parallel by the target model.\n\n```\nTraditional Serving:  [Batch 1: Waiting for longest seq...] [Idle GPU Slots]\nContinuous Batching:  [Seq A (step 3)] [Seq B (step 1)] [Seq C (step 14)] -> 100% Saturated\n```\n\n#### Key Takeaways\n- Continuous batching increases server throughput by 3x-8x over static batching.\n- PagedAttention resolves memory waste and supports massive context windows.\n- Speculative decoding slashes time-to-first-token and streaming latency.\n\n---\n\n### 4.2 Domain Specialization & Fine-Tuning Strategies\n\n[SLIDE: 8 | Domain Specialization: RAG + QLoRA | The Winning Combination for Enterprise Mastery | Key Takeaways: Use RAG for dynamic factual knowledge; use fine-tuning for behavior and form.]\n[VIDEO_CUE: 24:30 - Fine-Tuning vs RAG Architecture Decisions]\n\n#### When to Fine-Tune vs. When to RAG\nA common enterprise mistake is choosing between RAG and fine-tuning. Production architectures synthesize both:\n- **RAG for Dynamic Knowledge:** Real-time policies, inventory, customer data, and constantly shifting documentation.\n- **Parameter-Efficient Fine-Tuning (PEFT/QLoRA) for Style & Structure:** Training the model to consistently emit proprietary schemas, tone, and reasoning syntax.\n- **Direct Preference Optimization (DPO):** Aligning responses with enterprise stylistic guidelines using paired positive/negative examples.\n\n| Capability | RAG Alone | Fine-Tuning Alone | Hybrid Architecture (RAG + QLoRA) |\n| :--- | :--- | :--- | :--- |\n| Dynamic Knowledge Update | Immediate | Requires Retraining | Immediate |\n| Tone & Stylistic Adherence | Medium | Very High | Very High |\n| Complex Domain Vocab | Medium | High | Optimal |\n| Cost to Implement | Low | Moderate | Cost-Effective |\n\n#### Key Takeaways\n- RAG provides the facts; fine-tuning teaches the model how to reason and format.\n- QLoRA enables low-cost domain specialization on standard enterprise GPUs.\n- DPO provides stable, reproducible human-in-the-loop alignment without complex RL.",
+        "isCompleted": false
+      }
+    ],
+    "messages": [],
+    "versions": [],
+    "isPermanent": true,
+    "locked": true,
+    "createdAt": 1789402690010,
+    "updatedAt": 1789402690022,
+    "downloadCount": 0,
+    "tags": [],
+    "rawCourseData": {
+      "id": "course_1789402687803_g4fgeh1",
+      "title": "Foundations of Cognitive Architecture & RAG Pipelines",
+      "subtitle": "Comprehensive Masterclass • 4 Modules",
+      "category": "Enterprise Education",
+      "overview": "Complete step-by-step masterclass curriculum for Foundations of Cognitive Architecture & RAG Pipelines created with Ila Course Creator & VELA search.",
+      "totalChapters": 4,
+      "chapters": [
+        {
+          "id": "ch_1789402687803_1",
+          "chapterNumber": 1,
+          "title": "Book 1: Foundations of Cognitive Architecture & RAG Pipelines",
+          "summary": "[SLIDE: 1 | Foundations of Modern Cognitive Architectures | From Static LLMs to Stateful Reasoning Engines | Key Takeaways: Decoupling reaso",
+          "subTopics": [
+            {
+              "id": "sub_1789402687803_1_1",
+              "topicNumber": "1.1",
+              "title": "1.1 Foundations of Modern Cognitive Architectures",
+              "summary": "Detailed topic overview and implementation"
+            },
+            {
+              "id": "sub_1789402687803_1_2",
+              "topicNumber": "1.2",
+              "title": "1.2 Enterprise Retrieval-Augmented Generation (RAG)",
+              "summary": "Detailed topic overview and implementation"
+            }
+          ],
+          "content": "# Book 1: Foundations of Cognitive Architecture & RAG Pipelines\n\n### 1.1 Foundations of Modern Cognitive Architectures\n\n[SLIDE: 1 | Foundations of Modern Cognitive Architectures | From Static LLMs to Stateful Reasoning Engines | Key Takeaways: Decoupling reasoning from storage ensures enterprise durability.]\n[VIDEO_CUE: 00:00 - Introduction to Stateful Cognitive Loops]\n\n#### Architectural Overview\nModern enterprise AI systems have evolved beyond simple monolithic chat completions into **stateful cognitive architectures**. A cognitive architecture separates high-level strategic reasoning from deterministic tool execution and data retrieval.\n\n```\n+-------------------------------------------------------------+\n|                Cognitive Orchestrator                       |\n|  +-------------------+  +-------------------+  +----------+ |\n|  | Context & Memory  |  | Reasoning Engine  |  | Tool Bus | |\n|  +-------------------+  +-------------------+  +----------+ |\n+-------------------------------------------------------------+\n               |                       |\n               v                       v\n    [Vector Index / RAG]       [Autonomous Agents]\n```\n\n#### Core Architectural Pillars\n1. **Separation of Reasoning and Storage:** Foundation models serve as stateless reasoning engines, while external vector databases and SQLite provide durable state.\n2. **Context Window Engineering:** Dynamic sliding windows, hierarchical context compression, and kv-cache utilization maximize reasoning depth while bounding latency.\n3. **Deterministic Guardrails:** Semantic safety layers, JSON schema validators, and output parsers enforce strict contractual boundaries.\n\n```typescript\n// Architectural contract for stateful cognitive loops\ninterface CognitiveLoopState {\n  sessionId: string;\n  stepIndex: number;\n  memoryStore: DurableStore;\n  toolRegistry: Map<string, ToolDefinition>;\n  activeGuardrails: GuardrailPipeline[];\n}\n```\n\n#### Key Takeaways\n- Cognitive architectures separate strategic planning from deterministic tool execution.\n- External durable state stores prevent context window bloat and catastrophic forgetting.\n- Structured schema validation ensures reliable orchestration in mission-critical environments.\n\n---\n\n### 1.2 Enterprise Retrieval-Augmented Generation (RAG)\n\n[SLIDE: 2 | Production Hybrid RAG Architecture | Dense Semantics Combined with Lexical Precision | Key Takeaways: Hybrid dense-sparse retrieval prevents catastrophic terminology misses.]\n[VIDEO_CUE: 03:45 - Hybrid Sparse-Dense Retrieval Architecture]\n\n#### The Production RAG Pipeline\nNaive vector search fails in production due to embedding collisions and semantic drift. Enterprise RAG combines **dense embeddings** (for semantic similarity) with **sparse BM25 lexical search** (for exact keyword/part-number matching).\n\n```\nUser Query ---> Hybrid Query Rewriter\n                    |--> Dense Vector Search (HNSW)\n                    |--> Sparse Lexical Search (BM25)\n                    |--> Reciprocal Rank Fusion (RRF)\n                    |--> Cross-Encoder Reranker\n                    v\n            Grounded LLM Generation\n```\n\n#### Production Best Practices\n- **Parent-Document Retrieval:** Index small semantic chunks for search precision, but inject the broader parent section into LLM context.\n- **Cross-Encoder Reranking:** Re-score top 50 candidates using a dedicated cross-encoder before prompt assembly.\n- **Strict Grounding Citations:** Enforce traceable snippet anchors for every factual claim.\n\n```python\n# Hybrid RRF Fusion Algorithm\ndef reciprocal_rank_fusion(dense_ranks, sparse_ranks, k=60):\n    scores = {}\n    for rank, doc_id in enumerate(dense_ranks):\n        scores[doc_id] = scores.get(doc_id, 0.0) + 1.0 / (k + rank)\n    for rank, doc_id in enumerate(sparse_ranks):\n        scores[doc_id] = scores.get(doc_id, 0.0) + 1.0 / (k + rank)\n    return sorted(scores.items(), key=lambda x: x[1], reverse=True)\n```\n\n#### Key Takeaways\n- Hybrid dense-sparse search prevents accuracy degradation on technical terms.\n- Cross-encoder reranking provides a 15-25% boost in contextual retrieval precision.\n- Parent-document retrieval balances high search granularity with rich reading context.",
+          "isCompleted": false
+        },
+        {
+          "id": "ch_1789402687803_2",
+          "chapterNumber": 2,
+          "title": "Book 2: Autonomous Multi-Agent Orchestration & Tool Systems",
+          "summary": "[SLIDE: 3 | Specialized Multi-Agent Topologies | Dividing Cognitive Labor for Flawless Execution | Key Takeaways: Cognitive decomposition is",
+          "subTopics": [
+            {
+              "id": "sub_1789402687803_2_1",
+              "topicNumber": "2.1",
+              "title": "2.1 Multi-Agent Collaboration & Role Specialization",
+              "summary": "Detailed topic overview and implementation"
+            },
+            {
+              "id": "sub_1789402687803_2_2",
+              "topicNumber": "2.2",
+              "title": "2.2 Tool Execution, Function Calling & Schema Contracts",
+              "summary": "Detailed topic overview and implementation"
+            }
+          ],
+          "content": "# Book 2: Autonomous Multi-Agent Orchestration & Tool Systems\n\n### 2.1 Multi-Agent Collaboration & Role Specialization\n\n[SLIDE: 3 | Specialized Multi-Agent Topologies | Dividing Cognitive Labor for Flawless Execution | Key Takeaways: Cognitive decomposition is the secret to zero-hallucination agent systems.]\n[VIDEO_CUE: 07:15 - Director-Worker Topologies and State Synchronization]\n\n#### Agent Topology Patterns\nIn complex workflows, single prompts collapse under high cognitive load. Splitting responsibilities among **specialized agents** produces superior reliability:\n\n```\n                  +-----------------------+\n                  |    Director / Planner |\n                  +-----------+-----------+\n                              |\n             +----------------+----------------+\n             v                                 v\n  +--------------------+             +--------------------+\n  | Researcher Worker  |             | Code Author Worker |\n  +----------+---------+             +---------+----------+\n             |                                 |\n             +----------------+----------------+\n                              v\n                  +-----------------------+\n                  | Critic / Synthesizer  |\n                  +-----------------------+\n```\n\n1. **Director-Worker Topology:** A central planner decomposes the task and delegates specialized sub-goals to worker agents.\n2. **Reviewer-Critic Loop:** A generator agent creates candidate outputs while a critic agent enforces rubric criteria and formatting constraints.\n3. **Consensus Aggregators:** Multiple independent agents solve the same problem; a synthesizer combines the strongest reasoning branches.\n\n#### Key Takeaways\n- Specialized personas outperform generalist prompts on complex multi-step workflows.\n- Critic-generator loops achieve self-correction without human intervention.\n- Structured inter-agent messaging formats prevent compounding semantic errors.\n\n---\n\n### 2.2 Tool Execution, Function Calling & Schema Contracts\n\n[SLIDE: 4 | Deterministic Tool Calling Contracts | Guaranteed Execution and Error Recovery | Key Takeaways: Treat model tool arguments as untrusted user input.]\n[VIDEO_CUE: 10:30 - Safe Tool Calling and Idempotency Validation]\n\n#### Contractual Reliability\nAgents interact with the physical world through tool calling. Every tool call must be bounded by:\n- **Strict JSON Schema Contracts:** Required parameter types, enums, and bounds checking.\n- **Idempotency Keys:** Guaranteeing that retrying a network timeout does not double-execute transactions.\n- **Execution Sandboxing:** Isolating database mutations and code interpreters in secure containers.\n\n```json\n{\n  \"name\": \"execute_database_query\",\n  \"description\": \"Executes an auditable read-only query against SQLite analytics replica\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"query\": { \"type\": \"string\", \"description\": \"SQL SELECT statement\" },\n      \"idempotency_key\": { \"type\": \"string\", \"description\": \"Unique UUIDv4 per request\" },\n      \"max_rows\": { \"type\": \"integer\", \"maximum\": 500 }\n    },\n    \"required\": [\"query\", \"idempotency_key\"]\n  }\n}\n```\n\n#### Key Takeaways\n- Idempotency keys prevent duplicate side-effects during network retries.\n- Schema validation at the agent boundary catches hallucinations before execution.\n- Sandboxed runtimes prevent untrusted generated code from harming production environments.",
+          "isCompleted": false
+        },
+        {
+          "id": "ch_1789402687803_3",
+          "chapterNumber": 3,
+          "title": "Book 3: Autonomous Workflow Resilience & Continuous Evaluation",
+          "summary": "[SLIDE: 5 | Autonomous Workflow Resilience | Durable Checkpoints and Circuit Breakers | Key Takeaways: Never run long-running autonomous age",
+          "subTopics": [
+            {
+              "id": "sub_1789402687803_3_1",
+              "topicNumber": "3.1",
+              "title": "3.1 Autonomous Workflow Engineering & Resilience",
+              "summary": "Detailed topic overview and implementation"
+            },
+            {
+              "id": "sub_1789402687803_3_2",
+              "topicNumber": "3.2",
+              "title": "3.2 Evaluation, Benchmarking & Safety Guardrails",
+              "summary": "Detailed topic overview and implementation"
+            }
+          ],
+          "content": "# Book 3: Autonomous Workflow Resilience & Continuous Evaluation\n\n### 3.1 Autonomous Workflow Engineering & Resilience\n\n[SLIDE: 5 | Autonomous Workflow Resilience | Durable Checkpoints and Circuit Breakers | Key Takeaways: Never run long-running autonomous agents without durable step persistence.]\n[VIDEO_CUE: 14:00 - Distributed Workflow Checkpointing and Fault Recovery]\n\n#### Distributed Resilience Patterns\nAutonomous agent workflows often run for minutes or hours. Production reliability requires:\n- **Durable Checkpoints:** Persisting step state to disk/database after every execution phase.\n- **Circuit Breakers:** Tripping execution when repeated tool errors exceed threshold limits.\n- **Self-Healing Retries:** Prompting the agent with the exact error stack to trigger recursive parameter correction.\n\n```\nStep 1: Plan ---> [Durable Checkpoint 1]\nStep 2: Tool Call -> Failure -> Error Reflected -> Self-Heal -> [Durable Checkpoint 2]\nStep 3: Synthesis -> [Durable Checkpoint 3] ---> Verified Deliverable\n```\n\n#### Key Takeaways\n- Durable checkpointing allows workflows to resume instantly after process crashes.\n- Circuit breakers prevent token burn during catastrophic API outages.\n- In-context error reflection enables autonomous self-healing without developer intervention.\n\n---\n\n### 3.2 Evaluation, Benchmarking & Safety Guardrails\n\n[SLIDE: 6 | Automated AI Evaluation Pipelines | Quantitative Benchmarking and Continuous Verification | Key Takeaways: Continuous regression benchmarking prevents prompt degradation over time.]\n[VIDEO_CUE: 17:45 - Quantitative Hallucination and Faithfulness Scoring]\n\n#### Continuous Quality Verification\nDeploying AI with confidence requires quantitative quality benchmarks:\n- **Faithfulness & Groundedness:** Verifying that 100% of claims originate directly from retrieved reference context.\n- **Answer Relevance:** Measuring alignment between the user's initial inquiry and the final synthesized response.\n- **Automated Regression Suites:** Executing automated LLM-as-a-judge evaluations against curated test suites on every PR.\n\n$$\\text{Faithfulness} = \\frac{|\\text{Verified Claims Supported by Context}|}{|\\text{Total Claims Made in Response}|}$$\n\n#### Key Takeaways\n- Quantitative evaluation metrics replace subjective human spot-checks.\n- Faithfulness scoring guarantees compliance and eliminates legal risk.\n- Continuous regression benchmarking prevents prompt degradation over time.",
+          "isCompleted": false
+        },
+        {
+          "id": "ch_1789402687803_4",
+          "chapterNumber": 4,
+          "title": "Book 4: Production Serving & Domain Adaptation",
+          "summary": "[SLIDE: 7 | High-Throughput Production Serving | Maximizing GPU Efficiency with PagedAttention | Key Takeaways: System-level inference optim",
+          "subTopics": [
+            {
+              "id": "sub_1789402687803_4_1",
+              "topicNumber": "4.1",
+              "title": "4.1 Production Deployment & Low-Latency Serving",
+              "summary": "Detailed topic overview and implementation"
+            },
+            {
+              "id": "sub_1789402687803_4_2",
+              "topicNumber": "4.2",
+              "title": "4.2 Domain Specialization & Fine-Tuning Strategies",
+              "summary": "Detailed topic overview and implementation"
+            }
+          ],
+          "content": "# Book 4: Production Serving & Domain Adaptation\n\n### 4.1 Production Deployment & Low-Latency Serving\n\n[SLIDE: 7 | High-Throughput Production Serving | Maximizing GPU Efficiency with PagedAttention | Key Takeaways: System-level inference optimizations dramatically lower enterprise operating cost.]\n[VIDEO_CUE: 21:10 - Continuous Batching & Memory Optimization with vLLM]\n\n#### High-Throughput Inference Optimization\nScaling AI workloads to thousands of concurrent enterprise users requires modern serving techniques:\n- **Continuous Batching:** Dynamic iteration-level scheduling (vLLM / TensorRT-LLM) maximizing GPU memory utilization.\n- **PagedAttention:** Virtual memory paging for KV-cache, eliminating memory fragmentation.\n- **Speculative Decoding:** Employing a tiny draft model to propose tokens validated in parallel by the target model.\n\n```\nTraditional Serving:  [Batch 1: Waiting for longest seq...] [Idle GPU Slots]\nContinuous Batching:  [Seq A (step 3)] [Seq B (step 1)] [Seq C (step 14)] -> 100% Saturated\n```\n\n#### Key Takeaways\n- Continuous batching increases server throughput by 3x-8x over static batching.\n- PagedAttention resolves memory waste and supports massive context windows.\n- Speculative decoding slashes time-to-first-token and streaming latency.\n\n---\n\n### 4.2 Domain Specialization & Fine-Tuning Strategies\n\n[SLIDE: 8 | Domain Specialization: RAG + QLoRA | The Winning Combination for Enterprise Mastery | Key Takeaways: Use RAG for dynamic factual knowledge; use fine-tuning for behavior and form.]\n[VIDEO_CUE: 24:30 - Fine-Tuning vs RAG Architecture Decisions]\n\n#### When to Fine-Tune vs. When to RAG\nA common enterprise mistake is choosing between RAG and fine-tuning. Production architectures synthesize both:\n- **RAG for Dynamic Knowledge:** Real-time policies, inventory, customer data, and constantly shifting documentation.\n- **Parameter-Efficient Fine-Tuning (PEFT/QLoRA) for Style & Structure:** Training the model to consistently emit proprietary schemas, tone, and reasoning syntax.\n- **Direct Preference Optimization (DPO):** Aligning responses with enterprise stylistic guidelines using paired positive/negative examples.\n\n| Capability | RAG Alone | Fine-Tuning Alone | Hybrid Architecture (RAG + QLoRA) |\n| :--- | :--- | :--- | :--- |\n| Dynamic Knowledge Update | Immediate | Requires Retraining | Immediate |\n| Tone & Stylistic Adherence | Medium | Very High | Very High |\n| Complex Domain Vocab | Medium | High | Optimal |\n| Cost to Implement | Low | Moderate | Cost-Effective |\n\n#### Key Takeaways\n- RAG provides the facts; fine-tuning teaches the model how to reason and format.\n- QLoRA enables low-cost domain specialization on standard enterprise GPUs.\n- DPO provides stable, reproducible human-in-the-loop alignment without complex RL.",
+          "isCompleted": false
+        }
+      ],
+      "createdAt": 1789402687803,
+      "updatedAt": 1789402689989,
+      "sourceSessionId": "session_perm_course_1789320619445_7ch4eo8",
+      "tags": [],
+      "isFavorite": false,
+      "studiedBy": null,
+      "targetAudience": null,
+      "isPermanent": false,
+      "locked": false,
+      "lastDownloadedAt": null,
+      "downloadCount": 0
+    }
+  },
+  {
     "id": "course_1789163082876_bwyia9z",
     "courseId": "course_1789163082876_bwyia9z",
     "title": ". Market Overview: Germany (Deutschland)",

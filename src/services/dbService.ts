@@ -2504,4 +2504,121 @@ export async function dispatchSingleSmtpOutreach(params: {
   return res || { success: false, error: 'Failed to dispatch email via SMTP service.' };
 }
 
+// -------------------------------------------------------------
+// GOOGLE OAUTH 2.0 (@google-cloud/local-auth) FRONTEND CLIENT METHODS
+// -------------------------------------------------------------
+export interface GoogleOAuthStatus {
+  configured: boolean;
+  authenticated: boolean;
+  clientId?: string | null;
+  email?: string | null;
+  expiryDate?: number;
+  message?: string;
+  error?: string;
+}
+
+export interface GoogleOAuthDispatchResult {
+  success: boolean;
+  total: number;
+  deliveredCount: number;
+  failedCount: number;
+  senderEmail: string;
+  results: Array<{
+    leadId: string;
+    recipientEmail: string;
+    success: boolean;
+    messageId?: string;
+    error?: string;
+    log?: OutreachStatusLogItem;
+  }>;
+  logs: OutreachStatusLogItem[];
+  error?: string;
+}
+
+export async function getGoogleOAuthStatus(): Promise<GoogleOAuthStatus> {
+  const res = await fetchApi<GoogleOAuthStatus>('/outreach/oauth-status', { method: 'GET' });
+  return res || { configured: false, authenticated: false, error: 'Failed to reach OAuth status endpoint' };
+}
+
+export async function saveGoogleOAuthCredentials(data: {
+  clientId?: string;
+  clientSecret?: string;
+  credentialsJson?: string;
+}): Promise<{ success: boolean; message?: string; error?: string }> {
+  const res = await fetchApi<{ success: boolean; message?: string; error?: string }>(
+    '/outreach/oauth-save-credentials',
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }
+  );
+  return res || { success: false, error: 'Failed to save Google Cloud credentials.' };
+}
+
+export async function startGoogleOAuthLogin(data?: {
+  clientId?: string;
+  clientSecret?: string;
+  credentialsJson?: string;
+}): Promise<{ success: boolean; authenticated: boolean; email?: string; message?: string; error?: string }> {
+  const res = await fetchApi<{
+    success: boolean;
+    authenticated: boolean;
+    email?: string;
+    message?: string;
+    error?: string;
+  }>('/outreach/oauth-authenticate', {
+    method: 'POST',
+    body: JSON.stringify(data || {}),
+  });
+  return res || { success: false, authenticated: false, error: 'OAuth authentication failed to complete.' };
+}
+
+export async function logoutGoogleOAuth(): Promise<{ success: boolean; message?: string; error?: string }> {
+  const res = await fetchApi<{ success: boolean; message?: string; error?: string }>('/outreach/oauth-logout', {
+    method: 'POST',
+  });
+  return res || { success: false, error: 'Failed to logout Google OAuth.' };
+}
+
+export async function dispatchOAuthBulkOutreach(params: {
+  senderEmail?: string;
+  subject: string;
+  bodyTemplate: string;
+  leads: TieupLeadItem[];
+}): Promise<GoogleOAuthDispatchResult> {
+  const res = await fetchApi<GoogleOAuthDispatchResult>('/outreach/dispatch-oauth', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+  return (
+    res || {
+      success: false,
+      total: params.leads.length,
+      deliveredCount: 0,
+      failedCount: params.leads.length,
+      senderEmail: params.senderEmail || '',
+      results: [],
+      logs: [],
+      error: 'Failed to connect to Google OAuth bulk dispatch service.',
+    }
+  );
+}
+
+export async function dispatchSingleOAuthOutreach(params: {
+  senderEmail?: string;
+  recipientEmail: string;
+  subject: string;
+  body: string;
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const res = await fetchApi<{ success: boolean; messageId?: string; error?: string }>(
+    '/outreach/send-single-oauth',
+    {
+      method: 'POST',
+      body: JSON.stringify(params),
+    }
+  );
+  return res || { success: false, error: 'Failed to dispatch email via Google OAuth.' };
+}
+
+
 
