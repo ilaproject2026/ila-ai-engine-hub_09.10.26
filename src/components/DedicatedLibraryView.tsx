@@ -47,7 +47,9 @@ import {
   Tv,
   File,
   Bot,
+  UploadCloud,
 } from 'lucide-react';
+import { syncAllCoursesToSupabase, isSupabaseConfigured } from '../services/supabaseService';
 import {
   getAllLibraryCourses,
   deleteLibraryCourse,
@@ -115,6 +117,31 @@ export default function DedicatedLibraryView({
   // Copy Feedback & Export Menu States
   const [copyFeedback, setCopyFeedback] = useState<boolean>(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState<boolean>(false);
+
+  // Supabase Manual Sync States
+  const [isSyncingSupabase, setIsSyncingSupabase] = useState<boolean>(false);
+  const [supabaseSyncFeedback, setSupabaseSyncFeedback] = useState<string | null>(null);
+
+  const handleSyncToSupabase = async () => {
+    if (!isSupabaseConfigured) {
+      alert('Supabase credentials (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY) are not configured in .env');
+      return;
+    }
+    setIsSyncingSupabase(true);
+    try {
+      const result = await syncAllCoursesToSupabase(courses);
+      if (result.failed === 0) {
+        setSupabaseSyncFeedback(`Synchronized ${result.synced} courses to Supabase!`);
+      } else {
+        setSupabaseSyncFeedback(`Synced ${result.synced} courses. (${result.error || 'Check Supabase connection'})`);
+      }
+    } catch (err: any) {
+      setSupabaseSyncFeedback(`Sync failed: ${err?.message || 'Error connecting to Supabase'}`);
+    } finally {
+      setIsSyncingSupabase(false);
+      setTimeout(() => setSupabaseSyncFeedback(null), 6000);
+    }
+  };
 
   // Department Adaptation Batch Generation States
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>(() =>
@@ -1092,6 +1119,48 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                   <Plus size={13} />
                   <span>Add Category</span>
                 </button>
+
+                {/* One-Click Sync to Supabase Action Button */}
+                <button
+                  type="button"
+                  onClick={handleSyncToSupabase}
+                  disabled={isSyncingSupabase}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    padding: '0.45rem 0.75rem',
+                    borderRadius: '0.6rem',
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    border: '1px solid rgba(16, 185, 129, 0.35)',
+                    color: '#34d399',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    cursor: isSyncingSupabase ? 'wait' : 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                  title="Upload and synchronize all local courses with Supabase cloud database"
+                >
+                  <UploadCloud size={13} />
+                  <span>{isSyncingSupabase ? 'Syncing...' : 'Sync to Supabase'}</span>
+                </button>
+
+                {/* Feedback Notification */}
+                {supabaseSyncFeedback && (
+                  <span
+                    style={{
+                      fontSize: '0.74rem',
+                      fontWeight: 600,
+                      color: supabaseSyncFeedback.includes('failed') ? '#f87171' : '#34d399',
+                      background: 'rgba(0, 0, 0, 0.4)',
+                      padding: '0.3rem 0.6rem',
+                      borderRadius: '0.4rem',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                    }}
+                  >
+                    {supabaseSyncFeedback}
+                  </span>
+                )}
               </div>
 
               {/* View Layout Toggle: Grid vs List */}

@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, type ChangeEvent } from 'react';
+import { useState, useMemo, useRef, useEffect, type ChangeEvent } from 'react';
 import {
   Plus,
   Search,
@@ -15,9 +15,12 @@ import {
   FileText,
   Clock,
   Grid,
+  Cloud,
+  CloudOff,
 } from 'lucide-react';
 import DeleteConfirmModal from './DeleteConfirmModal';
 import type { ChatSession, DbStatusInfo } from '../services/dbService';
+import { checkSupabaseHealth, isSupabaseConfigured } from '../services/supabaseService';
 import AIHubDropdown, { type HubModuleType } from './AIHubDropdown';
 import { getAIProductConfig } from '../services/aiHubConfig';
 
@@ -63,6 +66,31 @@ export default function ChatSidebar({
   const [sessionToDelete, setSessionToDelete] = useState<ChatSession | null>(null);
   const [isClearAllModalOpen, setIsClearAllModalOpen] = useState<boolean>(false);
   const fileImportRef = useRef<HTMLInputElement>(null);
+
+  const [supabaseHealth, setSupabaseHealth] = useState<{ isConnected: boolean; error?: string; latencyMs?: number } | null>(null);
+  const [supabaseSyncStatus, setSupabaseSyncStatus] = useState<'synced' | 'syncing' | 'error' | 'idle'>('idle');
+
+  useEffect(() => {
+    let isMounted = true;
+    if (isSupabaseConfigured) {
+      checkSupabaseHealth().then((h) => {
+        if (isMounted) setSupabaseHealth(h);
+      });
+    }
+
+    const handleSyncStatus = (e: Event) => {
+      const customEvent = e as CustomEvent<{ status: 'synced' | 'syncing' | 'error'; message?: string }>;
+      if (customEvent.detail && isMounted) {
+        setSupabaseSyncStatus(customEvent.detail.status);
+      }
+    };
+
+    window.addEventListener('ila_supabase_sync_status', handleSyncStatus);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('ila_supabase_sync_status', handleSyncStatus);
+    };
+  }, []);
 
   // Filter sessions in real-time by search query
   const filteredSessions = useMemo(() => {
@@ -811,6 +839,86 @@ export default function ChatSidebar({
             }}
           >
             data/course_creator.db
+          </span>
+        </div>
+
+        {/* Luminous Supabase Cloud Database Status Indicator */}
+        <div
+          id="sidebar-supabase-status-indicator"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0.45rem 0.75rem',
+            marginTop: '0.4rem',
+            background:
+              supabaseSyncStatus === 'syncing'
+                ? 'rgba(56, 189, 248, 0.12)'
+                : supabaseHealth?.isConnected || supabaseSyncStatus === 'synced'
+                ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.12) 100%)'
+                : 'rgba(239, 68, 68, 0.1)',
+            border:
+              supabaseSyncStatus === 'syncing'
+                ? '1px solid rgba(56, 189, 248, 0.35)'
+                : supabaseHealth?.isConnected || supabaseSyncStatus === 'synced'
+                ? '1px solid rgba(52, 211, 153, 0.35)'
+                : '1px solid rgba(239, 68, 68, 0.3)',
+            borderRadius: '0.65rem',
+            boxShadow:
+              supabaseHealth?.isConnected || supabaseSyncStatus === 'synced'
+                ? '0 0 12px rgba(16, 185, 129, 0.12)'
+                : 'none',
+            fontSize: '0.72rem',
+            color: '#ffffff',
+            cursor: 'default',
+          }}
+          title={
+            supabaseHealth?.error
+              ? `Supabase Backend Status:\n${supabaseHealth.error}`
+              : supabaseHealth?.isConnected || supabaseSyncStatus === 'synced'
+              ? 'Supabase Cloud Connected\nTarget Table: library_courses'
+              : 'Supabase Cloud Backend'
+          }
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
+            {supabaseHealth?.isConnected || supabaseSyncStatus === 'synced' ? (
+              <Cloud size={13} style={{ color: '#10b981', flexShrink: 0 }} />
+            ) : (
+              <CloudOff size={13} style={{ color: '#f87171', flexShrink: 0 }} />
+            )}
+            <span
+              style={{
+                fontWeight: 600,
+                color:
+                  supabaseSyncStatus === 'syncing'
+                    ? '#38bdf8'
+                    : supabaseHealth?.isConnected || supabaseSyncStatus === 'synced'
+                    ? 'var(--success)'
+                    : '#f87171',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {supabaseSyncStatus === 'syncing'
+                ? 'Supabase Syncing...'
+                : supabaseHealth?.isConnected || supabaseSyncStatus === 'synced'
+                ? 'Supabase Cloud Synced'
+                : 'Supabase Offline / Paused'}
+            </span>
+          </div>
+
+          <span
+            style={{
+              fontSize: '0.62rem',
+              color: 'var(--text-subtle)',
+              fontFamily: 'monospace',
+              padding: '0.05rem 0.35rem',
+              borderRadius: '4px',
+              background: 'rgba(0, 0, 0, 0.3)',
+            }}
+          >
+            library_courses
           </span>
         </div>
       </div>

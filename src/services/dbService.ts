@@ -11,6 +11,13 @@ import {
 } from './permanentCourseStore';
 
 export * from './permanentCourseStore';
+export * from './supabaseService';
+import {
+  saveCourseToSupabase,
+  getAllCoursesFromSupabase,
+  deleteCourseFromSupabase,
+  isSupabaseConfigured,
+} from './supabaseService';
 
 export interface AttachedDocument {
   id: string;
@@ -1343,6 +1350,17 @@ export async function saveLibraryCourse(course: LibraryCourse): Promise<LibraryC
     console.warn('[dbService] saveToPermanentStore notice:', pErr);
   }
 
+  // 4. Save to Supabase Cloud Backend (asynchronous, non-blocking resilience)
+  try {
+    if (isSupabaseConfigured) {
+      saveCourseToSupabase(finalSaved).catch((sErr) => {
+        console.warn('[dbService] Supabase async sync notice:', sErr);
+      });
+    }
+  } catch (sErr) {
+    console.warn('[dbService] Supabase save notice:', sErr);
+  }
+
   // Real-time Master-Slave Synchronization notification
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('ila_library_courses_updated', { detail: { courseId: finalSaved.id } }));
@@ -1656,6 +1674,28 @@ export async function getAllLibraryCourses(): Promise<LibraryCourse[]> {
       console.warn('[dbService] Permanent courses library merge notice:', pErr);
     }
 
+    // 4. Merge courses from Supabase cloud backend if available
+    try {
+      if (isSupabaseConfigured) {
+        const cloudCourses = await getAllCoursesFromSupabase();
+        for (const cloudCourse of cloudCourses) {
+          const matchIndex = courses.findIndex(
+            (c) => c.id === cloudCourse.id || (c.courseId && c.courseId === cloudCourse.courseId)
+          );
+          if (matchIndex === -1) {
+            courses.push(cloudCourse);
+          } else if ((cloudCourse.updatedAt || 0) > (courses[matchIndex].updatedAt || 0)) {
+            courses[matchIndex] = {
+              ...courses[matchIndex],
+              ...cloudCourse,
+            };
+          }
+        }
+      }
+    } catch (sErr) {
+      console.warn('[dbService] Supabase courses query notice:', sErr);
+    }
+
     // Sanitize any legacy course titles that might contain long raw prompt text
     courses = courses.map((course) => {
       if (course.title && (course.title.startsWith('Please ') || course.title.startsWith('Can you ') || course.title.length > 60)) {
@@ -1717,6 +1757,15 @@ export async function deleteLibraryCourse(id: string, options?: { confirmManualD
   try {
     const idb = await getLocalIDB();
     await idb.delete(LIBRARY_STORE, id);
+  } catch {
+    // ignore
+  }
+
+  // 3. Supabase Cloud DB
+  try {
+    if (isSupabaseConfigured) {
+      deleteCourseFromSupabase(id).catch(() => {});
+    }
   } catch {
     // ignore
   }
