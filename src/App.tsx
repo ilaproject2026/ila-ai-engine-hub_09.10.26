@@ -450,8 +450,23 @@ export default function App() {
       }
     })();
 
+    const handleSessionUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent<ChatSession>;
+      if (customEvent.detail && customEvent.detail.id) {
+        setSessions((prev) =>
+          prev.map((s) => (s.id === customEvent.detail.id ? customEvent.detail : s))
+        );
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('ila_session_updated', handleSessionUpdated);
+    }
+
     return () => {
       isMounted = false;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('ila_session_updated', handleSessionUpdated);
+      }
     };
   }, []);
 
@@ -806,20 +821,22 @@ export default function App() {
   const handleDeleteSession = async (sessionId: string) => {
     stopAllSpeech();
     const session = sessions.find((s) => s.id === sessionId);
-    if (session?.locked || session?.isPermanent) {
-      const confirmed = window.confirm(
-        `"${session.title || 'This course'}" is locked in permanent storage to protect token work.\n\nAre you sure you want to permanently delete this course?`
-      );
-      if (!confirmed) return;
-      await deleteChatSession(sessionId, { confirmManualDelete: true });
-    } else {
-      await deleteChatSession(sessionId);
-    }
+    await deleteChatSession(sessionId, { confirmManualDelete: true });
     const updated = sessions.filter((s) => s.id !== sessionId);
     setSessions(updated);
 
     if (activeSessionId === sessionId) {
-      if (updated.length > 0) {
+      if (session?.productType === 'ai_tieup_creator') {
+        const remainingTieup = updated.filter((s) => s.productType === 'ai_tieup_creator');
+        if (remainingTieup.length > 0) {
+          setActiveSessionId(remainingTieup[0].id);
+        } else {
+          const fresh = createNewSessionObject('Tie-up & Partnership Intelligence Hub', 'ai_tieup_creator');
+          await saveChatSession(fresh);
+          setSessions([fresh, ...updated]);
+          setActiveSessionId(fresh.id);
+        }
+      } else if (updated.length > 0) {
         setActiveSessionId(updated[0].id);
       } else {
         const fresh = createNewSessionObject('New Course Workspace');
@@ -908,6 +925,12 @@ export default function App() {
       updatedAt: Date.now(),
     };
     await saveChatSession(updatedSession);
+    setSessions((prev) =>
+      prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
+    );
+  };
+
+  const handleUpdateSession = (updatedSession: ChatSession) => {
     setSessions((prev) =>
       prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
     );
@@ -2876,29 +2899,35 @@ Detail the complete 4-Book curriculum roadmap with learning outcomes, domain arc
               onOpenPolicyModal={() => setIsTieupPolicyModalOpen(true)}
               onClosePolicyModal={() => setIsTieupPolicyModalOpen(false)}
               onUpdateCounts={setTieupCounts}
+              onUpdateSession={handleUpdateSession}
             />
           </CourseErrorBoundary>
         ) : primaryNavView === 'library' ? (
           /* 2. 100% IMMERSIVE DEDICATED LIBRARY VIEW: ZERO CHAT SIDEBAR */
-          <DedicatedLibraryView
-            onOpenInWorkspace={(course: LibraryCourse) => {
-              const matchedSession = sessions.find((s) => s.id === course.sourceSessionId);
-              if (matchedSession) {
-                setActiveSessionId(matchedSession.id);
-              }
-              setPrimaryNavView('course_creator');
-              setCourseCreatorTab('home');
-            }}
-            onBackToChat={() => {
-              setPrimaryNavView('course_creator');
-              setCourseCreatorTab('home');
-            }}
-            onCreateNewCourse={() => {
-              handleNewCourse();
-              setPrimaryNavView('course_creator');
-              setCourseCreatorTab('home');
-            }}
-          />
+          <CourseErrorBoundary
+            key="dedicated_library_boundary"
+            onReset={() => setPrimaryNavView('library')}
+          >
+            <DedicatedLibraryView
+              onOpenInWorkspace={(course: LibraryCourse) => {
+                const matchedSession = sessions.find((s) => s.id === course.sourceSessionId);
+                if (matchedSession) {
+                  setActiveSessionId(matchedSession.id);
+                }
+                setPrimaryNavView('course_creator');
+                setCourseCreatorTab('home');
+              }}
+              onBackToChat={() => {
+                setPrimaryNavView('course_creator');
+                setCourseCreatorTab('home');
+              }}
+              onCreateNewCourse={() => {
+                handleNewCourse();
+                setPrimaryNavView('course_creator');
+                setCourseCreatorTab('home');
+              }}
+            />
+          </CourseErrorBoundary>
         ) : primaryNavView === 'student_paths' ? (
           /* 2. 100% IMMERSIVE STUDENT PATHS VIEW WITH SAFE ERROR BOUNDARY */
           <CourseErrorBoundary

@@ -57,7 +57,9 @@ import {
   Users,
   Key,
   Eye,
-  EyeOff
+  EyeOff,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import type { ChatSession, ChatMessage, AttachedDocument, TieupLeadItem, OutreachStatusLogItem, OurPartnershipPolicies, TieupSavedList } from '../services/dbService';
 import {
@@ -69,6 +71,8 @@ import {
   fetchTieupPartners,
   fetchOutreachLogs,
   saveOutreachLog,
+  deleteOutreachLog,
+  clearOutreachLogs,
   saveChatSession,
   fetchTieupPolicies,
   saveTieupPolicies,
@@ -401,6 +405,7 @@ interface TieupResearchEngineViewProps {
   onOpenPolicyModal?: () => void;
   onClosePolicyModal?: () => void;
   onUpdateCounts?: (counts: { resources: number; process: number; partners: number }) => void;
+  onUpdateSession?: (session: ChatSession) => void;
 }
 
 export default function TieupResearchEngineView({
@@ -415,6 +420,7 @@ export default function TieupResearchEngineView({
   onOpenPolicyModal,
   onClosePolicyModal,
   onUpdateCounts,
+  onUpdateSession,
 }: TieupResearchEngineViewProps) {
   // 1. Session Isolation: Filter sessions specific to ai_tieup_creator
   const tieupSessions = useMemo(() => {
@@ -565,6 +571,94 @@ export default function TieupResearchEngineView({
     };
   }, [isProcessSortFilterOpen]);
 
+  // Responsive Full Screen Workspace Mode
+  const [isTieupFullScreen, setIsTieupFullScreen] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape' && isTieupFullScreen) {
+        setIsTieupFullScreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isTieupFullScreen]);
+
+  const toggleTieupFullScreen = () => {
+    setIsTieupFullScreen((prev) => !prev);
+  };
+
+  const renderFullScreenButton = (buttonId: string, customStyle?: React.CSSProperties) => (
+    <button
+      id={buttonId}
+      type="button"
+      onClick={toggleTieupFullScreen}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.35rem',
+        padding: '0.38rem 0.85rem',
+        borderRadius: '0.5rem',
+        background: isTieupFullScreen ? 'rgba(99, 102, 241, 0.22)' : 'var(--bg-secondary)',
+        border: isTieupFullScreen ? '1px solid var(--accent-primary)' : '1px solid var(--border-medium)',
+        color: isTieupFullScreen ? 'var(--accent-primary)' : 'var(--text-main)',
+        fontSize: '0.82rem',
+        fontWeight: 700,
+        cursor: 'pointer',
+        boxShadow: isTieupFullScreen ? '0 0 10px rgba(99, 102, 241, 0.25)' : 'none',
+        transition: 'all 0.15s ease',
+        whiteSpace: 'nowrap',
+        ...customStyle,
+      }}
+      title={isTieupFullScreen ? 'Exit Full Screen (Esc)' : 'Enter Full Screen Workspace'}
+    >
+      {isTieupFullScreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+      <span>{isTieupFullScreen ? 'Exit Full Screen' : 'Full Screen'}</span>
+    </button>
+  );
+
+  // Pipeline Reset & Data Purge Handler
+  const [isResettingPipeline, setIsResettingPipeline] = useState<boolean>(false);
+
+  const handleResetDatabasePipeline = async () => {
+    if (!window.confirm('Are you sure you want to reset the entire Tie-Up pipeline? This will clear all records from Chat Home, Resources, Process, and Partners, restoring a clean slate.')) {
+      return;
+    }
+    setIsResettingPipeline(true);
+    try {
+      await clearTieupLeads();
+      await clearOutreachLogs();
+      try {
+        localStorage.removeItem('ila_tieup_in_process_leads');
+        localStorage.removeItem('ila_tieup_resource_groups');
+        localStorage.removeItem('ila_tieup_process_leads');
+      } catch {}
+
+      setSessionLeads([]);
+      setAllResourcesLeads([]);
+      setProcessLeads([]);
+      setOutreachLogs([]);
+      setSelectedLeadIds(new Set());
+      setPhase1SelectedLeadIds(new Set());
+      setInProcessLeadMap({});
+      setResourceGroups([]);
+
+      if (currentSession) {
+        const updatedSession = { ...currentSession, tieupLeads: [], updatedAt: Date.now() };
+        await saveChatSession(updatedSession);
+        onUpdateSession?.(updatedSession);
+      }
+
+      setSandboxNotice('✓ DATABASE RESET COMPLETE: All legacy pipeline records cleared across Chat Home, Resources, Process, and Partners.');
+      setTimeout(() => setSandboxNotice(null), 7000);
+    } catch (err) {
+      console.error('Failed to reset database pipeline:', err);
+      alert('Failed to reset database pipeline.');
+    } finally {
+      setIsResettingPipeline(false);
+    }
+  };
+
   // Dynamically populated sub-categories based on selected Category
   const availableSubCategories = useMemo(() => {
     if (categoryFilter !== 'all') {
@@ -631,6 +725,16 @@ export default function TieupResearchEngineView({
     }
   });
 
+  // Dedicated Process Page Leads (populated strictly through explicit "Move to Process")
+  const [processLeads, setProcessLeads] = useState<TieupLeadItem[]>(() => {
+    try {
+      const raw = localStorage.getItem('ila_tieup_process_leads');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
   // Action to securely migrate selected items or custom groups from Resources into Process Phase 1 Workflow
   const handleMoveToProcess = (customLeadIds?: string[], groupName?: string) => {
     const ids = customLeadIds || Array.from(selectedLeadIds);
@@ -644,6 +748,22 @@ export default function TieupResearchEngineView({
     }
 
     const count = ids.length;
+
+    // Retrieve full lead items from Resources (or session leads as fallback)
+    const resourceCandidates = allResourcesLeads.filter((l) => ids.includes(l.id));
+    const sessionCandidates = sessionLeads.filter((l) => ids.includes(l.id) && !resourceCandidates.some((c) => c.id === l.id));
+    const leadsToProcess = [...resourceCandidates, ...sessionCandidates];
+
+    // Populate Process Page Leads independently
+    setProcessLeads((prev) => {
+      const existingIds = new Set(prev.map((l) => l.id));
+      const fresh = leadsToProcess.filter((l) => !existingIds.has(l.id));
+      const updated = [...prev, ...fresh];
+      try {
+        localStorage.setItem('ila_tieup_process_leads', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
 
     // Record in-process real-time metadata
     setInProcessLeadMap((prev) => {
@@ -1001,23 +1121,31 @@ export default function TieupResearchEngineView({
     message: string;
     simulated?: boolean;
     connected?: boolean;
+    statusCode?: number;
+    details?: any;
+    diagnosis?: any;
   } | null>(null);
 
   // Test & Verify Gmail SMTP Connection Handler
   const handleVerifyGmailSmtp = async () => {
     setIsVerifyingSmtp(true);
     setSmtpVerifyStatus(null);
+    const cleanEmail = (senderEmail || '').trim();
+    const cleanPass = (gmailAppPassword || '').replace(/\s+/g, '').trim();
+    if (cleanEmail !== senderEmail) setSenderEmail(cleanEmail);
+    if (cleanPass !== gmailAppPassword) setGmailAppPassword(cleanPass);
+
     try {
-      localStorage.setItem('ila_gmail_sender_email', senderEmail);
-      if (gmailAppPassword) {
-        localStorage.setItem('ila_gmail_app_password', gmailAppPassword);
+      localStorage.setItem('ila_gmail_sender_email', cleanEmail);
+      if (cleanPass) {
+        localStorage.setItem('ila_gmail_app_password', cleanPass);
       }
-      const res = await verifyGmailSmtp(senderEmail, gmailAppPassword);
-      if (res.success && res.connected) {
+      const res = await verifyGmailSmtp(cleanEmail, cleanPass);
+      if (res.success) {
         setSmtpVerifyStatus({
           success: true,
           connected: true,
-          message: `✓ Connected to Gmail SMTP (smtp.gmail.com:465) as ${senderEmail}. Ready for live bulk dispatch!`
+          message: res.message || `✓ Connected to Gmail SMTP as ${cleanEmail}. Ready for live bulk dispatch!`
         });
       } else if (res.simulated) {
         setSmtpVerifyStatus({
@@ -1028,7 +1156,10 @@ export default function TieupResearchEngineView({
       } else {
         setSmtpVerifyStatus({
           success: false,
-          message: res.error || 'Connection failed. Please check your Gmail address and 16-character App Password.'
+          message: res.error || 'Connection failed. Please check your Gmail address and 16-character App Password.',
+          statusCode: res.statusCode,
+          details: res.details,
+          diagnosis: res.diagnosis,
         });
       }
     } catch (err: any) {
@@ -1174,31 +1305,198 @@ export default function TieupResearchEngineView({
     setSavedLists(updated);
   };
 
-  // Handler: Bulk Delete Selected Leads
+  // -------------------------------------------------------------
+  // DECOUPLED PAGE-INDEPENDENT DELETION HANDLERS
+  // -------------------------------------------------------------
+
+  // Handler: Delete Lead Record strictly from Chat Home Session
+  const handleDeleteChatLead = async (lead: TieupLeadItem) => {
+    const remainingSession = sessionLeads.filter((l) => l.id !== lead.id);
+    setSessionLeads(remainingSession);
+    setSelectedLeadIds((prev) => {
+      const next = new Set(prev);
+      next.delete(lead.id);
+      return next;
+    });
+
+    if (currentSession?.id) {
+      const updatedSession: ChatSession = {
+        ...currentSession,
+        tieupLeads: remainingSession,
+        updatedAt: Date.now(),
+      };
+      await saveChatSession(updatedSession);
+      onUpdateSession?.(updatedSession);
+    }
+    setSaveToResourcesNotice(`✓ Removed "${lead.name}" from current chat session.`);
+    setTimeout(() => setSaveToResourcesNotice(null), 3500);
+  };
+
+  // Handler: Delete Lead Record strictly from Resources Repository
+  const handleDeleteResourceLead = async (lead: TieupLeadItem) => {
+    try {
+      await deleteTieupLead(lead.id);
+
+      // Remove strictly from allResourcesLeads
+      setAllResourcesLeads((prev) => prev.filter((l) => l.id !== lead.id));
+
+      // Remove from active selections
+      setSelectedLeadIds((prev) => {
+        const next = new Set(prev);
+        next.delete(lead.id);
+        return next;
+      });
+
+      // Remove from resource groups
+      setResourceGroups((prev) => {
+        const updated = prev.map((g) => ({
+          ...g,
+          leadIds: g.leadIds.filter((id) => id !== lead.id),
+        }));
+        try {
+          localStorage.setItem('ila_tieup_resource_groups', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+
+      setSaveToResourcesNotice(`✓ Deleted "${lead.name}" permanently from Resources repository.`);
+      setTimeout(() => setSaveToResourcesNotice(null), 3500);
+    } catch (err) {
+      console.error('Failed to delete resource lead:', err);
+    }
+  };
+
+  // Handler: Delete Lead Record strictly from Process Workflow (Does NOT affect Resources)
+  const handleDeleteProcessLead = (leadId: string) => {
+    // 1. Remove from Process Page Leads
+    setProcessLeads((prev) => {
+      const updated = prev.filter((l) => l.id !== leadId);
+      try {
+        localStorage.setItem('ila_tieup_process_leads', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    // 2. Remove from in-process metadata map
+    setInProcessLeadMap((prev) => {
+      const next = { ...prev };
+      delete next[leadId];
+      try {
+        localStorage.setItem('ila_tieup_in_process_leads', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    // 3. Remove from phase 1 selections
+    setPhase1SelectedLeadIds((prev) => {
+      const next = new Set(prev);
+      next.delete(leadId);
+      return next;
+    });
+
+    setBulkSendNotice('✓ Removed institution from Process workflow (Resources repository preserved).');
+    setTimeout(() => setBulkSendNotice(null), 3500);
+  };
+
+  // Handler: Delete Outreach Log strictly from Phase 2 (Does NOT affect Resources or Chat)
+  const handleDeleteOutreachLog = async (logId: string) => {
+    try {
+      await deleteOutreachLog(logId);
+      setOutreachLogs((prev) => prev.filter((l) => l.id !== logId));
+      setSaveToResourcesNotice('✓ Removed outreach log permanently from database.');
+      setTimeout(() => setSaveToResourcesNotice(null), 3500);
+    } catch (err) {
+      console.error('Failed to delete outreach log:', err);
+    }
+  };
+
+  // Backward-compatible router for single lead deletion based on active view
+  const handleDeleteSingleLead = async (lead: TieupLeadItem) => {
+    if (activeMainTab === 'process') {
+      handleDeleteProcessLead(lead.id);
+    } else if (activeMainTab === 'resources') {
+      await handleDeleteResourceLead(lead);
+    } else {
+      await handleDeleteChatLead(lead);
+    }
+  };
+
+  // Handler: Tab-Independent Bulk Delete
   const handleBulkDeleteLeads = async (leadIdsToDelete: string[]) => {
     if (leadIdsToDelete.length === 0) return;
-    for (const id of leadIdsToDelete) {
-      await deleteTieupLead(id);
+    const idSet = new Set(leadIdsToDelete);
+
+    if (activeMainTab === 'process') {
+      // Process Tab: Delete strictly from Process workflow
+      setProcessLeads((prev) => {
+        const remaining = prev.filter((l) => !idSet.has(l.id));
+        try {
+          localStorage.setItem('ila_tieup_process_leads', JSON.stringify(remaining));
+        } catch {}
+        return remaining;
+      });
+      setInProcessLeadMap((prev) => {
+        const next = { ...prev };
+        leadIdsToDelete.forEach((id) => delete next[id]);
+        try {
+          localStorage.setItem('ila_tieup_in_process_leads', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+      setPhase1SelectedLeadIds((prev) => {
+        const next = new Set(prev);
+        leadIdsToDelete.forEach((id) => next.delete(id));
+        return next;
+      });
+      setBulkSendNotice(`✓ Removed ${leadIdsToDelete.length} lead(s) from Process workflow.`);
+      setTimeout(() => setBulkSendNotice(null), 3500);
+      return;
     }
-    setSessionLeads((prev) => prev.filter((l) => !leadIdsToDelete.includes(l.id)));
-    setAllResourcesLeads((prev) => prev.filter((l) => !leadIdsToDelete.includes(l.id)));
+
+    if (activeMainTab === 'resources') {
+      // Resources Tab: Delete strictly from Resources repository
+      for (const id of leadIdsToDelete) {
+        await deleteTieupLead(id);
+      }
+      setAllResourcesLeads((prev) => prev.filter((l) => !idSet.has(l.id)));
+      setSelectedLeadIds((prev) => {
+        const next = new Set(prev);
+        leadIdsToDelete.forEach((id) => next.delete(id));
+        return next;
+      });
+      setResourceGroups((prev) => {
+        const updated = prev.map((g) => ({
+          ...g,
+          leadIds: g.leadIds.filter((id) => !idSet.has(id)),
+        }));
+        try {
+          localStorage.setItem('ila_tieup_resource_groups', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+      setSaveToResourcesNotice(`✓ Deleted ${leadIdsToDelete.length} lead(s) from Resources repository.`);
+      setTimeout(() => setSaveToResourcesNotice(null), 3500);
+      return;
+    }
+
+    // Default / Chat Home: Delete strictly from sessionLeads
+    setSessionLeads((prev) => prev.filter((l) => !idSet.has(l.id)));
     setSelectedLeadIds((prev) => {
       const next = new Set(prev);
       leadIdsToDelete.forEach((id) => next.delete(id));
       return next;
     });
-
     if (currentSession?.id) {
-      const remainingSessionLeads = sessionLeads.filter((l) => !leadIdsToDelete.includes(l.id));
+      const remainingSessionLeads = (currentSession.tieupLeads || []).filter((l) => !idSet.has(l.id));
       const updatedSession: ChatSession = {
         ...currentSession,
         tieupLeads: remainingSessionLeads,
         updatedAt: Date.now(),
       };
       await saveChatSession(updatedSession);
+      onUpdateSession?.(updatedSession);
     }
-
-    setSaveToResourcesNotice(`✓ Successfully deleted ${leadIdsToDelete.length} record(s) from database.`);
+    setSaveToResourcesNotice(`✓ Removed ${leadIdsToDelete.length} lead(s) from current chat session.`);
     setTimeout(() => setSaveToResourcesNotice(null), 3500);
   };
 
@@ -1213,6 +1511,7 @@ export default function TieupResearchEngineView({
         updatedAt: Date.now(),
       };
       await saveChatSession(updatedSession);
+      onUpdateSession?.(updatedSession);
       setSelectedLeadIds(new Set());
       setSaveToResourcesNotice('✓ Cleared active chat thread records.');
       setTimeout(() => setSaveToResourcesNotice(null), 3500);
@@ -1240,6 +1539,7 @@ export default function TieupResearchEngineView({
         updatedAt: Date.now(),
       };
       await saveChatSession(updatedSession);
+      onUpdateSession?.(updatedSession);
     }
 
     setActiveMainTab('chat_home');
@@ -1372,9 +1672,7 @@ export default function TieupResearchEngineView({
       try {
         // Load master pool of all gathered leads for Resources, Process, and Partners
         const allDbLeads = await fetchTieupLeads();
-        if (allDbLeads && allDbLeads.length > 0) {
-          setAllResourcesLeads(allDbLeads);
-        }
+        setAllResourcesLeads(allDbLeads || []);
 
         // Load configured baseline partnership policies
         const policies = await fetchTieupPolicies();
@@ -1397,73 +1695,7 @@ export default function TieupResearchEngineView({
         }
 
         const logs = await fetchOutreachLogs();
-        if (logs && logs.length > 0) {
-          setOutreachLogs(logs);
-        } else {
-          setOutreachLogs([
-            {
-              id: 'log_init_1',
-              institutionName: 'Frankfurt University of Applied Sciences',
-              recipientEmail: 'international.office@frankfurt-university.de',
-              recipientName: 'Prof. Dr. Frank E.P. Dievernich',
-              subject: 'Strategic Academic Partnership & Bilateral Dual-Degree Proposal - Ila Academy',
-              status: 'delivered',
-              spamScore: 8,
-              phase: 'followup',
-              sentAt: Date.now() - 86400000 * 8, // 8 days ago -> Auto-Reminder Due (>7 days)
-              followupCount: 0,
-              lastChecked: Date.now() - 3600000 * 2,
-            },
-            {
-              id: 'log_init_2',
-              institutionName: 'Technical University of Darmstadt',
-              recipientEmail: 'noreply-admissions@tu-darmstadt.de',
-              recipientName: 'International Office Robot',
-              subject: 'Institutional Collaboration Inquiry',
-              status: 'flagged_generic',
-              flagReason: 'Generic "noreply" robot address detected. Incoming mailbox dropped message.',
-              spamScore: 88,
-              phase: 'outreach',
-              sentAt: Date.now() - 86400000 * 3,
-              followupCount: 0,
-              lastChecked: Date.now() - 3600000 * 5,
-            },
-            {
-              id: 'log_init_3',
-              institutionName: 'Expatrio Global Services GmbH',
-              recipientEmail: 'partnerships@expatrio.com',
-              recipientName: 'Tim Kniepkamp',
-              subject: 'Bilateral Blocked Account & Student Health Insurance Integration',
-              status: 'replied',
-              spamScore: 4,
-              phase: 'meeting',
-              sentAt: Date.now() - 86400000 * 4,
-              meetingScheduledAt: '2026-09-20 14:00',
-              meetingLink: 'https://meet.google.com/ila-expatrio-b2b',
-              meetingAgenda: 'Bilateral digital blocked account API integration & €120 commission agreement',
-              meetingNotes: 'Tim confirmed API keys can be issued upon MoU signing.',
-              followupCount: 1,
-              lastChecked: Date.now() - 3600000 * 1,
-            },
-            {
-              id: 'log_init_4',
-              institutionName: 'Frankfurt School of Finance & Management',
-              recipientEmail: 'international-partnerships@fs.de',
-              recipientName: 'Dr. Heike Brost-Subic',
-              subject: 'Bilateral Graduate Articulation & 20% Tuition Commission MoU',
-              status: 'replied',
-              spamScore: 5,
-              phase: 'pushed_partner',
-              sentAt: Date.now() - 86400000 * 12,
-              meetingScheduledAt: '2026-09-10 11:00',
-              meetingLink: 'https://zoom.us/j/987654321',
-              meetingAgenda: 'Finalized 20% tuition commission agreement (€7,600/student) and signed bilateral MoU',
-              meetingNotes: 'MoU signed by Dean. Official partner profile active.',
-              followupCount: 1,
-              lastChecked: Date.now() - 3600000 * 24,
-            },
-          ]);
-        }
+        setOutreachLogs(logs || []);
       } catch (err) {
         console.warn('Initial data load notice:', err);
       }
@@ -1777,20 +2009,21 @@ export default function TieupResearchEngineView({
 
     const fromAddress = senderEmail.trim() || 'rafiaquafqu@gmail.com';
     const selectedLeadItems = selectedIds
-      .map((id) => allResourcesLeads.find((l) => l.id === id))
-      .filter((l): l is TieupLeadItem => Boolean(l && l.contactEmail));
+      .map((id) => allResourcesLeads.find((l) => l.id === id) || sessionLeads.find((l) => l.id === id))
+      .filter((l): l is TieupLeadItem => Boolean(l && (l.contactEmail || (l as any).email)));
 
     try {
+      const cleanAppPassword = (gmailAppPassword || '').replace(/\s+/g, '').trim();
       // Save credentials preference in browser storage
       localStorage.setItem('ila_gmail_sender_email', fromAddress);
-      if (gmailAppPassword) {
-        localStorage.setItem('ila_gmail_app_password', gmailAppPassword);
+      if (cleanAppPassword) {
+        localStorage.setItem('ila_gmail_app_password', cleanAppPassword);
       }
 
       // Dispatch via backend Gmail SMTP service
       const dispatchResult = await dispatchSmtpBulkOutreach({
         senderEmail: fromAddress,
-        appPassword: gmailAppPassword,
+        appPassword: cleanAppPassword,
         subject: phase1EmailSubject,
         bodyTemplate: phase1EmailBody,
         leads: selectedLeadItems,
@@ -1828,12 +2061,13 @@ export default function TieupResearchEngineView({
   const handleRetriggerDelivery = async (log: OutreachStatusLogItem, overrideEmail?: string) => {
     const targetEmail = (overrideEmail || log.recipientEmail).trim();
     const fromAddress = senderEmail.trim() || 'rafiaquafqu@gmail.com';
+    const cleanAppPassword = (gmailAppPassword || '').replace(/\s+/g, '').trim();
     const isGeneric = targetEmail.includes('noreply') || targetEmail.includes('info@');
 
     try {
       const res = await dispatchSingleSmtpOutreach({
         senderEmail: fromAddress,
-        appPassword: gmailAppPassword,
+        appPassword: cleanAppPassword,
         recipientEmail: targetEmail,
         subject: log.subject,
         body: phase1EmailBody,
@@ -2245,8 +2479,14 @@ export default function TieupResearchEngineView({
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
-        height: '100%',
-        width: '100%',
+        height: isTieupFullScreen ? '100vh' : '100%',
+        width: isTieupFullScreen ? '100vw' : '100%',
+        position: isTieupFullScreen ? 'fixed' : 'relative',
+        top: isTieupFullScreen ? 0 : undefined,
+        left: isTieupFullScreen ? 0 : undefined,
+        right: isTieupFullScreen ? 0 : undefined,
+        bottom: isTieupFullScreen ? 0 : undefined,
+        zIndex: isTieupFullScreen ? 99990 : 1,
         overflow: 'hidden',
         background: 'var(--bg-primary)',
         color: 'var(--text-main)',
@@ -3129,6 +3369,9 @@ export default function TieupResearchEngineView({
                   <span>Select All ({sortedSessionLeads.length})</span>
                 </label>
 
+                {/* Full Screen Toggle Button placed right before Save to Resources */}
+                {renderFullScreenButton('tieup-chat-fullscreen-toggle-btn')}
+
                 {/* Save Button directly to categorized Resources (Manual Selection Enforced) */}
                 <button
                   type="button"
@@ -3899,6 +4142,27 @@ export default function TieupResearchEngineView({
                                 >
                                   {isPartner ? 'Revoke' : 'Tie-up'}
                                 </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteChatLead(lead)}
+                                  style={{
+                                    padding: '0.32rem 0.45rem',
+                                    borderRadius: '0.45rem',
+                                    background: 'var(--bg-card)',
+                                    border: '1px solid var(--border-medium)',
+                                    color: 'var(--text-subtle)',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                  }}
+                                  title="Remove from Chat Session"
+                                  onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--error)')}
+                                  onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-subtle)')}
+                                >
+                                  <Trash2 size={13} />
+                                </button>
                               </div>
                             </td>
                           </tr>
@@ -4132,6 +4396,27 @@ export default function TieupResearchEngineView({
                             }}
                           >
                             {isPartner ? 'Revoke' : 'Tie-up'}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteChatLead(lead)}
+                            style={{
+                              padding: '0.38rem 0.55rem',
+                              borderRadius: '0.45rem',
+                              background: 'var(--bg-card)',
+                              border: '1px solid var(--border-medium)',
+                              color: 'var(--text-subtle)',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                            title="Remove from Chat Session"
+                            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--error)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-subtle)')}
+                          >
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </div>
@@ -4983,6 +5268,9 @@ export default function TieupResearchEngineView({
 
               {/* 4. Global Settings & Saved Lists */}
               {renderSettingsButton()}
+
+              {/* 5. Full Screen Workspace Toggle */}
+              {renderFullScreenButton('tieup-resources-fullscreen-toggle-btn')}
               </div>
             </div>
           </div>
@@ -5386,11 +5674,7 @@ export default function TieupResearchEngineView({
 
                             <button
                               type="button"
-                              onClick={async () => {
-                                await deleteTieupLead(lead.id);
-                                setSessionLeads((prev) => prev.filter((l) => l.id !== lead.id));
-                                setAllResourcesLeads((prev) => prev.filter((l) => l.id !== lead.id));
-                              }}
+                              onClick={() => handleDeleteResourceLead(lead)}
                               style={{
                                 padding: '0.32rem 0.45rem',
                                 borderRadius: '0.45rem',
@@ -5402,7 +5686,7 @@ export default function TieupResearchEngineView({
                                 alignItems: 'center',
                                 justifyContent: 'center',
                               }}
-                              title="Delete Lead Record"
+                              title="Delete from Resources Repository"
                               onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--error)')}
                               onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-subtle)')}
                             >
@@ -6070,7 +6354,7 @@ export default function TieupResearchEngineView({
                   title="Total pipeline leads matching current criteria"
                 >
                   <ShieldCheck size={13} color="#10b981" />
-                  <span>{filteredResourcesLeads.length} Process Leads</span>
+                  <span>{processLeads.length} Process Leads</span>
                 </div>
                 {(phase1SelectedLeadIds.size > 0 || selectedLeadIds.size > 0) && (
                   <span
@@ -6135,6 +6419,9 @@ export default function TieupResearchEngineView({
 
                 {/* Global Settings & Saved Lists */}
                 {renderSettingsButton()}
+
+                {/* Full Screen Workspace Toggle */}
+                {renderFullScreenButton('tieup-process-fullscreen-toggle-btn')}
               </div>
             </div>
           </div>
@@ -6191,7 +6478,7 @@ export default function TieupResearchEngineView({
                 title: 'Initial Outreach & Report',
                 desc: 'Lead selection & email templates',
                 icon: Mail,
-                badge: `${filteredResourcesLeads.length} leads`,
+                badge: `${processLeads.length} leads`,
               },
               {
                 id: 'phase2_triggers' as ProcessPhase,
@@ -6339,10 +6626,10 @@ export default function TieupResearchEngineView({
                     <button
                       type="button"
                       onClick={() => {
-                        if (phase1SelectedLeadIds.size === filteredResourcesLeads.length) {
+                        if (phase1SelectedLeadIds.size === processLeads.length) {
                           setPhase1SelectedLeadIds(new Set());
                         } else {
-                          setPhase1SelectedLeadIds(new Set(filteredResourcesLeads.map((l) => l.id)));
+                          setPhase1SelectedLeadIds(new Set(processLeads.map((l) => l.id)));
                         }
                       }}
                       style={{
@@ -6356,7 +6643,7 @@ export default function TieupResearchEngineView({
                         cursor: 'pointer',
                       }}
                     >
-                      {phase1SelectedLeadIds.size === filteredResourcesLeads.length ? 'Deselect All' : `Select All (${filteredResourcesLeads.length})`}
+                      {phase1SelectedLeadIds.size === processLeads.length ? 'Deselect All' : `Select All (${processLeads.length})`}
                     </button>
 
                     <span
@@ -6383,9 +6670,9 @@ export default function TieupResearchEngineView({
                         <th style={{ padding: '0.65rem 0.75rem', width: '38px', textAlign: 'center' }}>
                           <input
                             type="checkbox"
-                            checked={filteredResourcesLeads.length > 0 && phase1SelectedLeadIds.size === filteredResourcesLeads.length}
+                            checked={processLeads.length > 0 && phase1SelectedLeadIds.size === processLeads.length}
                             onChange={(e) => {
-                              if (e.target.checked) setPhase1SelectedLeadIds(new Set(filteredResourcesLeads.map((l) => l.id)));
+                              if (e.target.checked) setPhase1SelectedLeadIds(new Set(processLeads.map((l) => l.id)));
                               else setPhase1SelectedLeadIds(new Set());
                             }}
                             style={{ width: '15px', height: '15px', cursor: 'pointer' }}
@@ -6412,7 +6699,18 @@ export default function TieupResearchEngineView({
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredResourcesLeads.slice(0, 10).map((lead) => {
+                      {processLeads.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
+                            <Building2 size={26} style={{ opacity: 0.35, marginBottom: '0.4rem', display: 'block', margin: '0 auto' }} />
+                            <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)' }}>No Leads in Process Workflow</div>
+                            <div style={{ fontSize: '0.8rem', marginTop: '0.2rem' }}>
+                              Select institutions from the <strong>Resources</strong> tab and click <strong>"Move to Process"</strong> to initiate outreach.
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        processLeads.map((lead) => {
                         const isSelected = phase1SelectedLeadIds.has(lead.id);
                         const isVerified = lead.antiSpamStatus === 'verified';
                         const isGeneric = lead.antiSpamStatus === 'flagged_generic';
@@ -6725,11 +7023,33 @@ export default function TieupResearchEngineView({
                                 >
                                   {lead.isPartner ? 'Revoke' : 'Tie-up'}
                                 </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteProcessLead(lead.id)}
+                                  style={{
+                                    padding: '0.32rem 0.45rem',
+                                    borderRadius: '0.45rem',
+                                    background: 'var(--bg-card)',
+                                    border: '1px solid var(--border-medium)',
+                                    color: 'var(--text-subtle)',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                  }}
+                                  title="Remove from Process Workflow"
+                                  onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--error)')}
+                                  onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-subtle)')}
+                                >
+                                  <Trash2 size={13} />
+                                </button>
                               </div>
                             </td>
                           </tr>
                         );
-                      })}
+                      })
+                    )}
                     </tbody>
                   </table>
                 </div>
@@ -6847,6 +7167,7 @@ export default function TieupResearchEngineView({
                         type="email"
                         value={senderEmail}
                         onChange={(e) => setSenderEmail(e.target.value)}
+                        onBlur={(e) => setSenderEmail(e.target.value.trim())}
                         placeholder="rafiaquafqu@gmail.com"
                         style={{
                           width: '100%',
@@ -6870,6 +7191,7 @@ export default function TieupResearchEngineView({
                           type={showAppPassword ? 'text' : 'password'}
                           value={gmailAppPassword}
                           onChange={(e) => setGmailAppPassword(e.target.value)}
+                          onBlur={(e) => setGmailAppPassword(e.target.value.trim())}
                           placeholder="e.g. abcd efgh ijkl mnop"
                           style={{
                             width: '100%',
@@ -6906,42 +7228,93 @@ export default function TieupResearchEngineView({
 
                   {/* Verification Status Notification Pill */}
                   {smtpVerifyStatus && (
-                    <div
-                      style={{
-                        padding: '0.45rem 0.75rem',
-                        borderRadius: '0.45rem',
-                        fontSize: '0.78rem',
-                        fontWeight: 500,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.4rem',
-                        background: smtpVerifyStatus.connected
-                          ? 'rgba(16, 185, 129, 0.12)'
-                          : smtpVerifyStatus.simulated
-                          ? 'rgba(59, 130, 246, 0.12)'
-                          : 'rgba(239, 68, 68, 0.12)',
-                        border: `1px solid ${
-                          smtpVerifyStatus.connected
-                            ? 'rgba(16, 185, 129, 0.35)'
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <div
+                        style={{
+                          padding: '0.45rem 0.75rem',
+                          borderRadius: '0.45rem',
+                          fontSize: '0.78rem',
+                          fontWeight: 500,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                          background: smtpVerifyStatus.connected
+                            ? 'rgba(16, 185, 129, 0.12)'
                             : smtpVerifyStatus.simulated
-                            ? 'rgba(59, 130, 246, 0.35)'
-                            : 'rgba(239, 68, 68, 0.35)'
-                        }`,
-                        color: smtpVerifyStatus.connected
-                          ? '#10b981'
-                          : smtpVerifyStatus.simulated
-                          ? '#3b82f6'
-                          : '#ef4444',
-                      }}
-                    >
-                      {smtpVerifyStatus.connected ? (
-                        <CheckCircle2 size={14} />
-                      ) : smtpVerifyStatus.simulated ? (
-                        <Sparkles size={14} />
-                      ) : (
-                        <AlertCircle size={14} />
+                            ? 'rgba(59, 130, 246, 0.12)'
+                            : 'rgba(239, 68, 68, 0.12)',
+                          border: `1px solid ${
+                            smtpVerifyStatus.connected
+                              ? 'rgba(16, 185, 129, 0.35)'
+                              : smtpVerifyStatus.simulated
+                              ? 'rgba(59, 130, 246, 0.35)'
+                              : 'rgba(239, 68, 68, 0.35)'
+                          }`,
+                          color: smtpVerifyStatus.connected
+                            ? '#10b981'
+                            : smtpVerifyStatus.simulated
+                            ? '#3b82f6'
+                            : '#ef4444',
+                        }}
+                      >
+                        {smtpVerifyStatus.connected ? (
+                          <CheckCircle2 size={14} />
+                        ) : smtpVerifyStatus.simulated ? (
+                          <Sparkles size={14} />
+                        ) : (
+                          <AlertCircle size={14} />
+                        )}
+                        <span>{smtpVerifyStatus.message}</span>
+                      </div>
+
+                      {/* Detailed 535 Remediation Card */}
+                      {smtpVerifyStatus.statusCode === 535 && (
+                        <div
+                          style={{
+                            padding: '0.75rem 0.9rem',
+                            borderRadius: '0.5rem',
+                            fontSize: '0.76rem',
+                            background: 'rgba(239, 68, 68, 0.05)',
+                            border: '1px solid rgba(239, 68, 68, 0.25)',
+                            color: 'var(--text-main)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.4rem',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontWeight: 700, color: '#ef4444' }}>
+                              ⚠️ Google SMTP Handshake: Successful | Credentials: BadCredentials (535)
+                            </span>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>
+                              Host: smtp.gmail.com:465 (SSL)
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                            Google's SMTP server answered and completed the SSL handshake, but rejected this App Password for <strong>{senderEmail}</strong>. To resolve this:
+                          </div>
+                          <ul style={{ margin: 0, paddingLeft: '1.2rem', color: 'var(--text-subtle)', lineHeight: 1.5 }}>
+                            <li>
+                              <strong>Account Mismatch Check:</strong> If you are logged into multiple Google Accounts in your browser, make sure you generated the App Password under <strong>{senderEmail}</strong> (check the account profile circle at the top-right of the Google tab).
+                            </li>
+                            <li>
+                              <strong>2-Step Verification:</strong> Must remain <strong>turned ON</strong> for <em>{senderEmail}</em>. If 2FA was toggled off, existing App Passwords are automatically deleted by Google.
+                            </li>
+                            <li>
+                              <strong>Generate Fresh App Password:</strong> Open{' '}
+                              <a
+                                href="https://myaccount.google.com/apppasswords"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ color: 'var(--accent-primary)', textDecoration: 'underline', fontWeight: 600 }}
+                              >
+                                myaccount.google.com/apppasswords
+                              </a>
+                              , create a new 16-letter password (e.g. named "Ila Outreach"), copy all 16 characters, and paste them above.
+                            </li>
+                          </ul>
+                        </div>
                       )}
-                      <span>{smtpVerifyStatus.message}</span>
                     </div>
                   )}
 
@@ -7223,6 +7596,27 @@ export default function TieupResearchEngineView({
                                       </button>
                                     </>
                                   )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteOutreachLog(log.id)}
+                                    style={{
+                                      padding: '0.3rem 0.45rem',
+                                      borderRadius: '0.45rem',
+                                      background: 'var(--bg-card)',
+                                      border: '1px solid var(--border-subtle)',
+                                      color: 'var(--text-subtle)',
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }}
+                                    title="Delete outreach log record"
+                                    onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--error)')}
+                                    onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-subtle)')}
+                                  >
+                                    <Trash2 size={11} />
+                                  </button>
                                 </div>
                               </td>
                             </tr>
@@ -7314,43 +7708,67 @@ export default function TieupResearchEngineView({
                 </div>
               </div>
 
-              {/* Status Filter Tabs */}
+              {/* Status Filter Tabs: Sent Mail / Outbox, Inbox, Bounce List */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                 {[
-                  { id: 'all' as const, label: 'All Dispatches', count: outreachLogs.length },
-                  { id: 'replied' as const, label: 'Incoming Partner Replies', count: outreachLogs.filter((l) => l.status === 'replied').length },
-                  { id: 'pending' as const, label: 'Awaiting Response', count: outreachLogs.filter((l) => l.status !== 'replied' && l.phase !== 'pushed_partner').length },
-                  { id: 'flagged' as const, label: 'Bounced / Flagged', count: outreachLogs.filter((l) => l.status === 'flagged_generic' || l.status === 'bounced').length },
+                  {
+                    id: 'pending' as const,
+                    label: 'Sent Mail / Outbox',
+                    icon: Send,
+                    count: outreachLogs.filter((l) => l.status !== 'replied' && l.status !== 'flagged_generic' && l.status !== 'bounced').length,
+                  },
+                  {
+                    id: 'replied' as const,
+                    label: 'Inbox',
+                    icon: Mail,
+                    count: outreachLogs.filter((l) => l.status === 'replied').length,
+                  },
+                  {
+                    id: 'flagged' as const,
+                    label: 'Bounce List',
+                    icon: AlertTriangle,
+                    count: outreachLogs.filter((l) => l.status === 'flagged_generic' || l.status === 'bounced').length,
+                  },
+                  {
+                    id: 'all' as const,
+                    label: 'All Dispatches',
+                    icon: Layers,
+                    count: outreachLogs.length,
+                  },
                 ].map((tab) => {
                   const isActive = phase2StatusTab === tab.id;
+                  const Icon = tab.icon;
                   return (
                     <button
                       key={tab.id}
                       type="button"
                       onClick={() => setPhase2StatusTab(tab.id)}
                       style={{
-                        padding: '0.4rem 0.85rem',
-                        borderRadius: '0.5rem',
+                        padding: '0.45rem 0.95rem',
+                        borderRadius: '0.55rem',
                         background: isActive ? 'var(--accent-primary)' : 'var(--bg-card)',
                         border: isActive ? '1px solid var(--accent-primary)' : '1px solid var(--border-medium)',
                         color: isActive ? '#ffffff' : 'var(--text-main)',
                         fontSize: '0.82rem',
-                        fontWeight: 600,
+                        fontWeight: 700,
                         cursor: 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '0.35rem',
+                        gap: '0.45rem',
+                        boxShadow: isActive ? '0 2px 8px rgba(99, 102, 241, 0.35)' : 'none',
                         transition: 'all 0.15s ease',
                       }}
                     >
+                      <Icon size={14} color={isActive ? '#ffffff' : 'currentColor'} />
                       <span>{tab.label}</span>
                       <span
                         style={{
                           fontSize: '0.74rem',
-                          padding: '0.05rem 0.4rem',
+                          padding: '0.08rem 0.45rem',
                           borderRadius: '9999px',
                           background: isActive ? 'rgba(255, 255, 255, 0.25)' : 'var(--bg-tertiary)',
                           color: isActive ? '#ffffff' : 'var(--text-subtle)',
+                          fontWeight: 800,
                         }}
                       >
                         {tab.count}
@@ -7378,7 +7796,7 @@ export default function TieupResearchEngineView({
                     Showing {
                       outreachLogs.filter((log) => {
                         if (phase2StatusTab === 'replied') return log.status === 'replied';
-                        if (phase2StatusTab === 'pending') return log.status !== 'replied' && log.phase !== 'pushed_partner';
+                        if (phase2StatusTab === 'pending') return log.status !== 'replied' && log.status !== 'flagged_generic' && log.status !== 'bounced';
                         if (phase2StatusTab === 'flagged') return log.status === 'flagged_generic' || log.status === 'bounced';
                         return true;
                       }).length
@@ -7401,7 +7819,7 @@ export default function TieupResearchEngineView({
                       {(() => {
                         const filtered = outreachLogs.filter((log) => {
                           if (phase2StatusTab === 'replied') return log.status === 'replied';
-                          if (phase2StatusTab === 'pending') return log.status !== 'replied' && log.phase !== 'pushed_partner';
+                          if (phase2StatusTab === 'pending') return log.status !== 'replied' && log.status !== 'flagged_generic' && log.status !== 'bounced';
                           if (phase2StatusTab === 'flagged') return log.status === 'flagged_generic' || log.status === 'bounced';
                           return true;
                         });
@@ -7618,6 +8036,27 @@ export default function TieupResearchEngineView({
                                       </button>
                                     </>
                                   )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteOutreachLog(log.id)}
+                                    style={{
+                                      padding: '0.32rem 0.45rem',
+                                      borderRadius: '0.45rem',
+                                      background: 'var(--bg-card)',
+                                      border: '1px solid var(--border-subtle)',
+                                      color: 'var(--text-subtle)',
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }}
+                                    title="Delete outreach log record"
+                                    onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--error)')}
+                                    onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-subtle)')}
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
                                 </div>
                               </td>
                             </tr>
@@ -7950,6 +8389,27 @@ export default function TieupResearchEngineView({
                               <CheckCircle2 size={15} />
                               <span>{isAlreadyPartner ? 'Update Partner Profile' : 'Migrate to Partners Database'}</span>
                             </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteOutreachLog(log.id)}
+                              style={{
+                                padding: '0.45rem 0.55rem',
+                                borderRadius: '0.5rem',
+                                background: 'var(--bg-card)',
+                                border: '1px solid var(--border-medium)',
+                                color: 'var(--text-subtle)',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                              title="Delete Process Record"
+                              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--error)')}
+                              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-subtle)')}
+                            >
+                              <Trash2 size={15} />
+                            </button>
                           </div>
                         </div>
 
@@ -8146,8 +8606,9 @@ export default function TieupResearchEngineView({
             </select>
 
             {/* Global Settings & Saved Lists */}
-            <div style={{ marginLeft: 'auto' }}>
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
               {renderSettingsButton()}
+              {renderFullScreenButton('tieup-partners-fullscreen-toggle-btn')}
             </div>
           </div>
 
@@ -9984,6 +10445,7 @@ export default function TieupResearchEngineView({
         onBulkDeleteLeads={handleBulkDeleteLeads}
         onClearCurrentSessionLeads={handleClearCurrentSessionLeads}
         onInjectSandboxTestColleges={handleInjectSandboxTestColleges}
+        onResetDatabasePipeline={handleResetDatabasePipeline}
       />
     </div>
   );

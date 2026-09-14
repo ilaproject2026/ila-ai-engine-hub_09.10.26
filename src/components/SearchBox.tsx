@@ -108,6 +108,19 @@ export default function SearchBox({
     );
   }, [selectedPath]);
 
+  // When unified Category & Track changes, update both category and sub-category
+  const handleCategoryTrackChange = (combinedValue: string) => {
+    const [newCatId, newSubId] = combinedValue.split(':::');
+    if (newCatId && newSubId) {
+      setSelectedCategory(newCatId);
+      setSelectedSubCategory(newSubId);
+      // If user hasn't typed a custom Course ID, auto-refresh to standard prefix
+      if (!courseId || courseId.startsWith('CRS-')) {
+        setCourseId(generateStandardCourseId(newCatId, newSubId));
+      }
+    }
+  };
+
   // When category changes, auto-align sub-category and update Course ID suggestion
   const handleCategoryChange = (newCatId: string) => {
     setSelectedCategory(newCatId);
@@ -418,22 +431,22 @@ export default function SearchBox({
           </div>
 
           {/* ========================================================================= */}
-          {/* 2. MAIN PARAMETER SELECTION: Category, Sub-Category, Path, Batch & Slot */}
+          {/* 2. MAIN PARAMETER SELECTION: Category > Track, Path, Batch & Slot       */}
           {/* ========================================================================= */}
           <div
             id="course-creator-param-row"
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
               gap: '0.55rem',
               alignItems: 'center',
               paddingBottom: '0.25rem',
             }}
           >
-            {/* 1. Category Dropdown */}
+            {/* 1. Combined Category & Sub-Category / Track Dropdown */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
               <label
-                htmlFor="course-param-category"
+                htmlFor="course-param-category-track"
                 style={{
                   fontSize: '0.7rem',
                   fontWeight: 700,
@@ -442,12 +455,12 @@ export default function SearchBox({
                   letterSpacing: '0.04em',
                 }}
               >
-                Category
+                Category &gt; Track
               </label>
               <select
-                id="course-param-category"
-                value={selectedCategory}
-                onChange={(e) => handleCategoryChange(e.target.value)}
+                id="course-param-category-track"
+                value={`${selectedCategory}:::${selectedSubCategory}`}
+                onChange={(e) => handleCategoryTrackChange(e.target.value)}
                 disabled={loading}
                 style={{
                   width: '100%',
@@ -463,57 +476,21 @@ export default function SearchBox({
                 }}
               >
                 {COURSE_TAXONOMY_CATEGORIES.map((cat) => (
-                  <option
+                  <optgroup
                     key={cat.id}
-                    value={cat.id}
-                    style={{ background: 'var(--bg-secondary)', color: 'var(--text-main)' }}
+                    label={cat.name}
+                    style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)', fontWeight: 700 }}
                   >
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* 2. Sub-Category Dropdown (Dynamically populated from Category) */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-              <label
-                htmlFor="course-param-subcategory"
-                style={{
-                  fontSize: '0.7rem',
-                  fontWeight: 700,
-                  color: 'var(--text-muted)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                }}
-              >
-                Sub-Category
-              </label>
-              <select
-                id="course-param-subcategory"
-                value={selectedSubCategory}
-                onChange={(e) => setSelectedSubCategory(e.target.value)}
-                disabled={loading}
-                style={{
-                  width: '100%',
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border-medium)',
-                  borderRadius: '0.55rem',
-                  padding: '0.38rem 0.6rem',
-                  color: 'var(--text-main)',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  outline: 'none',
-                  cursor: 'pointer',
-                }}
-              >
-                {activeSubCategories.map((sub) => (
-                  <option
-                    key={sub.id}
-                    value={sub.id}
-                    style={{ background: 'var(--bg-secondary)', color: 'var(--text-main)' }}
-                  >
-                    {sub.name}
-                  </option>
+                    {cat.subCategories.map((sub) => (
+                      <option
+                        key={`${cat.id}:::${sub.id}`}
+                        value={`${cat.id}:::${sub.id}`}
+                        style={{ background: 'var(--bg-secondary)', color: 'var(--text-main)', fontWeight: 500 }}
+                      >
+                        {cat.name} &gt; {sub.name}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </div>

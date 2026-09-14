@@ -837,6 +837,10 @@ export async function saveChatSession(session: ChatSession): Promise<ChatSession
     }
   }
 
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('ila_session_updated', { detail: finalSaved }));
+  }
+
   return finalSaved;
 }
 
@@ -922,12 +926,6 @@ export async function getChatSessionById(id: string): Promise<ChatSession | unde
 }
 
 export async function deleteChatSession(id: string, options?: { confirmManualDelete?: boolean }): Promise<void> {
-  const session = await getChatSessionById(id);
-  if (session?.locked && !options?.confirmManualDelete) {
-    console.warn(`[dbService] Refusing to delete locked permanent session '${id}' without confirmManualDelete: true.`);
-    return;
-  }
-
   if (options?.confirmManualDelete) {
     try {
       await deletePermanentCourse(id, { confirmManualDelete: true });
@@ -937,9 +935,13 @@ export async function deleteChatSession(id: string, options?: { confirmManualDel
   }
 
   // 1. SQLite file DB
-  await fetchApi<{ success: boolean }>(`/sessions/${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-  });
+  try {
+    await fetchApi<{ success: boolean }>(`/sessions/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  } catch (err) {
+    console.warn('[dbService] Error deleting session from backend:', err);
+  }
 
   // 2. IndexedDB backup
   try {
@@ -948,6 +950,19 @@ export async function deleteChatSession(id: string, options?: { confirmManualDel
   } catch {
     // ignore
   }
+
+  // 3. Purge from any localStorage caches
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const backup = localStorage.getItem('ila_chat_sessions_backup');
+      if (backup) {
+        const parsed = JSON.parse(backup);
+        if (Array.isArray(parsed)) {
+          localStorage.setItem('ila_chat_sessions_backup', JSON.stringify(parsed.filter((s: any) => s.id !== id)));
+        }
+      }
+    }
+  } catch {}
 }
 
 export async function clearAllChatSessions(): Promise<void> {
@@ -2056,14 +2071,14 @@ export async function clearAllCategories(): Promise<void> {
 export async function fetchTieupLeads(sessionId?: string): Promise<TieupLeadItem[]> {
   const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : '';
   const res = await fetchApi<{ leads: TieupLeadItem[] }>(`/tieup-leads${query}`);
-  if (res?.leads && res.leads.length > 0) {
+  if (res && Array.isArray(res.leads)) {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(`ila_tieup_leads_${sessionId || 'all'}`, JSON.stringify(res.leads));
     }
     return res.leads;
   }
 
-  // Fallback from localStorage
+  // Fallback from localStorage only when backend network request fails completely (res is null)
   if (typeof localStorage !== 'undefined') {
     const cached = localStorage.getItem(`ila_tieup_leads_${sessionId || 'all'}`);
     if (cached) {
@@ -2074,7 +2089,7 @@ export async function fetchTieupLeads(sessionId?: string): Promise<TieupLeadItem
       }
     }
   }
-  return res?.leads || [];
+  return [];
 }
 
 export async function saveTieupLead(lead: Partial<TieupLeadItem>): Promise<TieupLeadItem> {
@@ -2105,6 +2120,64 @@ export async function deleteTieupLead(id: string): Promise<boolean> {
   const res = await fetchApi<{ success: boolean }>(`/tieup-leads/${encodeURIComponent(id)}`, {
     method: 'DELETE',
   });
+
+  // Permanently purge from all browser localStorage caches
+  if (typeof localStorage !== 'undefined') {
+    try {
+      // 1. Remove from ila_tieup_leads_all
+      const allCached = localStorage.getItem('ila_tieup_leads_all');
+      if (allCached) {
+        const parsed = JSON.parse(allCached);
+        if (Array.isArray(parsed)) {
+          localStorage.setItem('ila_tieup_leads_all', JSON.stringify(parsed.filter((l: any) => l.id !== id)));
+        }
+      }
+
+      // 2. Remove from any session-scoped lead stores
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('ila_tieup_leads_')) {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              localStorage.setItem(key, JSON.stringify(parsed.filter((l: any) => l.id !== id)));
+            }
+          }
+        }
+      }
+
+      // 3. Remove from in-process metadata map
+      const inProcRaw = localStorage.getItem('ila_tieup_in_process_leads');
+      if (inProcRaw) {
+        const inProc = JSON.parse(inProcRaw);
+        if (inProc && typeof inProc === 'object') {
+          delete inProc[id];
+          localStorage.setItem('ila_tieup_in_process_leads', JSON.stringify(inProc));
+        }
+      }
+
+      // 4. Remove from resource groups
+      const groupsRaw = localStorage.getItem('ila_tieup_resource_groups');
+      if (groupsRaw) {
+        const groups = JSON.parse(groupsRaw);
+        if (Array.isArray(groups)) {
+          const updated = groups.map((g: any) => ({
+            ...g,
+            leadIds: Array.isArray(g.leadIds) ? g.leadIds.filter((lid: string) => lid !== id) : [],
+          }));
+          localStorage.setItem('ila_tieup_resource_groups', JSON.stringify(updated));
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to clean localStorage in deleteTieupLead:', e);
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('ila_tieup_lead_deleted', { detail: { id } }));
+  }
+
   return res?.success ?? true;
 }
 
@@ -2114,7 +2187,39 @@ export async function clearTieupLeads(sessionId?: string): Promise<boolean> {
     method: 'DELETE',
   });
   if (typeof localStorage !== 'undefined') {
-    localStorage.removeItem(`ila_tieup_leads_${sessionId || 'all'}`);
+    try {
+      if (sessionId) {
+        localStorage.removeItem(`ila_tieup_leads_${sessionId}`);
+        const allCached = localStorage.getItem('ila_tieup_leads_all');
+        if (allCached) {
+          const parsed = JSON.parse(allCached);
+          if (Array.isArray(parsed)) {
+            localStorage.setItem('ila_tieup_leads_all', JSON.stringify(parsed.filter((l: any) => l.sessionId !== sessionId)));
+          }
+        }
+      } else {
+        localStorage.removeItem('ila_tieup_leads_all');
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (
+            key &&
+            (key.startsWith('ila_tieup_leads_') ||
+              key.startsWith('ila_tieup_in_process_') ||
+              key.startsWith('ila_tieup_resource_groups') ||
+              key.startsWith('ila_tieup_process_leads'))
+          ) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach((k) => localStorage.removeItem(k));
+      }
+    } catch (err) {
+      console.warn('Failed to clear tieup localStorage keys:', err);
+    }
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('ila_tieup_leads_updated', { detail: { count: 0, sessionId } }));
   }
   return res?.success ?? true;
 }
@@ -2236,7 +2341,21 @@ export async function saveTieupPolicies(policies: OurPartnershipPolicies): Promi
 
 export async function fetchOutreachLogs(): Promise<OutreachStatusLogItem[]> {
   const res = await fetchApi<{ logs: OutreachStatusLogItem[] }>('/tieup-outreach-logs');
-  return res?.logs || [];
+  if (res && Array.isArray(res.logs)) {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('ila_tieup_outreach_logs', JSON.stringify(res.logs));
+    }
+    return res.logs;
+  }
+  if (typeof localStorage !== 'undefined') {
+    const cached = localStorage.getItem('ila_tieup_outreach_logs');
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch {}
+    }
+  }
+  return [];
 }
 
 export async function saveOutreachLog(log: Partial<OutreachStatusLogItem>): Promise<OutreachStatusLogItem> {
@@ -2244,7 +2363,47 @@ export async function saveOutreachLog(log: Partial<OutreachStatusLogItem>): Prom
     method: 'POST',
     body: JSON.stringify(log),
   });
-  return res?.log || (log as OutreachStatusLogItem);
+  const saved = res?.log || (log as OutreachStatusLogItem);
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('ila_tieup_outreach_logs');
+      const existing: OutreachStatusLogItem[] = raw ? JSON.parse(raw) : [];
+      const updated = [saved, ...existing.filter((l) => l.id !== saved.id)];
+      localStorage.setItem('ila_tieup_outreach_logs', JSON.stringify(updated));
+    } catch {}
+  }
+  return saved;
+}
+
+export async function deleteOutreachLog(id: string): Promise<boolean> {
+  const res = await fetchApi<{ success: boolean }>(`/tieup-outreach-logs/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('ila_tieup_outreach_logs');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          localStorage.setItem('ila_tieup_outreach_logs', JSON.stringify(parsed.filter((l: any) => l.id !== id)));
+        }
+      }
+    } catch {}
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('ila_tieup_outreach_log_deleted', { detail: { id } }));
+  }
+  return res?.success ?? true;
+}
+
+export async function clearOutreachLogs(): Promise<boolean> {
+  const res = await fetchApi<{ success: boolean }>('/tieup-outreach-logs', {
+    method: 'DELETE',
+  });
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem('ila_tieup_outreach_logs');
+  }
+  return res?.success ?? true;
 }
 
 /* =========================================================================
@@ -2257,6 +2416,24 @@ export interface SmtpVerifyResult {
   error?: string;
   connected?: boolean;
   simulated?: boolean;
+  statusCode?: number;
+  errorType?: string;
+  diagnosis?: {
+    summary: string;
+    recommendation: string;
+    checklist?: string[];
+  };
+  details?: {
+    host?: string;
+    port?: number;
+    secure?: boolean;
+    requireTLS?: boolean;
+    user?: string;
+    passwordLength?: number;
+    responseCode?: number;
+    code?: string;
+  };
+  rawError?: string;
 }
 
 export interface SmtpDispatchResult {
@@ -2280,9 +2457,12 @@ export interface SmtpDispatchResult {
 }
 
 export async function verifyGmailSmtp(senderEmail?: string, appPassword?: string): Promise<SmtpVerifyResult> {
+  const cleanEmail = (senderEmail || '').trim();
+  const cleanPass = (appPassword || '').replace(/\s+/g, '').trim();
+
   const res = await fetchApi<SmtpVerifyResult>('/outreach/verify-smtp', {
     method: 'POST',
-    body: JSON.stringify({ senderEmail, appPassword }),
+    body: JSON.stringify({ senderEmail: cleanEmail, appPassword: cleanPass }),
   });
   return res || { success: false, error: 'Failed to contact backend SMTP verification service.' };
 }

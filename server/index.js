@@ -24,9 +24,10 @@ const MIME_TYPES = {
 const server = http.createServer(async (req, res) => {
   // 1. Check if it is an /api/ request
   if (req.url && req.url.startsWith('/api/')) {
-    const handled = await handleApiRequest(req, res);
-    if (handled) return;
+    await handleApiRequest(req, res);
+    return;
   }
+  if (res.headersSent || res.writableEnded) return;
 
   // 2. Otherwise serve static files from dist/ if it exists
   if (fs.existsSync(DIST_DIR)) {

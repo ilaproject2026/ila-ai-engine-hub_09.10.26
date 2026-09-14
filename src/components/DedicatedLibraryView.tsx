@@ -47,6 +47,8 @@ import {
   Tv,
   File,
   Bot,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import {
   getAllLibraryCourses,
@@ -93,7 +95,7 @@ interface DedicatedLibraryViewProps {
 
 export default function DedicatedLibraryView({
   onOpenInWorkspace,
-  onBackToChat: _onBackToChat,
+  onBackToChat,
   onCreateNewCourse,
 }: DedicatedLibraryViewProps) {
   const [courses, setCourses] = useState<LibraryCourse[]>([]);
@@ -166,6 +168,23 @@ export default function DedicatedLibraryView({
 
   // Dedicated Full-Screen Module Workspace & Universal Inline Editing Suite States
   const [isModuleFullScreen, setIsModuleFullScreen] = useState<boolean>(false);
+  // Dedicated Full-Screen Entire Workspace Mode
+  const [isWorkspaceFullScreen, setIsWorkspaceFullScreen] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isWorkspaceFullScreen) {
+        setIsWorkspaceFullScreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isWorkspaceFullScreen]);
+
+  const toggleWorkspaceFullScreen = () => {
+    setIsWorkspaceFullScreen((prev) => !prev);
+  };
+
   const [showDirectEditorModal, setShowDirectEditorModal] = useState<boolean>(false);
   const [directEditContent, setDirectEditContent] = useState<string>('');
   const [showDeleteChapterModal, setShowDeleteChapterModal] = useState<boolean>(false);
@@ -738,8 +757,14 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
       style={{
         display: 'flex',
         flexDirection: 'column',
-        height: '100%',
-        width: '100%',
+        height: isWorkspaceFullScreen ? '100vh' : '100%',
+        width: isWorkspaceFullScreen ? '100vw' : '100%',
+        position: isWorkspaceFullScreen ? 'fixed' : 'relative',
+        top: isWorkspaceFullScreen ? 0 : undefined,
+        left: isWorkspaceFullScreen ? 0 : undefined,
+        right: isWorkspaceFullScreen ? 0 : undefined,
+        bottom: isWorkspaceFullScreen ? 0 : undefined,
+        zIndex: isWorkspaceFullScreen ? 99990 : 1,
         background: 'var(--bg-primary)',
         overflow: 'hidden',
       }}
@@ -761,20 +786,45 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
-          {/* Top-Level Library Navigation Tabs: Catalog vs Reader */}
+          {/* Back button */}
+          {onBackToChat && (
+            <button
+              type="button"
+              onClick={onBackToChat}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.4rem 0.85rem',
+                borderRadius: '0.6rem',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-main)',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              title="Return to chat conversation"
+            >
+              <ArrowRight size={14} style={{ transform: 'rotate(180deg)' }} />
+              <span>Back to Chat</span>
+            </button>
+          )}
+
+          {/* View Mode Toggle: Library Grid vs Reader Mode */}
           <div
             style={{
-              display: 'inline-flex',
+              display: 'flex',
               alignItems: 'center',
               background: 'rgba(255, 255, 255, 0.05)',
               border: '1px solid var(--border-subtle)',
               borderRadius: '9999px',
               padding: '0.2rem',
-              gap: '0.25rem',
+              gap: '0.2rem',
             }}
           >
             <button
-              id="library-toggle-catalog-btn"
               type="button"
               onClick={() => setActiveTab('catalog')}
               style={{
@@ -797,17 +847,15 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                 transition: 'all 0.15s ease',
               }}
             >
-              <Layers size={13} />
-              <span>Catalog Mode</span>
+              <Grid size={13} />
+              <span>Library Catalog ({courses.length})</span>
             </button>
 
             <button
-              id="library-toggle-reader-btn"
               type="button"
               onClick={() => {
-                if (selectedCourse) {
-                  setActiveTab('reader');
-                } else if (courses.length > 0) {
+                setActiveTab('reader');
+                if (!selectedCourse && courses.length > 0) {
                   handleSelectCourseToRead(courses[0]);
                 }
               }}
@@ -861,10 +909,62 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
               </span>
             </div>
           )}
+
+          {/* Quick Exit Full Screen Button in Top Bar */}
+          {isWorkspaceFullScreen && (
+            <button
+              id="dedicated-library-quick-exit-btn"
+              type="button"
+              onClick={toggleWorkspaceFullScreen}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                fontSize: '0.72rem',
+                color: '#38bdf8',
+                background: 'rgba(56, 189, 248, 0.16)',
+                border: '1px solid rgba(56, 189, 248, 0.45)',
+                padding: '0.25rem 0.75rem',
+                borderRadius: '9999px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              title="Exit Full Screen Mode (Esc)"
+            >
+              <Minimize2 size={12} />
+              <span>Exit Full Screen (Esc)</span>
+            </button>
+          )}
         </div>
 
         {/* Right Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          {/* Full Screen Toggle Button */}
+          <button
+            id="library-fullscreen-toggle-btn"
+            type="button"
+            onClick={toggleWorkspaceFullScreen}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              padding: '0.4rem 0.8rem',
+              borderRadius: '0.6rem',
+              background: isWorkspaceFullScreen ? 'rgba(99, 102, 241, 0.25)' : 'rgba(255, 255, 255, 0.06)',
+              border: isWorkspaceFullScreen ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid var(--border-subtle)',
+              color: isWorkspaceFullScreen ? '#a5b4fc' : 'var(--text-main)',
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+            title={isWorkspaceFullScreen ? 'Exit Full Screen (Esc)' : 'Enter Full Screen'}
+          >
+            {isWorkspaceFullScreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+            <span>{isWorkspaceFullScreen ? 'Exit Full Screen' : 'Full Screen'}</span>
+          </button>
+
           <button
             type="button"
             onClick={handlePurgeAllData}
@@ -1606,7 +1706,7 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
       ) : (
         /* TAB 2: EXCLUSIVE SPLIT-VIEW COURSE READER */
         <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
-          {selectedCourse && (
+          {selectedCourse ? (
             <>
               {/* Left Sticky Chapters Accordion Menu */}
               <aside
@@ -2788,166 +2888,247 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                           {isBatchGenerating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
                           <span>{isBatchGenerating ? 'Generating...' : 'Generate'}</span>
                         </button>
+
+                        {/* Full Screen Toggle Button (Placed directly after Generate button) */}
+                        <button
+                          id="dedicated-library-fullscreen-btn"
+                          type="button"
+                          onClick={toggleWorkspaceFullScreen}
+                          className="action-chip"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            height: '28px',
+                            padding: '0 0.8rem',
+                            borderRadius: '9999px',
+                            background: isWorkspaceFullScreen
+                              ? 'linear-gradient(135deg, rgba(6, 182, 212, 0.35) 0%, rgba(56, 189, 248, 0.35) 100%)'
+                              : 'linear-gradient(135deg, rgba(56, 189, 248, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%)',
+                            border: isWorkspaceFullScreen
+                              ? '1.5px solid #38bdf8'
+                              : '1px solid rgba(56, 189, 248, 0.45)',
+                            color: isWorkspaceFullScreen ? '#38bdf8' : '#7dd3fc',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                            boxShadow: isWorkspaceFullScreen
+                              ? '0 0 14px rgba(56, 189, 248, 0.5)'
+                              : '0 0 8px rgba(56, 189, 248, 0.2)',
+                            whiteSpace: 'nowrap',
+                          }}
+                          title={isWorkspaceFullScreen ? 'Exit Full Screen Mode (Esc)' : 'Expand Library Workspace to Full Screen'}
+                        >
+                          {isWorkspaceFullScreen ? <Minimize2 size={12} color="#38bdf8" /> : <Maximize2 size={12} color="#38bdf8" />}
+                          <span>{isWorkspaceFullScreen ? 'Exit Full Screen' : 'Full Screen'}</span>
+                        </button>
                       </div>
                     </div>
 
                     {/* ======================================================== */}
                     {/* UNIFIED ACTIVE MODULE CONTENT                             */}
-                    {/* ====================================                    {/* Tab 1: Reading Mode */}
+                    {/* ======================================================== */}
+
+                    {/* Tab 1: Reading Mode */}
                     {activeReaderTab === 'reading' && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {/* Chapter Header Card with Cross-Module Navigation */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                        {/* Compact Single-Line Chapter Header Strip (Minimal Space Consumption) */}
                         <div
+                          id="compact-module-header-strip"
                           style={{
                             background: 'var(--bg-card)',
                             border: '1px solid var(--border-subtle)',
-                            borderRadius: '1.25rem',
-                            padding: '1.5rem',
-                            boxShadow: '0 15px 35px -10px rgba(0, 0, 0, 0.6)',
+                            borderRadius: '0.65rem',
+                            padding: '0.42rem 0.85rem',
+                            boxShadow: '0 4px 15px -4px rgba(0, 0, 0, 0.4)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '0.65rem',
+                            flexWrap: 'nowrap',
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--accent-primary)', fontWeight: 600 }}>
-                              {selectedCourse.title} • Book {activeChapter.chapterNumber} of {selectedCourse.chapters.length}
-                            </div>
-
-                            {/* Cross-Module Quick Previews from Reading Mode */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-                              <button
-                                type="button"
-                                onClick={() => setActiveReaderTab('slides')}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.3rem',
-                                  padding: '0.3rem 0.65rem',
-                                  borderRadius: '9999px',
-                                  background: 'rgba(244, 114, 182, 0.15)',
-                                  border: '1px solid rgba(244, 114, 182, 0.35)',
-                                  color: '#f472b6',
-                                  fontSize: '0.72rem',
-                                  fontWeight: 600,
-                                  cursor: 'pointer',
-                                }}
-                                title="Open Slide + AI for this book"
-                              >
-                                <Presentation size={12} />
-                                <span>Slide + AI</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => setActiveReaderTab('video')}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.3rem',
-                                  padding: '0.3rem 0.65rem',
-                                  borderRadius: '9999px',
-                                  background: 'rgba(244, 63, 94, 0.15)',
-                                  border: '1px solid rgba(244, 63, 94, 0.35)',
-                                  color: '#fb7185',
-                                  fontSize: '0.72rem',
-                                  fontWeight: 600,
-                                  cursor: 'pointer',
-                                }}
-                                title="Open Video + AI player for this book"
-                              >
-                                <Tv size={12} />
-                                <span>Video + AI</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => setActiveReaderTab('explanations')}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.3rem',
-                                  padding: '0.3rem 0.65rem',
-                                  borderRadius: '9999px',
-                                  background: 'rgba(168, 85, 247, 0.15)',
-                                  border: '1px solid rgba(168, 85, 247, 0.35)',
-                                  color: '#c084fc',
-                                  fontSize: '0.72rem',
-                                  fontWeight: 600,
-                                  cursor: 'pointer',
-                                }}
-                                title="Open Tutor Bot explanations"
-                              >
-                                <GraduationCap size={12} />
-                                <span>Tutor Bot</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => setActiveReaderTab('exams')}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.3rem',
-                                  padding: '0.3rem 0.65rem',
-                                  borderRadius: '9999px',
-                                  background: 'rgba(251, 191, 36, 0.15)',
-                                  border: '1px solid rgba(251, 191, 36, 0.35)',
-                                  color: '#fbbf24',
-                                  fontSize: '0.72rem',
-                                  fontWeight: 600,
-                                  cursor: 'pointer',
-                                }}
-                                title="Open Exam Board"
-                              >
-                                <Award size={12} />
-                                <span>Exam Board</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => setActiveReaderTab('dictionary')}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.3rem',
-                                  padding: '0.3rem 0.65rem',
-                                  borderRadius: '9999px',
-                                  background: 'rgba(45, 212, 191, 0.15)',
-                                  border: '1px solid rgba(45, 212, 191, 0.35)',
-                                  color: '#2dd4bf',
-                                  fontSize: '0.72rem',
-                                  fontWeight: 600,
-                                  cursor: 'pointer',
-                                }}
-                                title="Open Glossary"
-                              >
-                                <HelpCircle size={12} />
-                                <span>Glossary</span>
-                              </button>
-                            </div>
-                          </div>
-
-                          <h1
+                          {/* Left: Single-line Course Title • Book 1 of 1 | Module 1 Core Concept | To: Board of Directors */}
+                          <div
                             style={{
-                              fontSize: '1.6rem',
-                              fontWeight: 800,
-                              color: '#ffffff',
-                              letterSpacing: '-0.02em',
-                              lineHeight: '1.25',
-                              margin: '0 0 0.5rem 0',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.45rem',
+                              minWidth: 0,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              flex: 1,
                             }}
                           >
-                            {activeChapter.title}
-                          </h1>
-                          {activeChapter.summary && (
-                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: '1.5', margin: 0 }}>
-                              {activeChapter.summary}
-                            </p>
-                          )}
+                            <span
+                              style={{
+                                fontSize: '0.74rem',
+                                color: 'var(--accent-primary)',
+                                fontWeight: 700,
+                                flexShrink: 0,
+                              }}
+                              title={`${selectedCourse.title} • Book ${activeChapter.chapterNumber} of ${selectedCourse.chapters.length}`}
+                            >
+                              {selectedCourse.title} • Book {activeChapter.chapterNumber} of {selectedCourse.chapters.length}
+                            </span>
+                            <span style={{ color: 'var(--border-subtle)', flexShrink: 0 }}>|</span>
+                            <span
+                              style={{
+                                fontSize: '0.82rem',
+                                fontWeight: 800,
+                                color: '#ffffff',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}
+                              title={activeChapter.title}
+                            >
+                              {activeChapter.title}
+                            </span>
+                            {(selectedCourse.studiedBy || selectedAudience) && (
+                              <>
+                                <span style={{ color: 'var(--border-subtle)', flexShrink: 0 }}>|</span>
+                                <span
+                                  style={{
+                                    fontSize: '0.68rem',
+                                    fontWeight: 700,
+                                    color: '#7dd3fc',
+                                    background: 'rgba(56, 189, 248, 0.12)',
+                                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                                    padding: '0.1rem 0.45rem',
+                                    borderRadius: '9999px',
+                                    flexShrink: 0,
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                  title={`Target Audience: ${selectedCourse.studiedBy || selectedAudience}`}
+                                >
+                                  To: {selectedCourse.studiedBy || selectedAudience}
+                                </span>
+                              </>
+                            )}
+                          </div>
+
+                          {/* Right: Compact Cross-Module Quick Previews from Reading Mode */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
+                            <button
+                              type="button"
+                              onClick={() => setActiveReaderTab('slides')}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                padding: '0.22rem 0.55rem',
+                                borderRadius: '9999px',
+                                background: 'rgba(244, 114, 182, 0.15)',
+                                border: '1px solid rgba(244, 114, 182, 0.35)',
+                                color: '#f472b6',
+                                fontSize: '0.7rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                              title="Open Slide + AI for this book"
+                            >
+                              <Presentation size={11} />
+                              <span>Slide + AI</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setActiveReaderTab('video')}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                padding: '0.22rem 0.55rem',
+                                borderRadius: '9999px',
+                                background: 'rgba(244, 63, 94, 0.15)',
+                                border: '1px solid rgba(244, 63, 94, 0.35)',
+                                color: '#fb7185',
+                                fontSize: '0.7rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                              title="Open Video + AI player for this book"
+                            >
+                              <Tv size={11} />
+                              <span>Video + AI</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setActiveReaderTab('explanations')}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                padding: '0.22rem 0.55rem',
+                                borderRadius: '9999px',
+                                background: 'rgba(168, 85, 247, 0.15)',
+                                border: '1px solid rgba(168, 85, 247, 0.35)',
+                                color: '#c084fc',
+                                fontSize: '0.7rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                              title="Open Tutor Bot explanations"
+                            >
+                              <GraduationCap size={11} />
+                              <span>Tutor Bot</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setActiveReaderTab('exams')}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                padding: '0.22rem 0.55rem',
+                                borderRadius: '9999px',
+                                background: 'rgba(251, 191, 36, 0.15)',
+                                border: '1px solid rgba(251, 191, 36, 0.35)',
+                                color: '#fbbf24',
+                                fontSize: '0.7rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                              title="Open Exam Board"
+                            >
+                              <Award size={11} />
+                              <span>Exam Board</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setActiveReaderTab('dictionary')}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                padding: '0.22rem 0.55rem',
+                                borderRadius: '9999px',
+                                background: 'rgba(45, 212, 191, 0.15)',
+                                border: '1px solid rgba(45, 212, 191, 0.35)',
+                                color: '#2dd4bf',
+                                fontSize: '0.7rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                              title="Open Glossary"
+                            >
+                              <HelpCircle size={11} />
+                              <span>Glossary</span>
+                            </button>
+                          </div>
                         </div>
 
-                        {/* National/International Authorized Curriculum & Framework Reference Card */}
+                        {/* National/International Authorized Curriculum & Framework Reference Card (Compact Mode) */}
                         <AuthorizedCurriculumBanner
                           courseTitle={selectedCourse.title}
                           content={activeChapter.content}
+                          compact={true}
                         />
 
                         {/* Advanced Input AI Refinement & Authoring Suite (Text, Voice, Document Upload) */}
@@ -3426,6 +3607,111 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
                 )}
               </main>
             </>
+          ) : (
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '3rem 2rem',
+                textAlign: 'center',
+                gap: '1.25rem',
+                background: 'var(--bg-primary)',
+              }}
+            >
+              <div
+                style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '1.25rem',
+                  background: 'rgba(99, 102, 241, 0.12)',
+                  border: '1px solid rgba(99, 102, 241, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--accent-primary)',
+                }}
+              >
+                <BookOpen size={32} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 0.4rem 0' }}>
+                  No Course Selected for Reader
+                </h3>
+                <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', maxWidth: '440px', margin: 0, lineHeight: 1.5 }}>
+                  {courses.length > 0
+                    ? 'Please select a course from the Library Catalog to begin reading and exploring.'
+                    : 'Your library is currently clean and ready. Create your first course in the Course Creator to get started!'}
+                </p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                {courses.length > 0 ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectCourseToRead(courses[0])}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        padding: '0.5rem 1.1rem',
+                        borderRadius: '0.55rem',
+                        background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                        border: 'none',
+                        color: '#ffffff',
+                        fontSize: '0.84rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 10px rgba(99, 102, 241, 0.3)',
+                      }}
+                    >
+                      <BookOpen size={14} />
+                      <span>Open First Course: {courses[0].title}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('catalog')}
+                      style={{
+                        padding: '0.5rem 1rem',
+                        borderRadius: '0.55rem',
+                        background: 'rgba(255, 255, 255, 0.06)',
+                        border: '1px solid var(--border-subtle)',
+                        color: 'var(--text-main)',
+                        fontSize: '0.84rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Browse Catalog
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onCreateNewCourse}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      padding: '0.5rem 1.1rem',
+                      borderRadius: '0.55rem',
+                      background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                      border: 'none',
+                      color: '#ffffff',
+                      fontSize: '0.84rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 10px rgba(99, 102, 241, 0.3)',
+                    }}
+                  >
+                    <Sparkles size={14} />
+                    <span>Create New Course</span>
+                  </button>
+                )}
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -4724,6 +5010,7 @@ Preserve rich Markdown formatting, bold headings, code blocks, and embedded diag
           </div>
         </div>
       )}
+
 
       {/* Custom Version Label Modal */}
       {showCustomVersionModal && selectedCourse && (

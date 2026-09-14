@@ -43,6 +43,7 @@ export interface GlobalTieupSettingsModalProps {
   onBulkDeleteLeads: (leadIds: string[]) => Promise<void>;
   onClearCurrentSessionLeads: () => Promise<void>;
   onInjectSandboxTestColleges: () => Promise<void>;
+  onResetDatabasePipeline?: () => Promise<void>;
 }
 
 export default function GlobalTieupSettingsModal({
@@ -64,6 +65,7 @@ export default function GlobalTieupSettingsModal({
   onBulkDeleteLeads,
   onClearCurrentSessionLeads,
   onInjectSandboxTestColleges,
+  onResetDatabasePipeline,
 }: GlobalTieupSettingsModalProps) {
   // Local state for creating new saved list
   const [newListName, setNewListName] = useState('');
@@ -1143,7 +1145,7 @@ export default function GlobalTieupSettingsModal({
                     </div>
                   </div>
 
-                  <div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', alignItems: 'flex-end' }}>
                     <button
                       type="button"
                       onClick={() => setSandboxConfirmOpen(true)}
@@ -1167,6 +1169,34 @@ export default function GlobalTieupSettingsModal({
                       <RotateCcw size={15} />
                       <span>{isInjectingSandbox ? 'Resetting & Injecting...' : 'Reset & Inject Test Colleges'}</span>
                     </button>
+
+                    {onResetDatabasePipeline && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await onResetDatabasePipeline();
+                          onClose();
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          padding: '0.42rem 0.9rem',
+                          borderRadius: '0.55rem',
+                          background: 'rgba(239, 68, 68, 0.12)',
+                          border: '1px solid rgba(239, 68, 68, 0.35)',
+                          color: '#fca5a5',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                        title="Purge all legacy records from Chat Home, Resources, Process, and Partners"
+                      >
+                        <Trash2 size={13} />
+                        <span>Wipe & Reset Pipeline Only</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 

@@ -39,6 +39,8 @@ import {
   saveTieupPolicies,
   getAllOutreachLogs,
   saveOutreachLog,
+  deleteOutreachLog,
+  clearOutreachLogs,
 } from './db.js';
 import {
   verifySmtpConnection,
@@ -73,16 +75,24 @@ export async function readJsonBody(req) {
 }
 
 /**
- * Helper to send JSON response
+ * Helper to send JSON response safely without double-headers
  */
 export function sendJson(res, statusCode, data) {
-  res.writeHead(statusCode, {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  });
-  res.end(JSON.stringify(data));
+  if (!res || res.headersSent || res.writableEnded) {
+    return true;
+  }
+  try {
+    res.writeHead(statusCode, {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    });
+    res.end(JSON.stringify(data));
+  } catch (err) {
+    console.error('[sendJson write error]:', err);
+  }
+  return true;
 }
 
 /**
@@ -95,12 +105,14 @@ export async function handleApiRequest(req, res) {
 
   // Handle CORS Preflight
   if (method === 'OPTIONS') {
-    res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    });
-    res.end();
+    if (!res.headersSent && !res.writableEnded) {
+      res.writeHead(204, {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      });
+      res.end();
+    }
     return true;
   }
 
@@ -136,8 +148,9 @@ export async function handleApiRequest(req, res) {
 
     if (endpoint === '/sessions' && method === 'POST') {
       const body = await readJsonBody(req);
-      const saved = saveSession(body);
-      sendJson(res, 200, { session: saved });
+      const sessionData = (body && body.session) ? body.session : body;
+      const saved = saveSession(sessionData);
+      sendJson(res, 200, { success: true, session: saved });
       return true;
     }
 
@@ -362,7 +375,8 @@ export async function handleApiRequest(req, res) {
 
     if (endpoint === '/tieup-leads' && method === 'POST') {
       const body = await readJsonBody(req);
-      const saved = saveTieupLead(body);
+      const leadData = (body && body.lead) ? body.lead : body;
+      const saved = saveTieupLead(leadData);
       sendJson(res, 200, { success: true, lead: saved });
       return true;
     }
@@ -431,8 +445,23 @@ export async function handleApiRequest(req, res) {
 
     if (endpoint === '/tieup-outreach-logs' && method === 'POST') {
       const body = await readJsonBody(req);
-      const saved = saveOutreachLog(body);
+      const logData = (body && body.log) ? body.log : body;
+      const saved = saveOutreachLog(logData);
       sendJson(res, 200, { success: true, log: saved });
+      return true;
+    }
+
+    if (endpoint === '/tieup-outreach-logs' && method === 'DELETE') {
+      clearOutreachLogs();
+      sendJson(res, 200, { success: true });
+      return true;
+    }
+
+    const tieupOutreachLogMatch = endpoint.match(/^\/tieup-outreach-logs\/([^/]+)$/);
+    if (tieupOutreachLogMatch && method === 'DELETE') {
+      const id = decodeURIComponent(tieupOutreachLogMatch[1]);
+      deleteOutreachLog(id);
+      sendJson(res, 200, { success: true });
       return true;
     }
 
@@ -440,38 +469,77 @@ export async function handleApiRequest(req, res) {
     // GMAIL SMTP TRANSPORTER & BULK OUTREACH DISPATCH
     // -------------------------------------------------------------
     if (endpoint === '/outreach/verify-smtp' && method === 'POST') {
-      const body = await readJsonBody(req);
-      const result = await verifySmtpConnection({
-        user: body.senderEmail || body.user,
-        pass: body.appPassword || body.pass,
-      });
-      sendJson(res, 200, result);
+      try {
+        const body = await readJsonBody(req);
+        const rawUser = body.senderEmail || body.user || '';
+        const rawPass = body.appPassword || body.pass || '';
+        const trimmedEmail = typeof rawUser === 'string' ? rawUser.trim() : '';
+        const trimmedPass = typeof rawPass === 'string' ? rawPass.trim() : '';
+
+        const result = await verifySmtpConnection({
+          user: trimmedEmail,
+          pass: trimmedPass,
+          port: body.port,
+          host: body.host,
+          secure: body.secure,
+        });
+        sendJson(res, 200, result);
+      } catch (err) {
+        console.error('[API /outreach/verify-smtp Error]:', err);
+        sendJson(res, 500, {
+          success: false,
+          connected: false,
+          statusCode: 500,
+          errorType: 'SERVER_EXCEPTION',
+          error: `Server exception during SMTP verification: ${err?.message || err}`,
+        });
+      }
       return true;
     }
 
     if (endpoint === '/outreach/dispatch-smtp' && method === 'POST') {
-      const body = await readJsonBody(req);
-      const result = await sendBatchOutreach({
-        senderEmail: body.senderEmail,
-        appPassword: body.appPassword,
-        subjectTemplate: body.subject,
-        bodyTemplate: body.bodyTemplate,
-        leads: body.leads || [],
-      });
-      sendJson(res, 200, result);
+      try {
+        const body = await readJsonBody(req);
+        const rawUser = body.senderEmail || '';
+        const rawPass = body.appPassword || '';
+        const senderEmail = typeof rawUser === 'string' ? rawUser.trim() : '';
+        const appPassword = typeof rawPass === 'string' ? rawPass.trim() : '';
+
+        const result = await sendBatchOutreach({
+          senderEmail,
+          appPassword,
+          subjectTemplate: body.subject,
+          bodyTemplate: body.bodyTemplate,
+          leads: body.leads || [],
+        });
+        sendJson(res, 200, result);
+      } catch (err) {
+        console.error('[API /outreach/dispatch-smtp Error]:', err);
+        sendJson(res, 500, { success: false, error: err?.message || String(err) });
+      }
       return true;
     }
 
     if (endpoint === '/outreach/send-single-smtp' && method === 'POST') {
-      const body = await readJsonBody(req);
-      const result = await sendOutreachEmail({
-        from: body.senderEmail,
-        to: body.recipientEmail,
-        subject: body.subject,
-        text: body.body,
-        appPassword: body.appPassword,
-      });
-      sendJson(res, 200, result);
+      try {
+        const body = await readJsonBody(req);
+        const rawUser = body.senderEmail || '';
+        const rawPass = body.appPassword || '';
+        const senderEmail = typeof rawUser === 'string' ? rawUser.trim() : '';
+        const appPassword = typeof rawPass === 'string' ? rawPass.trim() : '';
+
+        const result = await sendOutreachEmail({
+          from: senderEmail,
+          to: typeof body.recipientEmail === 'string' ? body.recipientEmail.trim() : body.recipientEmail,
+          subject: body.subject,
+          text: body.body,
+          appPassword,
+        });
+        sendJson(res, 200, result);
+      } catch (err) {
+        console.error('[API /outreach/send-single-smtp Error]:', err);
+        sendJson(res, 500, { success: false, error: err?.message || String(err) });
+      }
       return true;
     }
 

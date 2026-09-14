@@ -36,6 +36,8 @@ import {
   Plus,
   AlertCircle,
   Bot,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import MarkdownRenderer from './MarkdownRenderer';
 import MasterclassVideoPlayer from './MasterclassVideoPlayer';
@@ -155,6 +157,23 @@ export default function LibraryWorkspaceView({
   const [batchSuccessMessage, setBatchSuccessMessage] = useState<string>('');
   // Dedicated Full-Page Module Workspace & Inline Editing Suite States
   const [isModuleFullScreen, setIsModuleFullScreen] = useState<boolean>(false);
+  // Full-Screen Entire Workspace Mode (Toolbar, Book Index, Book Content Panel)
+  const [isWorkspaceFullScreen, setIsWorkspaceFullScreen] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isWorkspaceFullScreen) {
+        setIsWorkspaceFullScreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isWorkspaceFullScreen]);
+
+  const toggleWorkspaceFullScreen = () => {
+    setIsWorkspaceFullScreen((prev) => !prev);
+  };
+
   const [showDirectEditorModal, setShowDirectEditorModal] = useState<boolean>(false);
   const [directEditContent, setDirectEditContent] = useState<string>('');
   const [showDeleteChapterModal, setShowDeleteChapterModal] = useState<boolean>(false);
@@ -520,8 +539,14 @@ CRITICAL RULES:
       style={{
         display: 'flex',
         flexDirection: 'column',
-        height: '100%',
-        width: '100%',
+        height: isWorkspaceFullScreen ? '100vh' : '100%',
+        width: isWorkspaceFullScreen ? '100vw' : '100%',
+        position: isWorkspaceFullScreen ? 'fixed' : 'relative',
+        top: isWorkspaceFullScreen ? 0 : undefined,
+        left: isWorkspaceFullScreen ? 0 : undefined,
+        right: isWorkspaceFullScreen ? 0 : undefined,
+        bottom: isWorkspaceFullScreen ? 0 : undefined,
+        zIndex: isWorkspaceFullScreen ? 99990 : 1,
         background: 'var(--bg-primary)',
         color: 'var(--text-main)',
         overflow: 'hidden',
@@ -582,6 +607,31 @@ CRITICAL RULES:
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+          {isWorkspaceFullScreen && (
+            <button
+              id="workspace-fullscreen-quick-exit-btn"
+              type="button"
+              onClick={toggleWorkspaceFullScreen}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                fontSize: '0.68rem',
+                color: '#38bdf8',
+                background: 'rgba(56, 189, 248, 0.15)',
+                border: '1px solid rgba(56, 189, 248, 0.4)',
+                padding: '0.18rem 0.6rem',
+                borderRadius: '9999px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              title="Exit Full Screen Mode (Esc)"
+            >
+              <Minimize2 size={11} />
+              <span>Exit Full Screen (Esc)</span>
+            </button>
+          )}
           <div
             style={{
               fontSize: '0.7rem',
@@ -787,6 +837,38 @@ CRITICAL RULES:
                 <span>AI Refine</span>
               </button>
             )}
+
+            {/* Full Screen Workspace Mode Toggle */}
+            <button
+              id="workspace-fullscreen-toggle-btn"
+              type="button"
+              onClick={toggleWorkspaceFullScreen}
+              className="action-chip"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                height: '28px',
+                padding: '0 0.8rem',
+                borderRadius: '9999px',
+                background: isWorkspaceFullScreen
+                  ? 'linear-gradient(135deg, rgba(6, 182, 212, 0.35) 0%, rgba(56, 189, 248, 0.35) 100%)'
+                  : 'rgba(255, 255, 255, 0.05)',
+                border: isWorkspaceFullScreen
+                  ? '1.5px solid #38bdf8'
+                  : '1px solid var(--border-subtle)',
+                color: isWorkspaceFullScreen ? '#38bdf8' : 'var(--text-main)',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                boxShadow: isWorkspaceFullScreen ? '0 0 14px rgba(56, 189, 248, 0.45)' : 'none',
+              }}
+              title={isWorkspaceFullScreen ? 'Exit Full Screen Mode (Esc)' : 'Expand Entire Workspace to Full Screen'}
+            >
+              {isWorkspaceFullScreen ? <Minimize2 size={13} color="#38bdf8" /> : <Maximize2 size={13} />}
+              <span>{isWorkspaceFullScreen ? 'Exit Full Screen' : 'Full Screen'}</span>
+            </button>
           </div>
         </div>
 
@@ -1319,6 +1401,41 @@ CRITICAL RULES:
                 <span>{(compiledCourse.versions || []).length}</span>
               </button>
             </div>
+
+            {/* 6. Full Screen Toggle Button (Placed directly after Snapshot) */}
+            <button
+              id="workspace-fullscreen-after-snapshot-btn"
+              type="button"
+              onClick={toggleWorkspaceFullScreen}
+              className="action-chip"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.38rem',
+                height: '28px',
+                padding: '0 0.85rem',
+                borderRadius: '9999px',
+                background: isWorkspaceFullScreen
+                  ? 'linear-gradient(135deg, rgba(6, 182, 212, 0.35) 0%, rgba(56, 189, 248, 0.35) 100%)'
+                  : 'linear-gradient(135deg, rgba(56, 189, 248, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%)',
+                border: isWorkspaceFullScreen
+                  ? '1.5px solid #38bdf8'
+                  : '1px solid rgba(56, 189, 248, 0.45)',
+                color: isWorkspaceFullScreen ? '#38bdf8' : '#7dd3fc',
+                fontSize: '0.74rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                boxShadow: isWorkspaceFullScreen
+                  ? '0 0 14px rgba(56, 189, 248, 0.5)'
+                  : '0 0 8px rgba(56, 189, 248, 0.2)',
+                whiteSpace: 'nowrap',
+              }}
+              title={isWorkspaceFullScreen ? 'Exit Full Screen Mode (Esc)' : 'Expand Entire Workspace to Full Screen'}
+            >
+              {isWorkspaceFullScreen ? <Minimize2 size={13} color="#38bdf8" /> : <Maximize2 size={13} color="#38bdf8" />}
+              <span>{isWorkspaceFullScreen ? 'Exit Full Screen' : 'Full Screen'}</span>
+            </button>
           </div>
 
           {/* Right: Feedback Banners */}
@@ -1690,194 +1807,216 @@ CRITICAL RULES:
 
                 {/* Tab 1: Course Reading / Primary Textbook Learning Material */}
                 {activeWorkspaceTab === 'reading' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    {/* Chapter Header Card */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                    {/* Compact Single-Line Chapter Header Strip */}
                     <div
+                      id="compact-workspace-header-strip"
                       className="glass-panel"
                       style={{
-                        padding: '1.75rem',
-                        boxShadow: 'var(--shadow-md)',
-                        position: 'relative',
+                        padding: '0.42rem 0.85rem',
+                        boxShadow: 'var(--shadow-sm)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '0.65rem',
+                        flexWrap: 'nowrap',
                         overflow: 'hidden',
                       }}
                     >
-                      {/* Breadcrumb & Actions */}
+                      {/* Left: Single-Line Breadcrumb + Title + Audience */}
                       <div
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'space-between',
-                          marginBottom: '0.85rem',
-                          flexWrap: 'wrap',
-                          gap: '0.6rem',
+                          gap: '0.45rem',
+                          minWidth: 0,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          flex: 1,
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.76rem', color: 'var(--accent-primary)', fontWeight: 700 }}>
-                          <span style={{ color: 'var(--text-subtle)' }}>{compiledCourse.title}</span>
-                          <span style={{ color: 'var(--border-subtle)' }}>/</span>
-                          <span
-                            style={{
-                              background: 'rgba(99, 102, 241, 0.15)',
-                              border: '1px solid rgba(99, 102, 241, 0.35)',
-                              padding: '0.12rem 0.55rem',
-                              borderRadius: '9999px',
-                              color: '#a5b4fc',
-                            }}
-                          >
-                            Book {activeChapter.chapterNumber} of {compiledCourse.totalChapters}
-                          </span>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                          {/* Class Video Player Trigger */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setActiveWorkspaceTab('video');
-                              setActiveVideoTopicNumber(`${activeChapter.chapterNumber}.1`);
-                            }}
-                            className="action-chip"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.3rem',
-                              padding: '0.3rem 0.75rem',
-                              borderRadius: '9999px',
-                              background: 'rgba(236, 72, 153, 0.18)',
-                              border: '1px solid rgba(236, 72, 153, 0.45)',
-                              color: '#ffffff',
-                              fontSize: '0.74rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              boxShadow: '0 0 10px rgba(236, 72, 153, 0.25)',
-                            }}
-                            title="Watch Interactive Masterclass Video & Lesson Production Script"
-                          >
-                            <Video size={13} color="#f472b6" />
-                            <span>Class Video ({activeChapter.chapterNumber}.1)</span>
-                          </button>
-
-                          {/* In-Place Edit Trigger */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRefiningChapterId((prev) => (prev === activeChapter.id ? null : activeChapter.id));
-                              setTargetSectionTitle(null);
-                            }}
-                            className="action-chip"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.3rem',
-                              padding: '0.3rem 0.65rem',
-                              borderRadius: '9999px',
-                              background: 'rgba(168, 85, 247, 0.16)',
-                              border: '1px solid rgba(168, 85, 247, 0.4)',
-                              color: '#c084fc',
-                              fontSize: '0.74rem',
-                              cursor: 'pointer',
-                              fontWeight: 600,
-                            }}
-                            title="Edit or refine this chapter"
-                          >
-                            <Sparkles size={12} />
-                            <span>Edit</span>
-                          </button>
-
-                          {/* TTS */}
-                          <button
-                            type="button"
-                            onClick={() => onSpeak(activeChapter.content, activeChapter.id, workspaceLanguage)}
-                            className="action-chip"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.3rem',
-                              padding: '0.3rem 0.65rem',
-                              borderRadius: '9999px',
-                              background: 'rgba(255, 255, 255, 0.05)',
-                              border: '1px solid var(--border-subtle)',
-                              color: 'var(--text-muted)',
-                              fontSize: '0.74rem',
-                              cursor: 'pointer',
-                            }}
-                            title="Read aloud"
-                          >
-                            {isSpeaking && activeSpeakingId === activeChapter.id ? <VolumeX size={12} /> : <Volume2 size={12} />}
-                            <span>{isSpeaking && activeSpeakingId === activeChapter.id ? 'Stop' : 'Speak'}</span>
-                          </button>
-
-                          {/* Copy */}
-                          <button
-                            type="button"
-                            onClick={handleCopyChapter}
-                            className="action-chip"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.3rem',
-                              padding: '0.3rem 0.65rem',
-                              borderRadius: '9999px',
-                              background: 'rgba(255, 255, 255, 0.05)',
-                              border: '1px solid var(--border-subtle)',
-                              color: copied ? 'var(--success)' : 'var(--text-muted)',
-                              fontSize: '0.74rem',
-                              cursor: 'pointer',
-                            }}
-                            title="Copy chapter markdown"
-                          >
-                            {copied ? <Check size={12} color="var(--success)" /> : <Copy size={12} />}
-                            <span>{copied ? 'Copied' : 'Copy'}</span>
-                          </button>
-
-                          {/* Download DOCX */}
-                          <button
-                            type="button"
-                            onClick={handleDownloadDocx}
-                            className="action-chip"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.3rem',
-                              padding: '0.3rem 0.65rem',
-                              borderRadius: '9999px',
-                              background: 'rgba(99, 102, 241, 0.15)',
-                              border: '1px solid rgba(99, 102, 241, 0.4)',
-                              color: '#a5b4fc',
-                              fontSize: '0.74rem',
-                              cursor: 'pointer',
-                              fontWeight: 600,
-                            }}
-                            title="Export course to Word Document"
-                          >
-                            <FileText size={12} />
-                            <span>DOCX</span>
-                          </button>
-                        </div>
+                        <span
+                          style={{
+                            fontSize: '0.74rem',
+                            color: 'var(--accent-primary)',
+                            fontWeight: 700,
+                            flexShrink: 0,
+                          }}
+                          title={`${compiledCourse.title} • Book ${activeChapter.chapterNumber} of ${compiledCourse.totalChapters}`}
+                        >
+                          {compiledCourse.title} • Book {activeChapter.chapterNumber} of {compiledCourse.totalChapters}
+                        </span>
+                        <span style={{ color: 'var(--border-subtle)', flexShrink: 0 }}>|</span>
+                        <span
+                          style={{
+                            fontSize: '0.82rem',
+                            fontWeight: 800,
+                            color: 'var(--text-main)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                          title={activeChapter.title}
+                        >
+                          {activeChapter.title}
+                        </span>
+                        {(compiledCourse.studiedBy || selectedAudience) && (
+                          <>
+                            <span style={{ color: 'var(--border-subtle)', flexShrink: 0 }}>|</span>
+                            <span
+                              style={{
+                                fontSize: '0.68rem',
+                                fontWeight: 700,
+                                color: '#7dd3fc',
+                                background: 'rgba(56, 189, 248, 0.12)',
+                                border: '1px solid rgba(56, 189, 248, 0.3)',
+                                padding: '0.1rem 0.45rem',
+                                borderRadius: '9999px',
+                                flexShrink: 0,
+                                whiteSpace: 'nowrap',
+                              }}
+                              title={`Target Audience: ${compiledCourse.studiedBy || selectedAudience}`}
+                            >
+                              To: {compiledCourse.studiedBy || selectedAudience}
+                            </span>
+                          </>
+                        )}
                       </div>
 
-                      <h2
-                        style={{
-                          fontSize: '1.75rem',
-                          fontWeight: 800,
-                          color: 'var(--text-main)',
-                          marginBottom: '0.45rem',
-                          letterSpacing: '-0.025em',
-                        }}
-                      >
-                        Book {activeChapter.chapterNumber}: {activeChapter.title}
-                      </h2>
-                      {activeChapter.summary && (
-                        <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
-                          {activeChapter.summary}
-                        </p>
-                      )}
+                      {/* Right Actions */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
+                        {/* Class Video Player Trigger */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveWorkspaceTab('video');
+                            setActiveVideoTopicNumber(`${activeChapter.chapterNumber}.1`);
+                          }}
+                          className="action-chip"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            padding: '0.22rem 0.6rem',
+                            borderRadius: '9999px',
+                            background: 'rgba(236, 72, 153, 0.18)',
+                            border: '1px solid rgba(236, 72, 153, 0.45)',
+                            color: '#ffffff',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                          title="Watch Interactive Masterclass Video & Lesson Production Script"
+                        >
+                          <Video size={11} color="#f472b6" />
+                          <span>Video ({activeChapter.chapterNumber}.1)</span>
+                        </button>
+
+                        {/* In-Place Edit Trigger */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRefiningChapterId((prev) => (prev === activeChapter.id ? null : activeChapter.id));
+                            setTargetSectionTitle(null);
+                          }}
+                          className="action-chip"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            padding: '0.22rem 0.55rem',
+                            borderRadius: '9999px',
+                            background: 'rgba(168, 85, 247, 0.16)',
+                            border: '1px solid rgba(168, 85, 247, 0.4)',
+                            color: '#c084fc',
+                            fontSize: '0.7rem',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                          }}
+                          title="Edit or refine this chapter"
+                        >
+                          <Sparkles size={11} />
+                          <span>Edit</span>
+                        </button>
+
+                        {/* TTS */}
+                        <button
+                          type="button"
+                          onClick={() => onSpeak(activeChapter.content, activeChapter.id, workspaceLanguage)}
+                          className="action-chip"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            padding: '0.22rem 0.55rem',
+                            borderRadius: '9999px',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: '1px solid var(--border-subtle)',
+                            color: 'var(--text-muted)',
+                            fontSize: '0.7rem',
+                            cursor: 'pointer',
+                          }}
+                          title="Read aloud"
+                        >
+                          {isSpeaking && activeSpeakingId === activeChapter.id ? <VolumeX size={11} /> : <Volume2 size={11} />}
+                          <span>{isSpeaking && activeSpeakingId === activeChapter.id ? 'Stop' : 'Speak'}</span>
+                        </button>
+
+                        {/* Copy */}
+                        <button
+                          type="button"
+                          onClick={handleCopyChapter}
+                          className="action-chip"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            padding: '0.22rem 0.55rem',
+                            borderRadius: '9999px',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: '1px solid var(--border-subtle)',
+                            color: copied ? 'var(--success)' : 'var(--text-muted)',
+                            fontSize: '0.7rem',
+                            cursor: 'pointer',
+                          }}
+                          title="Copy chapter markdown"
+                        >
+                          {copied ? <Check size={11} color="var(--success)" /> : <Copy size={11} />}
+                          <span>{copied ? 'Copied' : 'Copy'}</span>
+                        </button>
+
+                        {/* Download DOCX */}
+                        <button
+                          type="button"
+                          onClick={handleDownloadDocx}
+                          className="action-chip"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            padding: '0.22rem 0.55rem',
+                            borderRadius: '9999px',
+                            background: 'rgba(99, 102, 241, 0.15)',
+                            border: '1px solid rgba(99, 102, 241, 0.4)',
+                            color: '#a5b4fc',
+                            fontSize: '0.7rem',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                          }}
+                          title="Export course to Word Document"
+                        >
+                          <FileText size={11} />
+                          <span>DOCX</span>
+                        </button>
+                      </div>
                     </div>
 
                     {/* National / International Authorized Curriculum & Framework Reference Card */}
                     <AuthorizedCurriculumBanner
                       courseTitle={compiledCourse.title}
                       content={activeChapter.content}
+                      compact={true}
                     />
 
                     {/* Markdown Chapter Content */}

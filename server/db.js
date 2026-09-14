@@ -1,8 +1,11 @@
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DATA_DIR = path.resolve(__dirname, '..', 'data');
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
@@ -322,15 +325,6 @@ export function rehydrateFromPersistenceStore(db) {
   if (!store) return;
 
   try {
-    // Check if SQLite sessions are empty but store has sessions
-    const sessionCount = db.prepare(`SELECT COUNT(*) AS count FROM chat_sessions`).get()?.count || 0;
-    if (sessionCount === 0 && Array.isArray(store.sessions) && store.sessions.length > 0) {
-      console.log(`[server/db] Rehydrating ${store.sessions.length} sessions from app_persistence_store.json...`);
-      for (const s of store.sessions) {
-        saveSession(s);
-      }
-    }
-
     // Check if SQLite courses are empty but store has courses
     const coursesCount = db.prepare(`SELECT COUNT(*) AS count FROM library_courses`).get()?.count || 0;
     if (coursesCount === 0 && Array.isArray(store.courses) && store.courses.length > 0) {
@@ -338,13 +332,6 @@ export function rehydrateFromPersistenceStore(db) {
       for (const c of store.courses) {
         saveCourse(c);
       }
-    }
-
-    // Check if SQLite tieup_leads are empty but store has leads
-    const leadsCount = db.prepare(`SELECT COUNT(*) AS count FROM tieup_leads`).get()?.count || 0;
-    if (leadsCount === 0 && Array.isArray(store.tieupLeads) && store.tieupLeads.length > 0) {
-      console.log(`[server/db] Rehydrating ${store.tieupLeads.length} tie-up leads from app_persistence_store.json...`);
-      saveTieupLeadsBatch(store.tieupLeads);
     }
 
     // Rehydrate policies if available
@@ -647,8 +634,8 @@ export function saveSession(session) {
       product_type = excluded.product_type,
       product_params = excluded.product_params,
       studied_by = excluded.studied_by,
-      is_permanent = CASE WHEN excluded.is_permanent = 1 THEN 1 ELSE chat_sessions.is_permanent END,
-      locked = CASE WHEN excluded.locked = 1 THEN 1 ELSE chat_sessions.locked END
+      is_permanent = excluded.is_permanent,
+      locked = excluded.locked
   `);
 
   stmt.run(
@@ -704,16 +691,23 @@ export function togglePinSession(id) {
 
 export function deleteSession(id) {
   const db = getDatabase();
-  // Protected: do not delete locked permanent sessions
-  const stmt = db.prepare(`DELETE FROM chat_sessions WHERE id = ? AND (locked IS NULL OR locked = 0)`);
+  const stmt = db.prepare(`DELETE FROM chat_sessions WHERE id = ?`);
   stmt.run(id);
+  syncPersistenceStoreToDisk();
   return true;
 }
 
 export function clearAllSessions() {
   const db = getDatabase();
-  // Safe: preserve permanent and locked courses
-  db.exec(`DELETE FROM chat_sessions WHERE (is_permanent IS NULL OR is_permanent = 0) AND (locked IS NULL OR locked = 0)`);
+  db.exec(`DELETE FROM chat_sessions`);
+  syncPersistenceStoreToDisk();
+  return true;
+}
+
+export function unlockSession(id) {
+  const db = getDatabase();
+  db.prepare(`UPDATE chat_sessions SET locked = 0, is_permanent = 0 WHERE id = ?`).run(id);
+  syncPersistenceStoreToDisk();
   return true;
 }
 
@@ -890,17 +884,25 @@ export function saveCourse(course) {
 
 export function deleteCourse(id) {
   const db = getDatabase();
-  // Protected: do not delete locked permanent courses via generic deleteCourse
-  const stmt = db.prepare(`DELETE FROM library_courses WHERE id = ? AND (locked IS NULL OR locked = 0)`);
+  const stmt = db.prepare(`DELETE FROM library_courses WHERE id = ?`);
   stmt.run(id);
+  syncPersistenceStoreToDisk();
   return true;
 }
 
 export function clearAllCourses() {
   const db = getDatabase();
-  // Safe: preserve permanent and locked courses
-  db.exec(`DELETE FROM library_courses WHERE (is_permanent IS NULL OR is_permanent = 0) AND (locked IS NULL OR locked = 0)`);
+  db.exec(`DELETE FROM library_courses`);
+  syncPersistenceStoreToDisk();
   return true;
+}
+
+// Reset any locked sessions in DB so all are immediately deletable
+try {
+  const db = getDatabase();
+  db.exec('UPDATE chat_sessions SET locked = 0, is_permanent = 0;');
+} catch (e) {
+  console.warn('Could not reset locked flag in db:', e);
 }
 
 export function toggleChapterCompletion(courseId, chapterId) {
@@ -1293,8 +1295,13 @@ export function saveTieupLeadsBatch(leads, sessionId = null) {
 
 export function deleteTieupLead(id) {
   const db = getDatabase();
-  const stmt = db.prepare(`DELETE FROM tieup_leads WHERE id = ?`);
-  stmt.run(id);
+  try {
+    const stmt = db.prepare(`DELETE FROM tieup_leads WHERE id = ?`);
+    stmt.run(id);
+  } catch (err) {
+    console.warn(`[server/db] Error in deleteTieupLead:`, err);
+  }
+  syncPersistenceStoreToDisk();
   return true;
 }
 
@@ -1306,6 +1313,7 @@ export function clearTieupLeads(sessionId = null) {
   } else {
     db.exec(`DELETE FROM tieup_leads`);
   }
+  syncPersistenceStoreToDisk();
   return true;
 }
 
@@ -1481,7 +1489,7 @@ export function saveOutreachLog(log) {
     id,
     log.leadId || null,
     log.institutionName || '',
-    log.recipientEmail,
+    log.recipientEmail || log.email || '',
     log.recipientName || '',
     log.subject || '',
     log.status || 'delivered',
@@ -1526,6 +1534,25 @@ export function saveOutreachLog(log) {
     leadDataSnapshot: log.leadDataSnapshot || null,
     lastChecked: log.lastChecked || now,
   };
+}
+
+export function deleteOutreachLog(id) {
+  const db = getDatabase();
+  try {
+    const stmt = db.prepare(`DELETE FROM tieup_outreach_logs WHERE id = ?`);
+    stmt.run(id);
+  } catch (err) {
+    console.warn(`[server/db] Error in deleteOutreachLog:`, err);
+  }
+  syncPersistenceStoreToDisk();
+  return true;
+}
+
+export function clearOutreachLogs() {
+  const db = getDatabase();
+  db.exec(`DELETE FROM tieup_outreach_logs`);
+  syncPersistenceStoreToDisk();
+  return true;
 }
 
 // -------------------------------------------------------------
