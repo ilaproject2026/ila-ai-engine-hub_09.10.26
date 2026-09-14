@@ -5,9 +5,7 @@ import {
   convertPermanentCourseToSession,
   convertPermanentToLibraryCourse,
   deletePermanentCourse,
-  recordCourseDownload,
   PRESEEDED_ENTERPRISE_AI_COURSE,
-  type PermanentCourseItem,
 } from './permanentCourseStore';
 
 export * from './permanentCourseStore';
@@ -297,6 +295,7 @@ export interface CourseChapter {
   subTopics?: CourseSubTopic[];
   content: string; // Detailed educational text/markdown with screenshots, exercises, workflows
   isCompleted?: boolean;
+  slides?: any;
 }
 
 // Course Version Snapshot for Local Version History & Auto-Save
@@ -393,6 +392,8 @@ export interface LibraryCourse {
   adminCourseData?: AdminLibraryCourseData;
   slideAiCourseData?: SlideAiCourseData;
   intelliCoachCourseData?: IntelliCoachCourseData;
+  slideDecks?: any;
+  slides?: any;
   isPermanent?: boolean;
   locked?: boolean;
   lastDownloadedAt?: number;

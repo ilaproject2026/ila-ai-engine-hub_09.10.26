@@ -27,12 +27,10 @@ import {
   Palette,
   ChevronDown,
   Droplets,
-  ShieldCheck,
   MessageSquare,
   Presentation,
   Tv,
   Bot,
-  Grid,
   Activity,
   Sliders,
   Compass,
@@ -50,8 +48,6 @@ import {
   ArrowLeft,
   LayoutDashboard,
   GraduationCap,
-  Plus,
-  FolderOpen,
   Database,
   Handshake,
   SendHorizontal,
@@ -615,12 +611,13 @@ export default function App() {
 
     let targetSession = chatSessions.find((s) => s.id === activeSessionId);
     if (!targetSession) {
-      targetSession = createNewSessionObject(
+      const freshSession = createNewSessionObject(
         cleanQuery.length > 40 ? cleanQuery.slice(0, 40) + '...' : cleanQuery,
         'ila_chat'
       );
-      await saveChatSession(targetSession);
-      setSessions((prev) => [targetSession, ...prev]);
+      targetSession = freshSession;
+      await saveChatSession(freshSession);
+      setSessions((prev) => [freshSession, ...prev]);
     }
 
     const title =
@@ -682,24 +679,6 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Create a brand new chat session (Adaptive to active module)
-  const handleNewChat = async () => {
-    const isCourse = activeModule === 'course_creator' || activeModule === 'central_dashboard';
-    const targetProduct: AIProductType = isCourse ? 'course_creator' : (activeModule as AIProductType);
-    const config = getAIProductConfig(targetProduct);
-    const title = isCourse
-      ? 'New Course Workspace'
-      : `New ${config.shortName} Query`;
-    const newSession = createNewSessionObject(title, targetProduct);
-    await saveChatSession(newSession);
-    setSessions((prev) => [newSession, ...prev]);
-    setActiveSessionId(newSession.id);
-    setAttachedDocuments([]);
-    setError(null);
-    stopAllSpeech();
-    setCourseCreatorTab('home');
   };
 
   // Create a brand new session for a specific product and parameters
@@ -3150,28 +3129,23 @@ Structure each chapter with detailed pedagogical breakdowns, real-world examples
           /* 6. GENERAL CHAT HOME MODE (Unified AI Assistant) */
           <ChatHomeView
             sessions={sessions.filter((s) => s.productType === 'ila_chat' || !s.productType)}
-            activeSessionId={activeSessionId}
+            activeSessionId={activeChatSession?.id || activeSessionId}
             onSelectSession={handleSelectSession}
-            onNewChat={() => handleNewChatForProduct('ila_chat')}
+            onNewChat={handleNewChatSession}
             onDeleteSession={handleDeleteSession}
             onRenameSession={handleRenameSession}
             onTogglePinSession={handleTogglePinSession}
             onClearAllSessions={handleClearAllSessions}
             onExportJSON={handleExportJSON}
             onImportJSON={handleImportJSON}
-            onSendMessage={handleSendMessage}
+            onSendMessage={handleSendChatMessage}
             loading={loading}
             isDbPersisted={isDbPersisted}
             dbHealth={dbHealth}
             onSpeak={speak}
             isSpeaking={isSpeaking}
             activeSpeakingId={activeSpeakingId}
-            onConvertToCourse={(session) => {
-              handleSelectSession(session.id);
-              setActiveModule('course_creator');
-              setPrimaryNavView('course_creator');
-              setCourseCreatorTab('home');
-            }}
+            onConvertToCourse={handleConvertChatToCourse}
           />
         ) : (
           /* 5. COURSE CREATOR UNIFIED MASTER STUDIO (Left Chat History Sidebar + Right Master Workspace) */
