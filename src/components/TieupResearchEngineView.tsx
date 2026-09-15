@@ -83,7 +83,11 @@ import {
 import {
   verifyEmailJsConnection,
   sendEmailJsSingle,
+  verifySupabaseSmtpConnection,
+  sendSupabaseSmtpSingle,
+  sendSupabaseSmtpBulk,
   substituteEmailTokens,
+  type TransporterType,
 } from '../services/emailService';
 import { generateTieupResearchLeads, getIlaModelDisplayName, isValidDirectUrl } from '../services/geminiService';
 import { useVoice } from '../hooks/useVoice';
@@ -230,7 +234,7 @@ export const TEST_COLLEGES_SANDBOX_DATA: TieupLeadItem[] = [
     locationSub: 'Tiergarten Tech Campus',
     contactPerson: 'Dr. Markus Weber',
     contactTitle: 'Head of International Admissions & Strategic Alliances',
-    contactEmail: 'rafiaquafqu@gmail.com',
+    contactEmail: 'rafiaqua@gmail.com',
     contactPhone: '+49 30 5550191',
     antiSpamStatus: 'verified',
     antiSpamNotes: 'Official sandbox institutional liaison. Verified direct deliverability via EmailJS, zero spam flags.',
@@ -366,7 +370,7 @@ export const TEST_COLLEGES_SANDBOX_DATA: TieupLeadItem[] = [
     locationSub: 'Garching Science Park',
     contactPerson: 'Prof. Dr. Christian Meyer',
     contactTitle: 'Dean of Global Academic Alliances',
-    contactEmail: 'rafiaquafqu@gmail.com',
+    contactEmail: 'rafiaqua@gmail.com',
     contactPhone: '+49 89 2890100',
     antiSpamStatus: 'verified',
     antiSpamNotes: 'Verified academic liaison mailbox. Zero spam flags, SPF/DKIM validated.',
@@ -1075,7 +1079,7 @@ export default function TieupResearchEngineView({
             institutionName: lead.name,
             recipientEmail: lead.contactEmail,
             recipientName: lead.contactPerson,
-            senderEmail: senderEmail || 'rafiaquafqu@gmail.com',
+            senderEmail: senderEmail || 'rafiaqua@gmail.com',
             subject: `Official Partnership Executed - ${lead.name}`,
             status: 'delivered',
             phase: 'pushed_partner',
@@ -1122,15 +1126,97 @@ export default function TieupResearchEngineView({
   const [manualReviewLog, setManualReviewLog] = useState<OutreachStatusLogItem | null>(null);
   const [manualReviewEmail, setManualReviewEmail] = useState<string>('');
 
-  // Sender Email State (Default to designated test sender rafiaquafqu@gmail.com)
+  // Sender Email State (Default to designated test sender rafiaqua@gmail.com)
   const [senderEmail, setSenderEmail] = useState<string>(() => {
     return (
       localStorage.getItem('ila_emailjs_sender_email') ||
       (import.meta as any).env?.VITE_EMAILJS_SENDER_EMAIL ||
       localStorage.getItem('ila_gmail_sender_email') ||
-      'rafiaquafqu@gmail.com'
+      'rafiaqua@gmail.com'
     );
   });
+  // Active Transporter Type: 'supabase_smtp' (default) | 'emailjs'
+  const [activeTransporter, setActiveTransporter] = useState<TransporterType>(() => {
+    return (localStorage.getItem('ila_active_transporter') as TransporterType) || 'supabase_smtp';
+  });
+
+  // Supabase & Custom SMTP Configuration State
+  const [supabaseSmtpHost, setSupabaseSmtpHost] = useState<string>(() => {
+    return (
+      localStorage.getItem('ila_supabase_smtp_host') ||
+      (import.meta as any).env?.VITE_SUPABASE_SMTP_HOST ||
+      'smtp.resend.com'
+    );
+  });
+  const [supabaseSmtpPort, setSupabaseSmtpPort] = useState<string>(() => {
+    return (
+      localStorage.getItem('ila_supabase_smtp_port') ||
+      (import.meta as any).env?.VITE_SUPABASE_SMTP_PORT ||
+      '587'
+    );
+  });
+  const [supabaseSmtpUser, setSupabaseSmtpUser] = useState<string>(() => {
+    return (
+      localStorage.getItem('ila_supabase_smtp_user') ||
+      (import.meta as any).env?.VITE_SUPABASE_SMTP_USER ||
+      'resend'
+    );
+  });
+  const [supabaseSmtpPass, setSupabaseSmtpPass] = useState<string>(() => {
+    return (
+      localStorage.getItem('ila_supabase_smtp_pass') ||
+      (import.meta as any).env?.VITE_SUPABASE_SMTP_PASS ||
+      ''
+    );
+  });
+  const [showSmtpPass, setShowSmtpPass] = useState<boolean>(false);
+  const [showSupabaseSmtpGuide, setShowSupabaseSmtpGuide] = useState<boolean>(false);
+  const [isVerifyingSupabaseSmtp, setIsVerifyingSupabaseSmtp] = useState<boolean>(false);
+  const [supabaseSmtpVerifyStatus, setSupabaseSmtpVerifyStatus] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
+
+  // Test & Verify Supabase SMTP Connection Handler
+  const handleVerifySupabaseSmtp = async () => {
+    setIsVerifyingSupabaseSmtp(true);
+    setSupabaseSmtpVerifyStatus(null);
+    const cleanHost = (supabaseSmtpHost || '').trim();
+    const cleanPort = Number(supabaseSmtpPort || 587);
+    const cleanUser = (supabaseSmtpUser || '').trim();
+    const cleanPass = (supabaseSmtpPass || '').trim();
+    const cleanEmail = (senderEmail || '').trim() || 'rafiaqua@gmail.com';
+
+    try {
+      localStorage.setItem('ila_supabase_smtp_host', cleanHost);
+      localStorage.setItem('ila_supabase_smtp_port', String(cleanPort));
+      localStorage.setItem('ila_supabase_smtp_user', cleanUser);
+      localStorage.setItem('ila_supabase_smtp_pass', cleanPass);
+      localStorage.setItem('ila_emailjs_sender_email', cleanEmail);
+      localStorage.setItem('ila_active_transporter', activeTransporter);
+
+      const res = await verifySupabaseSmtpConnection(
+        {
+          host: cleanHost,
+          port: cleanPort,
+          user: cleanUser,
+          pass: cleanPass,
+          senderEmail: cleanEmail,
+          secure: cleanPort === 465,
+        },
+        cleanEmail
+      );
+      setSupabaseSmtpVerifyStatus(res);
+    } catch (err: any) {
+      setSupabaseSmtpVerifyStatus({
+        success: false,
+        message: err.message || 'Error communicating with Supabase SMTP relay.',
+      });
+    } finally {
+      setIsVerifyingSupabaseSmtp(false);
+    }
+  };
+
   // EmailJS Dispatch Transporter Configuration State
   const [emailjsServiceId, setEmailjsServiceId] = useState<string>(() => {
     return (
@@ -2030,7 +2116,7 @@ export default function TieupResearchEngineView({
     });
   }, [sessionLeads, sortBy, ieltsFilter, germanLevelFilter, tuitionFilter, scholarshipFilter, minCommissionFilter]);
 
-  // Phase 1: Simultaneous Bulk Send Outreach Action with Configured EmailJS Transporter
+  // Phase 1: Simultaneous Bulk Send Outreach Action with Configured Transporter (Supabase SMTP or EmailJS)
   const handleSendBulkOutreach = async () => {
     const selectedIds = Array.from(phase1SelectedLeadIds);
     if (selectedIds.length === 0) {
@@ -2041,65 +2127,343 @@ export default function TieupResearchEngineView({
       return;
     }
 
-    const cleanService = (
-      emailjsServiceId ||
-      (import.meta as any).env?.VITE_EMAILJS_SERVICE_ID ||
-      ''
-    ).trim();
-    const cleanTemplate = (
-      emailjsTemplateId ||
-      (import.meta as any).env?.VITE_EMAILJS_TEMPLATE_ID ||
-      ''
-    ).trim();
-    const cleanPublic = (
-      emailjsPublicKey ||
-      (import.meta as any).env?.VITE_EMAILJS_PUBLIC_KEY ||
-      ''
-    ).trim();
-    const fromAddress = senderEmail.trim() || 'rafiaquafqu@gmail.com';
+    const fromAddress = senderEmail.trim() || 'rafiaqua@gmail.com';
 
-    if (!cleanService || !cleanTemplate || !cleanPublic) {
-      setBulkSendNotice(
-        '⚠ EmailJS Credentials Required: Please enter your Service ID, Template ID, and Public Key in the configuration card above.'
-      );
-      setTimeout(() => setBulkSendNotice(null), 8000);
-      return;
-    }
+    if (activeTransporter === 'supabase_smtp') {
+      const cleanHost = (
+        supabaseSmtpHost ||
+        (import.meta as any).env?.VITE_SUPABASE_SMTP_HOST ||
+        'smtp.resend.com'
+      ).trim();
+      const cleanPort = Number(supabaseSmtpPort || 587);
+      const cleanUser = (
+        supabaseSmtpUser ||
+        (import.meta as any).env?.VITE_SUPABASE_SMTP_USER ||
+        'resend'
+      ).trim();
+      const cleanPass = (
+        supabaseSmtpPass ||
+        (import.meta as any).env?.VITE_SUPABASE_SMTP_PASS ||
+        ''
+      ).trim();
 
-    setIsBulkSending(true);
-
-    try {
-      // Save credentials preference in browser storage
-      localStorage.setItem('ila_emailjs_service_id', cleanService);
-      localStorage.setItem('ila_emailjs_template_id', cleanTemplate);
-      localStorage.setItem('ila_emailjs_public_key', cleanPublic);
-      localStorage.setItem('ila_emailjs_sender_email', fromAddress);
-
-      // Search in processLeads FIRST, then allResourcesLeads and sessionLeads
-      const selectedLeadItems = selectedIds
-        .map((id) => processLeads.find((l) => l.id === id) || allResourcesLeads.find((l) => l.id === id) || sessionLeads.find((l) => l.id === id))
-        .filter((l): l is TieupLeadItem => Boolean(l && (l.contactEmail || (l as any).email || (l as any).contact_email)));
-
-      if (selectedLeadItems.length === 0) {
-        setBulkSendNotice('⚠ No valid target lead email addresses found in selection. Please check lead contact details.');
-        setIsBulkSending(false);
-        setTimeout(() => setBulkSendNotice(null), 6500);
+      if (!cleanUser || !cleanPass) {
+        setBulkSendNotice(
+          '⚠ Supabase SMTP Credentials Required: Please enter your SMTP Username / API Key and Password in the configuration card above.'
+        );
+        setTimeout(() => setBulkSendNotice(null), 8000);
         return;
       }
 
-      let deliveredCount = 0;
-      let failedCount = 0;
-      let lastErrorMessage = '';
-      const newLogs: OutreachStatusLogItem[] = [];
+      setIsBulkSending(true);
 
-      for (const lead of selectedLeadItems) {
-        const targetEmail = (lead.contactEmail || (lead as any).email || (lead as any).contact_email || '').trim();
-        if (!targetEmail) continue;
+      try {
+        localStorage.setItem('ila_supabase_smtp_host', cleanHost);
+        localStorage.setItem('ila_supabase_smtp_port', String(cleanPort));
+        localStorage.setItem('ila_supabase_smtp_user', cleanUser);
+        localStorage.setItem('ila_supabase_smtp_pass', cleanPass);
+        localStorage.setItem('ila_emailjs_sender_email', fromAddress);
 
-        const isGeneric = targetEmail.includes('noreply') || targetEmail.includes('info@');
-        const populatedSubject = substituteEmailTokens(phase1EmailSubject, lead);
-        const populatedBody = substituteEmailTokens(phase1EmailBody, lead);
+        const selectedLeadItems = selectedIds
+          .map((id) => processLeads.find((l) => l.id === id) || allResourcesLeads.find((l) => l.id === id) || sessionLeads.find((l) => l.id === id))
+          .filter((l): l is TieupLeadItem => Boolean(l && (l.contactEmail || (l as any).email || (l as any).contact_email)));
 
+        if (selectedLeadItems.length === 0) {
+          setBulkSendNotice('⚠ No valid target lead email addresses found in selection. Please check lead contact details.');
+          setIsBulkSending(false);
+          setTimeout(() => setBulkSendNotice(null), 6500);
+          return;
+        }
+
+        let deliveredCount = 0;
+        let failedCount = 0;
+        let lastErrorMessage = '';
+        const newLogs: OutreachStatusLogItem[] = [];
+
+        for (const lead of selectedLeadItems) {
+          const targetEmail = (lead.contactEmail || (lead as any).email || (lead as any).contact_email || '').trim();
+          if (!targetEmail) continue;
+
+          const isGeneric = targetEmail.includes('noreply') || targetEmail.includes('info@');
+          const populatedSubject = substituteEmailTokens(phase1EmailSubject, lead);
+          const populatedBody = substituteEmailTokens(phase1EmailBody, lead);
+
+          const res = await sendSupabaseSmtpSingle({
+            config: {
+              host: cleanHost,
+              port: cleanPort,
+              user: cleanUser,
+              pass: cleanPass,
+              senderEmail: fromAddress,
+              secure: cleanPort === 465,
+            },
+            recipientEmail: targetEmail,
+            recipientName: lead.contactPerson || lead.name,
+            subject: populatedSubject,
+            body: populatedBody,
+            institutionName: lead.name,
+            commissionPercent: lead.commissionPercent,
+            courses: lead.courseList?.join(', ') || (lead as any)?.programs || 'Undergraduate & Graduate Articulation',
+          });
+
+          const isSuccess = res.success || res.isSimulated;
+          if (isSuccess) {
+            deliveredCount++;
+          } else {
+            failedCount++;
+            lastErrorMessage = res.error || 'SMTP dispatch error';
+          }
+
+          const logItem: OutreachStatusLogItem = {
+            id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            leadId: lead.id,
+            institutionName: lead.name,
+            recipientEmail: targetEmail,
+            recipientName: lead.contactPerson || lead.name,
+            senderEmail: fromAddress,
+            subject: populatedSubject,
+            status: isGeneric ? 'flagged_generic' : isSuccess ? 'delivered' : 'bounced',
+            phase: isGeneric ? 'outreach' : isSuccess ? 'followup' : 'outreach',
+            sentAt: Date.now(),
+            lastChecked: Date.now(),
+            spamScore: isGeneric ? 80 : isSuccess ? 5 : 85,
+            flagReason: isGeneric
+              ? 'Generic alias detected. Transferred to generic sandbox.'
+              : !isSuccess
+              ? (res.error || 'Supabase SMTP delivery error')
+              : undefined,
+            leadDataSnapshot: lead,
+          };
+
+          await saveOutreachLog(logItem);
+          newLogs.push(logItem);
+        }
+
+        if (newLogs.length > 0) {
+          setOutreachLogs((prev) => [...newLogs, ...prev]);
+        }
+
+        if (deliveredCount > 0) {
+          setPhase1SelectedLeadIds(new Set());
+          setBulkSendNotice(
+            `✓ LIVE SUPABASE SMTP DISPATCH SUCCESS: Successfully sent ${deliveredCount} personalized outreach email(s) from ${fromAddress} via Supabase SMTP Relay!`
+          );
+        } else if (failedCount > 0) {
+          setBulkSendNotice(
+            `⚠ Outreach dispatch failed for ${failedCount} lead(s): ${lastErrorMessage}. Please verify your Supabase SMTP credentials.`
+          );
+        } else {
+          setBulkSendNotice('ℹ No valid target lead email addresses found in selection.');
+        }
+      } catch (err: any) {
+        console.error('Supabase SMTP outreach dispatch error:', err);
+        setBulkSendNotice(`❌ Dispatch error: ${err.message || 'Failed to dispatch emails via Supabase SMTP.'}`);
+      } finally {
+        setIsBulkSending(false);
+        setTimeout(() => setBulkSendNotice(null), 8000);
+      }
+    } else {
+      // EmailJS transporter flow
+      const cleanService = (
+        emailjsServiceId ||
+        (import.meta as any).env?.VITE_EMAILJS_SERVICE_ID ||
+        ''
+      ).trim();
+      const cleanTemplate = (
+        emailjsTemplateId ||
+        (import.meta as any).env?.VITE_EMAILJS_TEMPLATE_ID ||
+        ''
+      ).trim();
+      const cleanPublic = (
+        emailjsPublicKey ||
+        (import.meta as any).env?.VITE_EMAILJS_PUBLIC_KEY ||
+        ''
+      ).trim();
+
+      if (!cleanService || !cleanTemplate || !cleanPublic) {
+        setBulkSendNotice(
+          '⚠ EmailJS Credentials Required: Please enter your Service ID, Template ID, and Public Key in the configuration card above.'
+        );
+        setTimeout(() => setBulkSendNotice(null), 8000);
+        return;
+      }
+
+      setIsBulkSending(true);
+
+      try {
+        localStorage.setItem('ila_emailjs_service_id', cleanService);
+        localStorage.setItem('ila_emailjs_template_id', cleanTemplate);
+        localStorage.setItem('ila_emailjs_public_key', cleanPublic);
+        localStorage.setItem('ila_emailjs_sender_email', fromAddress);
+
+        const selectedLeadItems = selectedIds
+          .map((id) => processLeads.find((l) => l.id === id) || allResourcesLeads.find((l) => l.id === id) || sessionLeads.find((l) => l.id === id))
+          .filter((l): l is TieupLeadItem => Boolean(l && (l.contactEmail || (l as any).email || (l as any).contact_email)));
+
+        if (selectedLeadItems.length === 0) {
+          setBulkSendNotice('⚠ No valid target lead email addresses found in selection. Please check lead contact details.');
+          setIsBulkSending(false);
+          setTimeout(() => setBulkSendNotice(null), 6500);
+          return;
+        }
+
+        let deliveredCount = 0;
+        let failedCount = 0;
+        let lastErrorMessage = '';
+        const newLogs: OutreachStatusLogItem[] = [];
+
+        for (const lead of selectedLeadItems) {
+          const targetEmail = (lead.contactEmail || (lead as any).email || (lead as any).contact_email || '').trim();
+          if (!targetEmail) continue;
+
+          const isGeneric = targetEmail.includes('noreply') || targetEmail.includes('info@');
+          const populatedSubject = substituteEmailTokens(phase1EmailSubject, lead);
+          const populatedBody = substituteEmailTokens(phase1EmailBody, lead);
+
+          const res = await sendEmailJsSingle({
+            config: {
+              serviceId: cleanService,
+              templateId: cleanTemplate,
+              publicKey: cleanPublic,
+              senderEmail: fromAddress,
+            },
+            recipientEmail: targetEmail,
+            recipientName: lead.contactPerson || lead.name,
+            subject: populatedSubject,
+            body: populatedBody,
+            institutionName: lead.name,
+            commissionPercent: lead.commissionPercent,
+            courses: lead.courseList?.join(', ') || (lead as any)?.programs || 'Undergraduate & Graduate Articulation',
+          });
+
+          const isSuccess = res.success;
+          if (isSuccess) {
+            deliveredCount++;
+          } else {
+            failedCount++;
+            lastErrorMessage = res.error || `Status ${res.status || 'failed'}`;
+          }
+
+          const logItem: OutreachStatusLogItem = {
+            id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            leadId: lead.id,
+            institutionName: lead.name,
+            recipientEmail: targetEmail,
+            recipientName: lead.contactPerson || lead.name,
+            senderEmail: fromAddress,
+            subject: populatedSubject,
+            status: isGeneric ? 'flagged_generic' : isSuccess ? 'delivered' : 'bounced',
+            phase: isGeneric ? 'outreach' : isSuccess ? 'followup' : 'outreach',
+            sentAt: Date.now(),
+            lastChecked: Date.now(),
+            spamScore: isGeneric ? 80 : isSuccess ? 5 : 85,
+            flagReason: isGeneric
+              ? 'Generic alias detected. Transferred to generic sandbox.'
+              : !isSuccess
+              ? (res.error || 'EmailJS delivery error')
+              : undefined,
+            leadDataSnapshot: lead,
+          };
+
+          await saveOutreachLog(logItem);
+          newLogs.push(logItem);
+        }
+
+        if (newLogs.length > 0) {
+          setOutreachLogs((prev) => [...newLogs, ...prev]);
+        }
+
+        if (deliveredCount > 0) {
+          setPhase1SelectedLeadIds(new Set());
+          setBulkSendNotice(
+            `✓ LIVE EMAILJS DISPATCH SUCCESS: Successfully sent ${deliveredCount} personalized outreach email(s) from ${fromAddress} via EmailJS!`
+          );
+        } else if (failedCount > 0) {
+          setBulkSendNotice(
+            `⚠ Outreach dispatch failed for ${failedCount} lead(s): ${lastErrorMessage}. Please verify your EmailJS Service ID, Template ID, and Public Key.`
+          );
+        } else {
+          setBulkSendNotice('ℹ No valid target lead email addresses found in selection.');
+        }
+      } catch (err: any) {
+        console.error('EmailJS outreach dispatch error:', err);
+        setBulkSendNotice(`❌ Dispatch error: ${err.message || 'Failed to dispatch emails via EmailJS.'}`);
+      } finally {
+        setIsBulkSending(false);
+        setTimeout(() => setBulkSendNotice(null), 8000);
+      }
+    }
+  };
+
+  // Phase 1 & 2: Re-trigger / Retry Outreach Record Immediately with Active Transporter
+  const handleRetriggerDelivery = async (log: OutreachStatusLogItem, overrideEmail?: string) => {
+    const targetEmail = (overrideEmail || log.recipientEmail).trim();
+    const fromAddress = senderEmail.trim() || 'rafiaqua@gmail.com';
+    const isGeneric = targetEmail.includes('noreply') || targetEmail.includes('info@');
+
+    if (activeTransporter === 'supabase_smtp') {
+      const cleanHost = (supabaseSmtpHost || 'smtp.resend.com').trim();
+      const cleanPort = Number(supabaseSmtpPort || 587);
+      const cleanUser = (supabaseSmtpUser || '').trim();
+      const cleanPass = (supabaseSmtpPass || '').trim();
+
+      if (!cleanUser || !cleanPass) {
+        setBulkSendNotice('⚠ Supabase SMTP credentials missing. Please enter Username and Password above.');
+        setTimeout(() => setBulkSendNotice(null), 4500);
+        return;
+      }
+
+      try {
+        const res = await sendSupabaseSmtpSingle({
+          config: {
+            host: cleanHost,
+            port: cleanPort,
+            user: cleanUser,
+            pass: cleanPass,
+            senderEmail: fromAddress,
+            secure: cleanPort === 465,
+          },
+          recipientEmail: targetEmail,
+          recipientName: log.recipientName || log.institutionName,
+          subject: log.subject,
+          body: phase1EmailBody,
+          institutionName: log.institutionName,
+        });
+
+        const isSuccess = res.success || res.isSimulated;
+        const updatedLog: OutreachStatusLogItem = {
+          ...log,
+          recipientEmail: targetEmail,
+          status: isGeneric ? 'flagged_generic' : (isSuccess ? 'delivered' : 'bounced'),
+          flagReason: isGeneric
+            ? 'Generic alias retained. Dropped into generic sandbox.'
+            : (res.error || undefined),
+          spamScore: isGeneric ? 80 : 8,
+          phase: isGeneric ? 'outreach' : 'followup',
+          sentAt: Date.now(),
+          retryCount: (log.retryCount || 0) + 1,
+          lastChecked: Date.now(),
+        };
+
+        await saveOutreachLog(updatedLog);
+        setOutreachLogs((prev) => prev.map((l) => (l.id === updatedLog.id ? updatedLog : l)));
+        setBulkSendNotice(`✓ Dispatched retry delivery sequence for ${log.institutionName} (${targetEmail}) via Supabase SMTP.`);
+        setTimeout(() => setBulkSendNotice(null), 4000);
+      } catch (err: any) {
+        console.error('Single Supabase SMTP retrigger error:', err);
+      }
+    } else {
+      const cleanService = (emailjsServiceId || '').trim();
+      const cleanTemplate = (emailjsTemplateId || '').trim();
+      const cleanPublic = (emailjsPublicKey || '').trim();
+
+      if (!cleanService || !cleanTemplate || !cleanPublic) {
+        setBulkSendNotice('⚠ EmailJS credentials missing. Please enter Service ID, Template ID, and Public Key above.');
+        setTimeout(() => setBulkSendNotice(null), 4500);
+        return;
+      }
+
+      try {
         const res = await sendEmailJsSingle({
           config: {
             serviceId: cleanService,
@@ -2108,122 +2472,33 @@ export default function TieupResearchEngineView({
             senderEmail: fromAddress,
           },
           recipientEmail: targetEmail,
-          recipientName: lead.contactPerson || lead.name,
-          subject: populatedSubject,
-          body: populatedBody,
-          institutionName: lead.name,
-          commissionPercent: lead.commissionPercent,
-          courses: lead.courseList?.join(', ') || (lead as any)?.programs || 'Undergraduate & Graduate Articulation',
+          recipientName: log.recipientName || log.institutionName,
+          subject: log.subject,
+          body: phase1EmailBody,
+          institutionName: log.institutionName,
         });
 
-        const isSuccess = res.success;
-        if (isSuccess) {
-          deliveredCount++;
-        } else {
-          failedCount++;
-          lastErrorMessage = res.error || `Status ${res.status || 'failed'}`;
-        }
-
-        const logItem: OutreachStatusLogItem = {
-          id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-          leadId: lead.id,
-          institutionName: lead.name,
+        const updatedLog: OutreachStatusLogItem = {
+          ...log,
           recipientEmail: targetEmail,
-          recipientName: lead.contactPerson || lead.name,
-          senderEmail: fromAddress,
-          subject: populatedSubject,
-          status: isGeneric ? 'flagged_generic' : isSuccess ? 'delivered' : 'bounced',
-          phase: isGeneric ? 'outreach' : isSuccess ? 'followup' : 'outreach',
-          sentAt: Date.now(),
-          lastChecked: Date.now(),
-          spamScore: isGeneric ? 80 : isSuccess ? 5 : 85,
+          status: isGeneric ? 'flagged_generic' : (res.success ? 'delivered' : 'flagged_generic'),
           flagReason: isGeneric
-            ? 'Generic alias detected. Transferred to generic sandbox.'
-            : !isSuccess
-            ? (res.error || 'EmailJS delivery error')
-            : undefined,
-          leadDataSnapshot: lead,
+            ? 'Generic alias retained. Dropped into generic sandbox.'
+            : (res.error || undefined),
+          spamScore: isGeneric ? 80 : 8,
+          phase: isGeneric ? 'outreach' : 'followup',
+          sentAt: Date.now(),
+          retryCount: (log.retryCount || 0) + 1,
+          lastChecked: Date.now(),
         };
 
-        await saveOutreachLog(logItem);
-        newLogs.push(logItem);
+        await saveOutreachLog(updatedLog);
+        setOutreachLogs((prev) => prev.map((l) => (l.id === updatedLog.id ? updatedLog : l)));
+        setBulkSendNotice(`✓ Dispatched retry delivery sequence for ${log.institutionName} (${targetEmail}) via EmailJS.`);
+        setTimeout(() => setBulkSendNotice(null), 4000);
+      } catch (err: any) {
+        console.error('Single EmailJS retrigger error:', err);
       }
-
-      if (newLogs.length > 0) {
-        setOutreachLogs((prev) => [...newLogs, ...prev]);
-      }
-
-      if (deliveredCount > 0) {
-        setPhase1SelectedLeadIds(new Set());
-        setBulkSendNotice(
-          `✓ LIVE EMAILJS DISPATCH SUCCESS: Successfully sent ${deliveredCount} personalized outreach email(s) from ${fromAddress} via EmailJS!`
-        );
-      } else if (failedCount > 0) {
-        setBulkSendNotice(
-          `⚠ Outreach dispatch failed for ${failedCount} lead(s): ${lastErrorMessage}. Please verify your EmailJS Service ID, Template ID, and Public Key.`
-        );
-      } else {
-        setBulkSendNotice('ℹ No valid target lead email addresses found in selection.');
-      }
-    } catch (err: any) {
-      console.error('EmailJS outreach dispatch error:', err);
-      setBulkSendNotice(`❌ Dispatch error: ${err.message || 'Failed to dispatch emails via EmailJS.'}`);
-    } finally {
-      setIsBulkSending(false);
-      setTimeout(() => setBulkSendNotice(null), 8000);
-    }
-  };
-
-  // Phase 1 & 2: Re-trigger / Retry Outreach Record Immediately with EmailJS
-  const handleRetriggerDelivery = async (log: OutreachStatusLogItem, overrideEmail?: string) => {
-    const targetEmail = (overrideEmail || log.recipientEmail).trim();
-    const fromAddress = senderEmail.trim() || 'rafiaquafqu@gmail.com';
-    const cleanService = (emailjsServiceId || '').trim();
-    const cleanTemplate = (emailjsTemplateId || '').trim();
-    const cleanPublic = (emailjsPublicKey || '').trim();
-    const isGeneric = targetEmail.includes('noreply') || targetEmail.includes('info@');
-
-    if (!cleanService || !cleanTemplate || !cleanPublic) {
-      setBulkSendNotice('⚠ EmailJS credentials missing. Please enter Service ID, Template ID, and Public Key above.');
-      setTimeout(() => setBulkSendNotice(null), 4500);
-      return;
-    }
-
-    try {
-      const res = await sendEmailJsSingle({
-        config: {
-          serviceId: cleanService,
-          templateId: cleanTemplate,
-          publicKey: cleanPublic,
-          senderEmail: fromAddress,
-        },
-        recipientEmail: targetEmail,
-        recipientName: log.recipientName || log.institutionName,
-        subject: log.subject,
-        body: phase1EmailBody,
-        institutionName: log.institutionName,
-      });
-
-      const updatedLog: OutreachStatusLogItem = {
-        ...log,
-        recipientEmail: targetEmail,
-        status: isGeneric ? 'flagged_generic' : (res.success ? 'delivered' : 'flagged_generic'),
-        flagReason: isGeneric
-          ? 'Generic alias retained. Dropped into generic sandbox.'
-          : (res.error || undefined),
-        spamScore: isGeneric ? 80 : 8,
-        phase: isGeneric ? 'outreach' : 'followup',
-        sentAt: Date.now(),
-        retryCount: (log.retryCount || 0) + 1,
-        lastChecked: Date.now(),
-      };
-
-      await saveOutreachLog(updatedLog);
-      setOutreachLogs((prev) => prev.map((l) => (l.id === updatedLog.id ? updatedLog : l)));
-      setBulkSendNotice(`✓ Dispatched retry delivery sequence for ${log.institutionName} (${targetEmail}) via EmailJS.`);
-      setTimeout(() => setBulkSendNotice(null), 4000);
-    } catch (err: any) {
-      console.error('Single EmailJS retrigger error:', err);
     }
   };
 
@@ -2288,38 +2563,60 @@ export default function TieupResearchEngineView({
       subject = `Re: Commission Framework Alignment & Bilateral Terms - ${instName}`;
       body = `Dear ${person},\n\nThank you for reviewing our bilateral proposal and providing transparent institutional terms.\n\nWe understand ${instName}'s standard policy framework regarding initial commissions. In the spirit of establishing a productive, long-term collaboration, we are pleased to proceed with the baseline tier with a performance review after the first matriculated cohort of 5 students.\n\nOur academic advising team is ready to begin pre-screening international candidates matching your specific IELTS and APS validation standards. We have prepared the draft Memorandum of Understanding (MoU) reflecting these terms for your review.\n\nLooking forward to formalizing this collaboration.\n\nSincerely,\nDirector of Global University Partnerships\nIla Academy`;
     } else {
-      subject = `Re: Bilateral Academic Partnership Follow-up - ${instName}`;
-      body = `Dear ${person},\n\nThank you for your reply regarding our proposed educational collaboration with ${instName}.\n\nWe have documented your requirements regarding international student admissions and program articulation. We are attaching our formal Institutional Profile, accredited partner credentials, and the standard non-exclusive bilateral agreement for your review.\n\nShould you have any specific curriculum guidelines or admission deadlines for the upcoming semester intake, please feel free to share them so our counselors can align prospective applicants accordingly.\n\nBest regards,\nPartnership Operations Team\nIla Academy`;
+      subject = `Re: Strategic Articulation & Student Placement - ${instName} / Ila Academy`;
+      body = `Dear ${person},\n\nThank you for your welcoming response. We are delighted to collaborate with ${instName}.\n\nOur counseling advisors have already begun orienting international applicants who meet your entry criteria. We will submit the first batch of verified portfolios via your designated international admissions channel shortly.\n\nPlease let us know if there are specific faculty leads or articulation liaisons we should copy on future correspondence.\n\nBest regards,\nAdmissions & Institutional Partnerships Desk\nIla Academy`;
     }
 
-    setTimeout(() => {
-      setAiDraftedSubject(subject);
-      setAiDraftedBody(body);
-      setIsGeneratingAiReply(false);
-    }, 350);
+    setAiDraftedSubject(subject);
+    setAiDraftedBody(body);
+    setIsGeneratingAiReply(false);
   };
 
   // Phase 2: Send AI-Drafted Auto-Reply
   const handleSendAiReply = async () => {
     if (!aiReplyModalLog) return;
 
-    if (emailjsServiceId.trim() && emailjsTemplateId.trim() && emailjsPublicKey.trim() && aiReplyModalLog.recipientEmail) {
-      try {
-        await sendEmailJsSingle({
-          config: {
-            serviceId: emailjsServiceId.trim(),
-            templateId: emailjsTemplateId.trim(),
-            publicKey: emailjsPublicKey.trim(),
-            senderEmail: senderEmail.trim(),
-          },
-          recipientEmail: aiReplyModalLog.recipientEmail,
-          recipientName: aiReplyModalLog.recipientName || aiReplyModalLog.institutionName,
-          subject: aiDraftedSubject,
-          body: aiDraftedBody,
-          institutionName: aiReplyModalLog.institutionName,
-        });
-      } catch (err) {
-        console.warn('AI reply EmailJS sending notice:', err);
+    if (activeTransporter === 'supabase_smtp') {
+      if (supabaseSmtpUser.trim() && supabaseSmtpPass.trim() && aiReplyModalLog.recipientEmail) {
+        try {
+          await sendSupabaseSmtpSingle({
+            config: {
+              host: supabaseSmtpHost.trim(),
+              port: Number(supabaseSmtpPort || 587),
+              user: supabaseSmtpUser.trim(),
+              pass: supabaseSmtpPass.trim(),
+              senderEmail: senderEmail.trim(),
+              secure: Number(supabaseSmtpPort) === 465,
+            },
+            recipientEmail: aiReplyModalLog.recipientEmail,
+            recipientName: aiReplyModalLog.recipientName || aiReplyModalLog.institutionName,
+            subject: aiDraftedSubject,
+            body: aiDraftedBody,
+            institutionName: aiReplyModalLog.institutionName,
+          });
+        } catch (err) {
+          console.warn('AI reply Supabase SMTP sending notice:', err);
+        }
+      }
+    } else {
+      if (emailjsServiceId.trim() && emailjsTemplateId.trim() && emailjsPublicKey.trim() && aiReplyModalLog.recipientEmail) {
+        try {
+          await sendEmailJsSingle({
+            config: {
+              serviceId: emailjsServiceId.trim(),
+              templateId: emailjsTemplateId.trim(),
+              publicKey: emailjsPublicKey.trim(),
+              senderEmail: senderEmail.trim(),
+            },
+            recipientEmail: aiReplyModalLog.recipientEmail,
+            recipientName: aiReplyModalLog.recipientName || aiReplyModalLog.institutionName,
+            subject: aiDraftedSubject,
+            body: aiDraftedBody,
+            institutionName: aiReplyModalLog.institutionName,
+          });
+        } catch (err) {
+          console.warn('AI reply EmailJS sending notice:', err);
+        }
       }
     }
 
@@ -3255,7 +3552,7 @@ export default function TieupResearchEngineView({
                     flexShrink: 0,
                     transition: 'all 0.15s ease',
                   }}
-                  title="Seed 5 verified test colleges (rafiaquafqu@gmail.com, ilaproject075@gmail.com, classicraffi@gmail.com) strictly isolated in Chat Home results view"
+                  title="Seed 5 verified test colleges (rafiaqua@gmail.com, ilaproject075@gmail.com, classicraffi@gmail.com) strictly isolated in Chat Home results view"
                 >
                   <Sparkles size={14} color="#10b981" />
                   <span>🧪 Seed Test 1 to 5</span>
@@ -7251,7 +7548,7 @@ export default function TieupResearchEngineView({
                   </div>
                 </div>
 
-                {/* Dedicated EmailJS Dispatch Transporter Configuration Card */}
+                {/* Dedicated Outreach Dispatch Transporter Configuration Card (Supabase SMTP / EmailJS) */}
                 <div
                   style={{
                     background: 'var(--bg-secondary)',
@@ -7263,76 +7560,219 @@ export default function TieupResearchEngineView({
                     gap: '0.65rem',
                   }}
                 >
+                  {/* Top Bar: Transporter Mode Tabs & Actions */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                      <Mail size={16} color="var(--accent-primary)" />
-                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                        EmailJS Dispatch Transporter
-                      </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          padding: '0.15rem',
+                          background: 'var(--bg-card)',
+                          borderRadius: '0.45rem',
+                          border: '1px solid var(--border-medium)',
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveTransporter('supabase_smtp');
+                            try { localStorage.setItem('ila_active_transporter', 'supabase_smtp'); } catch {}
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            padding: '0.3rem 0.65rem',
+                            borderRadius: '0.35rem',
+                            fontSize: '0.78rem',
+                            fontWeight: activeTransporter === 'supabase_smtp' ? 700 : 500,
+                            background: activeTransporter === 'supabase_smtp' ? 'var(--accent-primary)' : 'transparent',
+                            color: activeTransporter === 'supabase_smtp' ? '#ffffff' : 'var(--text-muted)',
+                            border: 'none',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <Database size={13} />
+                          <span>Supabase Custom SMTP (Active)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveTransporter('emailjs');
+                            try { localStorage.setItem('ila_active_transporter', 'emailjs'); } catch {}
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            padding: '0.3rem 0.65rem',
+                            borderRadius: '0.35rem',
+                            fontSize: '0.78rem',
+                            fontWeight: activeTransporter === 'emailjs' ? 700 : 500,
+                            background: activeTransporter === 'emailjs' ? 'var(--accent-primary)' : 'transparent',
+                            color: activeTransporter === 'emailjs' ? '#ffffff' : 'var(--text-muted)',
+                            border: 'none',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <Mail size={13} />
+                          <span>EmailJS Relay</span>
+                        </button>
+                      </div>
+
                       <span
                         style={{
                           fontSize: '0.68rem',
                           fontWeight: 700,
                           padding: '0.12rem 0.45rem',
                           borderRadius: '0.35rem',
-                          background: 'rgba(16, 185, 129, 0.12)',
-                          color: '#10b981',
-                          border: '1px solid rgba(16, 185, 129, 0.3)',
+                          background: activeTransporter === 'supabase_smtp' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+                          color: activeTransporter === 'supabase_smtp' ? 'var(--accent-primary)' : '#10b981',
+                          border: `1px solid ${activeTransporter === 'supabase_smtp' ? 'rgba(99, 102, 241, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
                         }}
                       >
-                        emailjs-browser (Direct TLS Relay)
+                        {activeTransporter === 'supabase_smtp' ? 'Direct TLS / Port 587 Relay' : 'Client TLS API'}
                       </span>
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <button
-                        type="button"
-                        onClick={() => setShowEmailJsGuide(!showEmailJsGuide)}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.3rem',
-                          padding: '0.32rem 0.65rem',
-                          borderRadius: '0.45rem',
-                          background: 'var(--bg-card)',
-                          border: '1px solid var(--border-medium)',
-                          color: 'var(--text-main)',
-                          fontSize: '0.76rem',
-                          fontWeight: 500,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <Sparkles size={12} color="var(--accent-primary)" />
-                        <span>{showEmailJsGuide ? 'Hide Setup Guide' : 'How to Setup (Free)'}</span>
-                      </button>
+                      {activeTransporter === 'supabase_smtp' ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setShowSupabaseSmtpGuide(!showSupabaseSmtpGuide)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              padding: '0.32rem 0.65rem',
+                              borderRadius: '0.45rem',
+                              background: 'var(--bg-card)',
+                              border: '1px solid var(--border-medium)',
+                              color: 'var(--text-main)',
+                              fontSize: '0.76rem',
+                              fontWeight: 500,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <Sparkles size={12} color="var(--accent-primary)" />
+                            <span>{showSupabaseSmtpGuide ? 'Hide Setup Guide' : 'Supabase SMTP Setup Guide'}</span>
+                          </button>
 
-                      <button
-                        type="button"
-                        onClick={handleVerifyEmailJs}
-                        disabled={isVerifyingEmailJs}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          padding: '0.32rem 0.75rem',
-                          borderRadius: '0.45rem',
-                          background: 'var(--accent-primary)',
-                          border: 'none',
-                          color: '#ffffff',
-                          fontSize: '0.78rem',
-                          fontWeight: 600,
-                          cursor: isVerifyingEmailJs ? 'not-allowed' : 'pointer',
-                          transition: 'all 0.15s ease',
-                        }}
-                      >
-                        {isVerifyingEmailJs ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
-                        <span>{isVerifyingEmailJs ? 'Verifying...' : 'Test EmailJS Connection'}</span>
-                      </button>
+                          <button
+                            type="button"
+                            onClick={handleVerifySupabaseSmtp}
+                            disabled={isVerifyingSupabaseSmtp}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              padding: '0.32rem 0.75rem',
+                              borderRadius: '0.45rem',
+                              background: 'var(--accent-primary)',
+                              border: 'none',
+                              color: '#ffffff',
+                              fontSize: '0.78rem',
+                              fontWeight: 600,
+                              cursor: isVerifyingSupabaseSmtp ? 'not-allowed' : 'pointer',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            {isVerifyingSupabaseSmtp ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
+                            <span>{isVerifyingSupabaseSmtp ? 'Verifying...' : 'Test Supabase SMTP Connection'}</span>
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setShowEmailJsGuide(!showEmailJsGuide)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              padding: '0.32rem 0.65rem',
+                              borderRadius: '0.45rem',
+                              background: 'var(--bg-card)',
+                              border: '1px solid var(--border-medium)',
+                              color: 'var(--text-main)',
+                              fontSize: '0.76rem',
+                              fontWeight: 500,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <Sparkles size={12} color="var(--accent-primary)" />
+                            <span>{showEmailJsGuide ? 'Hide Setup Guide' : 'How to Setup (Free)'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleVerifyEmailJs}
+                            disabled={isVerifyingEmailJs}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              padding: '0.32rem 0.75rem',
+                              borderRadius: '0.45rem',
+                              background: 'var(--accent-primary)',
+                              border: 'none',
+                              color: '#ffffff',
+                              fontSize: '0.78rem',
+                              fontWeight: 600,
+                              cursor: isVerifyingEmailJs ? 'not-allowed' : 'pointer',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            {isVerifyingEmailJs ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
+                            <span>{isVerifyingEmailJs ? 'Verifying...' : 'Test EmailJS Connection'}</span>
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
 
+                  {/* Collapsible Supabase SMTP Setup Guide */}
+                  {activeTransporter === 'supabase_smtp' && showSupabaseSmtpGuide && (
+                    <div
+                      style={{
+                        padding: '0.75rem 0.9rem',
+                        borderRadius: '0.5rem',
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border-medium)',
+                        fontSize: '0.76rem',
+                        lineHeight: 1.5,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.4rem',
+                      }}
+                    >
+                      <div style={{ fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Sparkles size={14} color="var(--accent-primary)" />
+                        <span>Supabase Custom SMTP Configuration Instructions:</span>
+                      </div>
+                      <ol style={{ margin: 0, paddingLeft: '1.2rem', color: 'var(--text-muted)' }}>
+                        <li>
+                          <strong>Option A: Supabase + Resend / SendGrid:</strong> In your Supabase Project Settings &gt; Auth &gt; SMTP Provider, use Host: <code>smtp.resend.com</code> (Port 587), User: <code>resend</code>, Password: your Resend API Key (<code>re_xxxx</code>).
+                        </li>
+                        <li>
+                          <strong>Option B: Gmail / Google Workspace SMTP:</strong> Use Host: <code>smtp.gmail.com</code>, Port: <code>587</code>, User: <code>rafiaqua@gmail.com</code>, Password: your 16-character Google App Password.
+                        </li>
+                        <li>
+                          <strong>Option C: Custom / Dedicated Mail Server:</strong> Enter your custom SMTP Host, Port (587 TLS or 465 SSL), Username, and Password below.
+                        </li>
+                        <li>
+                          Click <strong>"Test Supabase SMTP Connection"</strong> to verify live handshake before batch dispatching outreach.
+                        </li>
+                      </ol>
+                    </div>
+                  )}
+
                   {/* Collapsible EmailJS Setup Guide */}
-                  {showEmailJsGuide && (
+                  {activeTransporter === 'emailjs' && showEmailJsGuide && (
                     <div
                       style={{
                         padding: '0.75rem 0.9rem',
@@ -7373,128 +7813,294 @@ export default function TieupResearchEngineView({
                           In <strong>Account &gt; Security</strong>, copy your <strong>Public Key</strong>.
                         </li>
                         <li>
-                          Paste the 3 keys below and click <strong>"Test EmailJS Connection"</strong>. No Google App Passwords or server port configurations needed!
+                          Paste the 3 keys below and click <strong>"Test EmailJS Connection"</strong>.
                         </li>
                       </ol>
                     </div>
                   )}
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
-                        EmailJS Service ID:
-                      </label>
-                      <input
-                        type="text"
-                        value={emailjsServiceId}
-                        onChange={(e) => setEmailjsServiceId(e.target.value)}
-                        onBlur={(e) => setEmailjsServiceId(e.target.value.trim())}
-                        placeholder="e.g. service_xxxxxxx"
-                        style={{
-                          width: '100%',
-                          padding: '0.45rem 0.65rem',
-                          borderRadius: '0.45rem',
-                          background: 'var(--bg-card)',
-                          border: '1px solid var(--border-medium)',
-                          color: 'var(--text-main)',
-                          fontSize: '0.84rem',
-                          outline: 'none',
-                        }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
-                        EmailJS Template ID:
-                      </label>
-                      <input
-                        type="text"
-                        value={emailjsTemplateId}
-                        onChange={(e) => setEmailjsTemplateId(e.target.value)}
-                        onBlur={(e) => setEmailjsTemplateId(e.target.value.trim())}
-                        placeholder="e.g. template_xxxxxxx"
-                        style={{
-                          width: '100%',
-                          padding: '0.45rem 0.65rem',
-                          borderRadius: '0.45rem',
-                          background: 'var(--bg-card)',
-                          border: '1px solid var(--border-medium)',
-                          color: 'var(--text-main)',
-                          fontSize: '0.84rem',
-                          outline: 'none',
-                        }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
-                        EmailJS Public Key:
-                      </label>
-                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  {/* Transporter Configuration Input Fields */}
+                  {activeTransporter === 'supabase_smtp' ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
+                          SMTP Host:
+                        </label>
                         <input
-                          type={showPublicKey ? 'text' : 'password'}
-                          value={emailjsPublicKey}
-                          onChange={(e) => setEmailjsPublicKey(e.target.value)}
-                          onBlur={(e) => setEmailjsPublicKey(e.target.value.trim())}
-                          placeholder="e.g. xxxxxxxxxxxxxxx"
+                          type="text"
+                          value={supabaseSmtpHost}
+                          onChange={(e) => setSupabaseSmtpHost(e.target.value)}
+                          onBlur={(e) => setSupabaseSmtpHost(e.target.value.trim())}
+                          placeholder="smtp.resend.com"
                           style={{
                             width: '100%',
-                            padding: '0.45rem 2.2rem 0.45rem 0.65rem',
+                            padding: '0.45rem 0.65rem',
                             borderRadius: '0.45rem',
                             background: 'var(--bg-card)',
                             border: '1px solid var(--border-medium)',
                             color: 'var(--text-main)',
                             fontSize: '0.84rem',
-                            letterSpacing: showPublicKey ? 'normal' : '0.1em',
                             outline: 'none',
                           }}
                         />
-                        <button
-                          type="button"
-                          onClick={() => setShowPublicKey(!showPublicKey)}
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
+                          SMTP Port:
+                        </label>
+                        <input
+                          type="text"
+                          value={supabaseSmtpPort}
+                          onChange={(e) => setSupabaseSmtpPort(e.target.value)}
+                          onBlur={(e) => setSupabaseSmtpPort(e.target.value.trim())}
+                          placeholder="587"
                           style={{
-                            position: 'absolute',
-                            right: '0.5rem',
-                            background: 'transparent',
-                            border: 'none',
-                            color: 'var(--text-subtle)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
+                            width: '100%',
+                            padding: '0.45rem 0.65rem',
+                            borderRadius: '0.45rem',
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border-medium)',
+                            color: 'var(--text-main)',
+                            fontSize: '0.84rem',
+                            outline: 'none',
                           }}
-                          title={showPublicKey ? 'Hide public key' : 'Show public key'}
-                        >
-                          {showPublicKey ? <EyeOff size={14} /> : <Eye size={14} />}
-                        </button>
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
+                          SMTP Username / API Key:
+                        </label>
+                        <input
+                          type="text"
+                          value={supabaseSmtpUser}
+                          onChange={(e) => setSupabaseSmtpUser(e.target.value)}
+                          onBlur={(e) => setSupabaseSmtpUser(e.target.value.trim())}
+                          placeholder="resend / your-user"
+                          style={{
+                            width: '100%',
+                            padding: '0.45rem 0.65rem',
+                            borderRadius: '0.45rem',
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border-medium)',
+                            color: 'var(--text-main)',
+                            fontSize: '0.84rem',
+                            outline: 'none',
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
+                          SMTP Password / Key:
+                        </label>
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                          <input
+                            type={showSmtpPass ? 'text' : 'password'}
+                            value={supabaseSmtpPass}
+                            onChange={(e) => setSupabaseSmtpPass(e.target.value)}
+                            onBlur={(e) => setSupabaseSmtpPass(e.target.value.trim())}
+                            placeholder="re_xxxx / app password"
+                            style={{
+                              width: '100%',
+                              padding: '0.45rem 2.2rem 0.45rem 0.65rem',
+                              borderRadius: '0.45rem',
+                              background: 'var(--bg-card)',
+                              border: '1px solid var(--border-medium)',
+                              color: 'var(--text-main)',
+                              fontSize: '0.84rem',
+                              letterSpacing: showSmtpPass ? 'normal' : '0.1em',
+                              outline: 'none',
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowSmtpPass(!showSmtpPass)}
+                            style={{
+                              position: 'absolute',
+                              right: '0.5rem',
+                              background: 'transparent',
+                              border: 'none',
+                              color: 'var(--text-subtle)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                            }}
+                            title={showSmtpPass ? 'Hide password' : 'Show password'}
+                          >
+                            {showSmtpPass ? <EyeOff size={14} /> : <Eye size={14} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
+                          Designated Sender / Reply-To Email:
+                        </label>
+                        <input
+                          type="email"
+                          value={senderEmail}
+                          onChange={(e) => setSenderEmail(e.target.value)}
+                          onBlur={(e) => setSenderEmail(e.target.value.trim())}
+                          placeholder="rafiaqua@gmail.com"
+                          style={{
+                            width: '100%',
+                            padding: '0.45rem 0.65rem',
+                            borderRadius: '0.45rem',
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border-medium)',
+                            color: 'var(--text-main)',
+                            fontSize: '0.84rem',
+                            outline: 'none',
+                          }}
+                        />
                       </div>
                     </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
+                          EmailJS Service ID:
+                        </label>
+                        <input
+                          type="text"
+                          value={emailjsServiceId}
+                          onChange={(e) => setEmailjsServiceId(e.target.value)}
+                          onBlur={(e) => setEmailjsServiceId(e.target.value.trim())}
+                          placeholder="e.g. service_xxxxxxx"
+                          style={{
+                            width: '100%',
+                            padding: '0.45rem 0.65rem',
+                            borderRadius: '0.45rem',
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border-medium)',
+                            color: 'var(--text-main)',
+                            fontSize: '0.84rem',
+                            outline: 'none',
+                          }}
+                        />
+                      </div>
 
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
-                        Designated Sender / Reply-To Email:
-                      </label>
-                      <input
-                        type="email"
-                        value={senderEmail}
-                        onChange={(e) => setSenderEmail(e.target.value)}
-                        onBlur={(e) => setSenderEmail(e.target.value.trim())}
-                        placeholder="rafiaquafqu@gmail.com"
-                        style={{
-                          width: '100%',
-                          padding: '0.45rem 0.65rem',
-                          borderRadius: '0.45rem',
-                          background: 'var(--bg-card)',
-                          border: '1px solid var(--border-medium)',
-                          color: 'var(--text-main)',
-                          fontSize: '0.84rem',
-                          outline: 'none',
-                        }}
-                      />
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
+                          EmailJS Template ID:
+                        </label>
+                        <input
+                          type="text"
+                          value={emailjsTemplateId}
+                          onChange={(e) => setEmailjsTemplateId(e.target.value)}
+                          onBlur={(e) => setEmailjsTemplateId(e.target.value.trim())}
+                          placeholder="e.g. template_xxxxxxx"
+                          style={{
+                            width: '100%',
+                            padding: '0.45rem 0.65rem',
+                            borderRadius: '0.45rem',
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border-medium)',
+                            color: 'var(--text-main)',
+                            fontSize: '0.84rem',
+                            outline: 'none',
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
+                          EmailJS Public Key:
+                        </label>
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                          <input
+                            type={showPublicKey ? 'text' : 'password'}
+                            value={emailjsPublicKey}
+                            onChange={(e) => setEmailjsPublicKey(e.target.value)}
+                            onBlur={(e) => setEmailjsPublicKey(e.target.value.trim())}
+                            placeholder="e.g. xxxxxxxxxxxxxxx"
+                            style={{
+                              width: '100%',
+                              padding: '0.45rem 2.2rem 0.45rem 0.65rem',
+                              borderRadius: '0.45rem',
+                              background: 'var(--bg-card)',
+                              border: '1px solid var(--border-medium)',
+                              color: 'var(--text-main)',
+                              fontSize: '0.84rem',
+                              letterSpacing: showPublicKey ? 'normal' : '0.1em',
+                              outline: 'none',
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPublicKey(!showPublicKey)}
+                            style={{
+                              position: 'absolute',
+                              right: '0.5rem',
+                              background: 'transparent',
+                              border: 'none',
+                              color: 'var(--text-subtle)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                            }}
+                            title={showPublicKey ? 'Hide public key' : 'Show public key'}
+                          >
+                            {showPublicKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
+                          Designated Sender / Reply-To Email:
+                        </label>
+                        <input
+                          type="email"
+                          value={senderEmail}
+                          onChange={(e) => setSenderEmail(e.target.value)}
+                          onBlur={(e) => setSenderEmail(e.target.value.trim())}
+                          placeholder="rafiaqua@gmail.com"
+                          style={{
+                            width: '100%',
+                            padding: '0.45rem 0.65rem',
+                            borderRadius: '0.45rem',
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border-medium)',
+                            color: 'var(--text-main)',
+                            fontSize: '0.84rem',
+                            outline: 'none',
+                          }}
+                        />
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Verification Status Notification Pill */}
-                  {emailjsVerifyStatus && (
+                  {activeTransporter === 'supabase_smtp' && supabaseSmtpVerifyStatus && (
+                    <div
+                      style={{
+                        padding: '0.45rem 0.75rem',
+                        borderRadius: '0.45rem',
+                        fontSize: '0.78rem',
+                        fontWeight: 500,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        background: supabaseSmtpVerifyStatus.success
+                          ? 'rgba(16, 185, 129, 0.12)'
+                          : 'rgba(239, 68, 68, 0.12)',
+                        border: `1px solid ${
+                          supabaseSmtpVerifyStatus.success
+                            ? 'rgba(16, 185, 129, 0.35)'
+                            : 'rgba(239, 68, 68, 0.35)'
+                        }`,
+                        color: supabaseSmtpVerifyStatus.success ? '#10b981' : '#ef4444',
+                      }}
+                    >
+                      {supabaseSmtpVerifyStatus.success ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+                      <span>{supabaseSmtpVerifyStatus.message}</span>
+                    </div>
+                  )}
+
+                  {activeTransporter === 'emailjs' && emailjsVerifyStatus && (
                     <div
                       style={{
                         padding: '0.45rem 0.75rem',
@@ -7521,7 +8127,9 @@ export default function TieupResearchEngineView({
                   )}
 
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', lineHeight: 1.4 }}>
-                    ⚡ 100% Client-side EmailJS integration. Emails dispatch directly via official EmailJS API with zero Google SMTP port or App Password restrictions.
+                    {activeTransporter === 'supabase_smtp'
+                      ? '⚡ Authenticated Supabase SMTP Relay. Dispatches directly via verified TLS/SSL backend channel with real-time audit logging.'
+                      : '⚡ 100% Client-side EmailJS integration. Emails dispatch directly via official EmailJS API.'}
                   </div>
                 </div>
 
@@ -7600,14 +8208,19 @@ export default function TieupResearchEngineView({
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', paddingTop: '0.65rem' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                     <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 400 }}>
-                      Simultaneously fires to all selected leads using authenticated relay with live delivery logging.
+                      Simultaneously fires to all selected leads using authenticated {activeTransporter === 'supabase_smtp' ? 'Supabase SMTP' : 'EmailJS'} relay with live delivery logging.
                     </div>
                     {phase1SelectedLeadIds.size === 0 && (
                       <div style={{ fontSize: '0.76rem', color: 'var(--accent-primary)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                         <span>👉 Select one or more leads in <strong>1. Select Filtered Institutional Leads</strong> above to enable dispatch.</span>
                       </div>
                     )}
-                    {(!emailjsServiceId.trim() || !emailjsTemplateId.trim() || !emailjsPublicKey.trim()) && (
+                    {activeTransporter === 'supabase_smtp' && (!supabaseSmtpUser.trim() || !supabaseSmtpPass.trim()) && (
+                      <div style={{ fontSize: '0.75rem', color: '#f59e0b', fontWeight: 500 }}>
+                        ⚠ Supabase SMTP credentials not fully entered in configuration card above.
+                      </div>
+                    )}
+                    {activeTransporter === 'emailjs' && (!emailjsServiceId.trim() || !emailjsTemplateId.trim() || !emailjsPublicKey.trim()) && (
                       <div style={{ fontSize: '0.75rem', color: '#f59e0b', fontWeight: 500 }}>
                         ⚠ EmailJS credentials not fully entered in configuration card above.
                       </div>

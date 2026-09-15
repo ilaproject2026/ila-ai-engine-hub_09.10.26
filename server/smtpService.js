@@ -13,29 +13,38 @@ export function isValidEmail(email) {
 /**
  * Diagnoses an SMTP error into a clear, actionable user message
  */
-export function diagnoseSmtpError(err, { host, port, secure, user, pass } = {}) {
+export function diagnoseSmtpError(err, { host = '', port, secure, user = '', pass = '' } = {}) {
   const errMsg = err instanceof Error ? err.message : String(err || '');
   const code = err?.code || '';
   const response = String(err?.response || '');
   const responseCode = err?.responseCode;
   const sanitizedPass = String(pass || '');
+  const isGmail = host.toLowerCase().includes('gmail.com');
 
-  // 1. Authentication Failure (Bad credentials / Invalid App Password)
+  // 1. Authentication Failure (Bad credentials / Invalid App Password / Invalid API Key)
   if (
     code === 'EAUTH' ||
     responseCode === 535 ||
     response.includes('535') ||
     errMsg.includes('535') ||
     errMsg.toLowerCase().includes('username and password not accepted') ||
-    errMsg.toLowerCase().includes('badcredentials')
+    errMsg.toLowerCase().includes('badcredentials') ||
+    errMsg.toLowerCase().includes('authentication failed')
   ) {
-    let detail = 'Google rejected your email or App Password.';
-    if (sanitizedPass.length !== 16) {
-      detail += ` (Note: You entered ${sanitizedPass.length} characters; Google App Passwords must be exactly 16 characters).`;
+    if (isGmail) {
+      let detail = 'Google rejected your email or App Password.';
+      if (sanitizedPass.length !== 16) {
+        detail += ` (Note: You entered ${sanitizedPass.length} characters; Google App Passwords must be exactly 16 characters).`;
+      }
+      return {
+        errorType: 'AUTH_FAILED',
+        actionableMessage: `Authentication Failed (535): ${detail} Please verify that: 1) 2-Step Verification is enabled on "${user}", and 2) You generated a 16-character App Password at https://myaccount.google.com/apppasswords.`,
+      };
     }
+
     return {
       errorType: 'AUTH_FAILED',
-      actionableMessage: `Authentication Failed (535): ${detail} Please verify that: 1) 2-Step Verification is enabled on "${user}", and 2) You generated a 16-character App Password at https://myaccount.google.com/apppasswords (all spaces are automatically trimmed).`,
+      actionableMessage: `Authentication Failed (535): ${host} rejected your credentials for user "${user}". Please check your SMTP Username (e.g. "resend" or "apikey") and SMTP Password / API Key.`,
     };
   }
 
@@ -67,11 +76,11 @@ export function diagnoseSmtpError(err, { host, port, secure, user, pass } = {}) 
     };
   }
 
-  // 4. Rate Limiting or Temporary Google Service Deferral
+  // 4. Rate Limiting or Temporary Service Deferral
   if (responseCode === 421 || responseCode === 451 || errMsg.includes('421') || errMsg.includes('Too many')) {
     return {
       errorType: 'RATE_LIMITED',
-      actionableMessage: `Google SMTP Rate Limit (${responseCode}): Gmail is temporarily deferring connections from your IP. Please wait a few minutes before retrying.`,
+      actionableMessage: `SMTP Rate Limit (${responseCode}): ${host} is temporarily deferring connections from your IP. Please wait a few minutes before retrying.`,
     };
   }
 
@@ -87,15 +96,37 @@ export function diagnoseSmtpError(err, { host, port, secure, user, pass } = {}) 
  * and explicit TLS/SSL settings (Port 465 with secure: true, Port 587 with secure: false and requireTLS: true)
  */
 export function createMailTransporter(options = {}) {
-  const rawUser = options.user || options.senderEmail || process.env.GMAIL_USER || 'rafiaquafqu@gmail.com';
-  const rawPass = options.pass || options.appPassword || process.env.GMAIL_APP_PASSWORD || '';
+  const rawUser =
+    options.user ||
+    options.senderEmail ||
+    process.env.VITE_SUPABASE_SMTP_USER ||
+    process.env.SMTP_USER ||
+    process.env.GMAIL_USER ||
+    'rafiaqua@gmail.com';
+  const rawPass =
+    options.pass ||
+    options.appPassword ||
+    process.env.VITE_SUPABASE_SMTP_PASS ||
+    process.env.SMTP_PASS ||
+    process.env.GMAIL_APP_PASSWORD ||
+    '';
 
-  // Sanitize: trim email and strip ALL whitespace from the 16-character App Password
+  // Sanitize: trim email and password
   const user = (rawUser || '').trim();
-  const pass = (rawPass || '').replace(/\s+/g, '').trim();
+  const pass = (rawPass || '').trim();
 
-  const host = (options.host || process.env.SMTP_HOST || 'smtp.gmail.com').trim();
-  const port = Number(options.port || process.env.SMTP_PORT || 465);
+  const host = (
+    options.host ||
+    process.env.VITE_SUPABASE_SMTP_HOST ||
+    process.env.SMTP_HOST ||
+    'smtp.resend.com'
+  ).trim();
+  const port = Number(
+    options.port ||
+    process.env.VITE_SUPABASE_SMTP_PORT ||
+    process.env.SMTP_PORT ||
+    587
+  );
 
   // Strict TLS/SSL configuration:
   // Port 465 requires direct SSL (secure: true, requireTLS: false)
@@ -116,7 +147,7 @@ export function createMailTransporter(options = {}) {
     tls: {
       rejectUnauthorized: true,
       minVersion: 'TLSv1.2',
-      servername: host, // Guarantees SNI certificate handshake match with Google's servers
+      servername: host,
     },
     connectionTimeout: 10000,
     greetingTimeout: 8000,
@@ -132,48 +163,59 @@ export function createMailTransporter(options = {}) {
  * Verifies SMTP connection to Gmail with comprehensive validation and fallback diagnostics
  */
 export async function verifySmtpConnection(options = {}) {
-  const rawUser = options.user || options.senderEmail || process.env.GMAIL_USER || '';
-  const rawPass = options.pass || options.appPassword || process.env.GMAIL_APP_PASSWORD || '';
+  const host = (
+    options.host ||
+    process.env.VITE_SUPABASE_SMTP_HOST ||
+    process.env.SMTP_HOST ||
+    'smtp.resend.com'
+  ).trim();
+  const rawUser = options.user || options.senderEmail || process.env.VITE_SUPABASE_SMTP_USER || process.env.GMAIL_USER || '';
+  const rawPass = options.pass || options.appPassword || process.env.VITE_SUPABASE_SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '';
 
   const user = (rawUser || '').trim();
   const pass = (rawPass || '').replace(/\s+/g, '').trim();
+  const isGmail = host.toLowerCase().includes('gmail.com');
 
-  // 1. Validate Sender Email
+  // 1. Validate Sender User/Email
   if (!user) {
     return {
       success: false,
       connected: false,
       statusCode: 400,
       errorType: 'VALIDATION_ERROR',
-      error: 'Sender email address is required. Please enter your Gmail / Google Workspace address.',
-      details: { field: 'senderEmail' },
+      error: isGmail
+        ? 'Sender email address is required. Please enter your Gmail / Google Workspace address.'
+        : 'SMTP Username / API Key / Sender Email is required (e.g. "resend" or your SMTP user).',
+      details: { field: 'user' },
     };
   }
 
-  if (!isValidEmail(user)) {
+  if (isGmail && !isValidEmail(user)) {
     return {
       success: false,
       connected: false,
       statusCode: 400,
       errorType: 'VALIDATION_ERROR',
       error: `Invalid sender email address "${user}". Please provide a valid email format (e.g. user@gmail.com).`,
-      details: { field: 'senderEmail', user },
+      details: { field: 'user', user },
     };
   }
 
-  // 2. Validate App Password
+  // 2. Validate Password / API Key
   if (!pass) {
     return {
       success: false,
       connected: false,
       statusCode: 400,
       errorType: 'MISSING_PASSWORD',
-      error: 'Missing Gmail App Password. Please provide your 16-character Google App Password (all spaces are automatically trimmed).',
-      details: { field: 'appPassword', user },
+      error: isGmail
+        ? 'Missing Gmail App Password. Please provide your 16-character Google App Password.'
+        : `Missing SMTP Password or API Key for ${host}.`,
+      details: { field: 'pass', user },
     };
   }
 
-  const { transporter, host, port, secure, requireTLS } = createMailTransporter({ ...options, user, pass });
+  const { transporter, port, secure, requireTLS } = createMailTransporter({ ...options, host, user, pass });
 
   try {
     await transporter.verify();
@@ -181,7 +223,7 @@ export async function verifySmtpConnection(options = {}) {
       success: true,
       connected: true,
       statusCode: 200,
-      message: `Successfully connected to Gmail SMTP server (${host}:${port}, ${secure ? 'SSL port 465' : 'STARTTLS port 587'}) as ${user}. Ready for real-time outreach dispatch!`,
+      message: `Successfully connected to SMTP relay (${host}:${port}, ${secure ? 'SSL port 465' : 'STARTTLS port 587'}) as ${user}. Ready for real-time outreach dispatch!`,
       details: {
         host,
         port,
@@ -341,23 +383,34 @@ export async function sendOutreachEmail({
   html,
   text,
   appPassword,
+  host,
+  port,
+  secure,
+  user,
+  pass,
+  senderName = 'Ila Academy Academic Partnerships',
 }) {
-  const { transporter, user, pass, host, port, secure } = createMailTransporter({
-    user: from,
-    pass: appPassword,
+  const authUser = user || from;
+  const authPass = pass || appPassword;
+  const { transporter, user: actualUser, pass: actualPass, host: actualHost, port: actualPort, secure: actualSecure } = createMailTransporter({
+    user: authUser,
+    pass: authPass,
+    host,
+    port,
+    secure,
   });
 
-  if (!pass) {
+  if (!actualPass) {
     return {
       success: false,
       isSimulated: true,
       messageId: `sim_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      error: 'Gmail App Password not provided. Running in simulated delivery mode.',
+      error: 'SMTP Password / API Key not provided. Running in simulated delivery mode.',
     };
   }
 
   const mailOptions = {
-    from: `"Ila Academy Partnerships" <${from || user}>`,
+    from: `"${senderName}" <${from || actualUser}>`,
     to,
     subject,
     text,
@@ -374,12 +427,12 @@ export async function sendOutreachEmail({
   } catch (err) {
     // If port 465 timed out or connection was refused, retry with Port 587 (TLS)
     if (
-      port === 465 &&
+      actualPort === 465 &&
       (err?.code === 'ETIMEDOUT' || err?.code === 'ECONNREFUSED' || err?.message?.includes('timeout'))
     ) {
       try {
         console.log(`[SMTP Send]: Port 465 timed out for ${to}. Retrying via Port 587 (TLS/STARTTLS)...`);
-        const fallback = createMailTransporter({ user: from, pass: appPassword, port: 587, secure: false, requireTLS: true });
+        const fallback = createMailTransporter({ user: authUser, pass: authPass, host: actualHost, port: 587, secure: false, requireTLS: true });
         const info = await fallback.transporter.sendMail(mailOptions);
         return {
           success: true,
@@ -391,7 +444,7 @@ export async function sendOutreachEmail({
       }
     }
 
-    const diag = diagnoseSmtpError(err, { host, port, secure, user, pass });
+    const diag = diagnoseSmtpError(err, { host: actualHost, port: actualPort, secure: actualSecure, user: actualUser, pass: actualPass });
     return {
       success: false,
       error: diag.actionableMessage,
@@ -405,8 +458,14 @@ export async function sendOutreachEmail({
  * Dispatches bulk personalized outreach emails to multiple leads simultaneously
  */
 export async function sendBatchOutreach({
-  senderEmail = 'rafiaquafqu@gmail.com',
+  senderEmail = 'rafiaqua@gmail.com',
   appPassword = '',
+  host,
+  port,
+  secure,
+  user,
+  pass,
+  senderName,
   subjectTemplate = 'Bilateral Partnership MOU & Institutional Articulation - Ila Academy',
   bodyTemplate = '',
   leads = [],
@@ -431,6 +490,12 @@ export async function sendBatchOutreach({
         subject: personalizedSubject,
         text: personalizedBody,
         appPassword,
+        host,
+        port,
+        secure,
+        user,
+        pass,
+        senderName,
       });
     } catch (err) {
       console.error(`[SMTP Send Error for ${recipientEmail}]:`, err);

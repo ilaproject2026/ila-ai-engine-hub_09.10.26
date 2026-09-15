@@ -1,6 +1,20 @@
 import emailjs from '@emailjs/browser';
 import type { TieupLeadItem, OutreachStatusLogItem } from './dbService';
 
+export type TransporterType = 'supabase_smtp' | 'emailjs';
+
+export interface SupabaseSmtpConfig {
+  host?: string;
+  port?: number;
+  secure?: boolean;
+  user?: string;
+  pass?: string;
+  senderEmail?: string;
+  senderName?: string;
+  supabaseUrl?: string;
+  supabaseAnonKey?: string;
+}
+
 export interface EmailJsConfig {
   serviceId: string;
   templateId: string;
@@ -8,18 +22,212 @@ export interface EmailJsConfig {
   senderEmail?: string;
 }
 
-export interface EmailJsSendResult {
+export interface EmailSendResult {
   success: boolean;
   status?: number;
+  messageId?: string;
   text?: string;
   error?: string;
+  isSimulated?: boolean;
 }
 
-export interface EmailJsBulkResult {
+export interface EmailBulkResult {
   total: number;
   deliveredCount: number;
   failedCount: number;
   logs: OutreachStatusLogItem[];
+}
+
+/**
+ * Verifies Supabase SMTP connection by sending a live handshake through backend relay
+ */
+export async function verifySupabaseSmtpConnection(
+  config: SupabaseSmtpConfig,
+  testRecipient?: string
+): Promise<{ success: boolean; message: string; details?: any }> {
+  const host = (config.host || 'smtp.resend.com').trim();
+  const port = Number(config.port || 587);
+  const user = (config.user || config.senderEmail || '').trim();
+  const pass = (config.pass || '').trim();
+  const toEmail = (testRecipient || config.senderEmail || user || 'rafiaqua@gmail.com').trim();
+
+  if (!user) {
+    return { success: false, message: 'SMTP User / Sender Email is required.' };
+  }
+  if (!pass) {
+    return { success: false, message: 'SMTP Password / API Key is required.' };
+  }
+
+  try {
+    const res = await fetch('/api/outreach/verify-smtp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        senderEmail: toEmail,
+        user,
+        pass,
+        host,
+        port,
+        secure: config.secure ?? (port === 465),
+      }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success || data.connected) {
+        return {
+          success: true,
+          message: data.message || `✓ Connected to Supabase SMTP relay (${host}:${port}) as ${user}!`,
+          details: data.details,
+        };
+      }
+      return {
+        success: false,
+        message: data.error || data.message || `SMTP Error from ${host}:${port}`,
+      };
+    }
+
+    const errData = await res.json().catch(() => ({}));
+    return {
+      success: false,
+      message: errData.error || errData.message || `HTTP ${res.status}: Failed to reach SMTP relay endpoint.`,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `Supabase SMTP connection failed: ${err.message || 'Check network or SMTP server settings.'}`,
+    };
+  }
+}
+
+/**
+ * Dispatch single email via Supabase SMTP Transporter
+ */
+export async function sendSupabaseSmtpSingle(params: {
+  config: SupabaseSmtpConfig;
+  recipientEmail: string;
+  recipientName?: string;
+  subject: string;
+  body: string;
+  institutionName?: string;
+  commissionPercent?: number;
+  courses?: string;
+  mouLink?: string;
+}): Promise<EmailSendResult> {
+  const { config, recipientEmail, subject, body } = params;
+  const user = (config.user || config.senderEmail || '').trim();
+  const pass = (config.pass || '').trim();
+  const host = (config.host || 'smtp.resend.com').trim();
+  const port = Number(config.port || 587);
+  const senderEmail = (config.senderEmail || user || 'rafiaqua@gmail.com').trim();
+
+  try {
+    const res = await fetch('/api/outreach/send-single-smtp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        senderEmail,
+        user,
+        pass,
+        host,
+        port,
+        secure: config.secure ?? (port === 465),
+        senderName: config.senderName || 'Ila Academy Academic Partnerships',
+        recipientEmail,
+        subject,
+        body,
+      }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        success: Boolean(data.success),
+        messageId: data.messageId,
+        isSimulated: data.isSimulated,
+        error: data.error,
+      };
+    }
+
+    const errData = await res.json().catch(() => ({}));
+    return {
+      success: false,
+      error: errData.error || `HTTP ${res.status} dispatch error`,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || 'Supabase SMTP network dispatch failed',
+    };
+  }
+}
+
+/**
+ * Dispatch bulk emails via Supabase SMTP Transporter
+ */
+export async function sendSupabaseSmtpBulk(params: {
+  config: SupabaseSmtpConfig;
+  senderEmail: string;
+  subject: string;
+  bodyTemplate: string;
+  leads: TieupLeadItem[];
+}): Promise<{
+  success: boolean;
+  total: number;
+  deliveredCount: number;
+  failedCount: number;
+  results: any[];
+  logs: OutreachStatusLogItem[];
+}> {
+  const { config, senderEmail, subject, bodyTemplate, leads } = params;
+  const user = (config.user || senderEmail || '').trim();
+  const pass = (config.pass || '').trim();
+  const host = (config.host || 'smtp.resend.com').trim();
+  const port = Number(config.port || 587);
+
+  try {
+    const res = await fetch('/api/outreach/dispatch-smtp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        senderEmail,
+        user,
+        pass,
+        host,
+        port,
+        secure: config.secure ?? (port === 465),
+        senderName: config.senderName || 'Ila Academy Academic Partnerships',
+        subject,
+        bodyTemplate,
+        leads,
+      }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      return data;
+    }
+
+    const errData = await res.json().catch(() => ({}));
+    return {
+      success: false,
+      total: leads.length,
+      deliveredCount: 0,
+      failedCount: leads.length,
+      results: [],
+      logs: [],
+    };
+  } catch (err: any) {
+    console.error('Supabase SMTP bulk dispatch error:', err);
+    return {
+      success: false,
+      total: leads.length,
+      deliveredCount: 0,
+      failedCount: leads.length,
+      results: [],
+      logs: [],
+    };
+  }
 }
 
 /**
@@ -67,7 +275,6 @@ export async function verifyEmailJsConnection(
       commission_percent: '20',
       courses: 'International Programs & Articulation',
       mou_link: 'https://ila-academy.de/mou/partner-draft',
-      // Upper-case token aliases
       CONTACT_PERSON: 'Admissions Liaison',
       INSTITUTION_NAME: 'Ila Academy Verification Check',
       COMMISSION_PERCENT: '20',
@@ -111,7 +318,7 @@ export async function sendEmailJsSingle(params: {
   commissionPercent?: number;
   courses?: string;
   mouLink?: string;
-}): Promise<EmailJsSendResult> {
+}): Promise<EmailSendResult> {
   const { config, recipientEmail, recipientName, subject, body } = params;
   const serviceId = config.serviceId?.trim();
   const templateId = config.templateId?.trim();
@@ -142,7 +349,6 @@ export async function sendEmailJsSingle(params: {
     commission_percent: String(params.commissionPercent || 15),
     courses: params.courses || 'Undergraduate & Graduate Articulation',
     mou_link: params.mouLink || 'https://ila-academy.de/mou/partner-draft',
-    // Upper-case token aliases
     CONTACT_PERSON: recipientName || 'Admissions Liaison',
     INSTITUTION_NAME: params.institutionName || '',
     COMMISSION_PERCENT: String(params.commissionPercent || 15),

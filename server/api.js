@@ -500,14 +500,20 @@ export async function handleApiRequest(req, res) {
     if (endpoint === '/outreach/dispatch-smtp' && method === 'POST') {
       try {
         const body = await readJsonBody(req);
-        const rawUser = body.senderEmail || '';
-        const rawPass = body.appPassword || '';
+        const rawUser = body.user || body.senderEmail || '';
+        const rawPass = body.pass || body.appPassword || '';
         const senderEmail = typeof rawUser === 'string' ? rawUser.trim() : '';
         const appPassword = typeof rawPass === 'string' ? rawPass.trim() : '';
 
         const result = await sendBatchOutreach({
           senderEmail,
           appPassword,
+          user: senderEmail,
+          pass: appPassword,
+          host: body.host,
+          port: body.port,
+          secure: body.secure,
+          senderName: body.senderName,
           subjectTemplate: body.subject,
           bodyTemplate: body.bodyTemplate,
           leads: body.leads || [],
@@ -523,13 +529,19 @@ export async function handleApiRequest(req, res) {
     if (endpoint === '/outreach/send-single-smtp' && method === 'POST') {
       try {
         const body = await readJsonBody(req);
-        const rawUser = body.senderEmail || '';
-        const rawPass = body.appPassword || '';
+        const rawUser = body.user || body.senderEmail || '';
+        const rawPass = body.pass || body.appPassword || '';
         const senderEmail = typeof rawUser === 'string' ? rawUser.trim() : '';
         const appPassword = typeof rawPass === 'string' ? rawPass.trim() : '';
 
         const result = await sendOutreachEmail({
           from: senderEmail,
+          user: senderEmail,
+          pass: appPassword,
+          host: body.host,
+          port: body.port,
+          secure: body.secure,
+          senderName: body.senderName,
           to: typeof body.recipientEmail === 'string' ? body.recipientEmail.trim() : body.recipientEmail,
           subject: body.subject,
           text: body.body,
