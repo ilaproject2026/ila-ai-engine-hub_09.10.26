@@ -11,6 +11,7 @@
     "start": "node server/index.js"
   },
   "dependencies": {
+    "@emailjs/browser": "^4.4.1",
     "@google/genai": "^2.19.0",
     "docx": "^9.7.1",
     "idb": "^8.0.3",

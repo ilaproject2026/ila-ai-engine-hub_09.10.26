@@ -78,11 +78,13 @@ import {
   saveTieupPolicies,
   fetchTieupSavedLists,
   saveTieupSavedList,
-  deleteTieupSavedList,
-  verifyGmailSmtp,
-  dispatchSmtpBulkOutreach,
-  dispatchSingleSmtpOutreach
+  deleteTieupSavedList
 } from '../services/dbService';
+import {
+  verifyEmailJsConnection,
+  sendEmailJsSingle,
+  substituteEmailTokens,
+} from '../services/emailService';
 import { generateTieupResearchLeads, getIlaModelDisplayName, isValidDirectUrl } from '../services/geminiService';
 import { useVoice } from '../hooks/useVoice';
 import MarkdownRenderer from './MarkdownRenderer';
@@ -231,7 +233,7 @@ export const TEST_COLLEGES_SANDBOX_DATA: TieupLeadItem[] = [
     contactEmail: 'rafiaquafqu@gmail.com',
     contactPhone: '+49 30 5550191',
     antiSpamStatus: 'verified',
-    antiSpamNotes: 'Official sandbox institutional liaison. Verified direct deliverability via Gmail SMTP, zero spam flags.',
+    antiSpamNotes: 'Official sandbox institutional liaison. Verified direct deliverability via EmailJS, zero spam flags.',
     termsSummary: '22% Net Tuition Commission. Accelerated 14-day offer turnaround. Direct bi-lateral MoU.',
     websiteUrl: 'https://berlin-tech-sandbox.de',
     directSourcePageUrl: 'https://berlin-tech-sandbox.de/international/partnerships',
@@ -1013,7 +1015,10 @@ export default function TieupResearchEngineView({
 
     // Filter target leads to only those that have had outreach successfully dispatched/communicated
     const eligibleIds = targetIds.filter((id) => {
-      const lead = allResourcesLeads.find((l) => l.id === id) || sessionLeads.find((l) => l.id === id);
+      const lead =
+        processLeads.find((l) => l.id === id) ||
+        allResourcesLeads.find((l) => l.id === id) ||
+        sessionLeads.find((l) => l.id === id);
       return outreachLogs.some(
         (log) =>
           (log.leadId === id || log.id === id || (lead && log.recipientEmail === lead.contactEmail)) &&
@@ -1025,7 +1030,7 @@ export default function TieupResearchEngineView({
 
     if (eligibleIds.length === 0) {
       setProcessNotice({
-        text: '⚠ Communication Required: None of the selected leads have had outreach dispatched yet. Please dispatch personalized outreach emails via Gmail SMTP in Process first before converting to Partnership.',
+        text: '⚠ Communication Required: None of the selected leads have had outreach dispatched yet. Please dispatch personalized outreach emails via EmailJS in Process first before converting to Partnership.',
         type: 'warning',
       });
       setTimeout(() => setProcessNotice(null), 6500);
@@ -1043,6 +1048,13 @@ export default function TieupResearchEngineView({
     setAllResourcesLeads((prev) =>
       prev.map((l) => (eligibleIds.includes(l.id) ? { ...l, isPartner: true } : l))
     );
+    setProcessLeads((prev) => {
+      const updated = prev.map((l) => (eligibleIds.includes(l.id) ? { ...l, isPartner: true } : l));
+      try {
+        localStorage.setItem('ila_tieup_process_leads', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
 
     // Record formal audit trail in outreach status logs
     for (const id of eligibleIds) {
@@ -1052,7 +1064,10 @@ export default function TieupResearchEngineView({
         await saveOutreachLog(updated);
         setOutreachLogs((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
       } else {
-        const lead = allResourcesLeads.find((l) => l.id === id) || sessionLeads.find((l) => l.id === id);
+        const lead =
+          processLeads.find((l) => l.id === id) ||
+          allResourcesLeads.find((l) => l.id === id) ||
+          sessionLeads.find((l) => l.id === id);
         if (lead) {
           const auditLog: OutreachStatusLogItem = {
             id: `log_partner_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -1109,66 +1124,80 @@ export default function TieupResearchEngineView({
 
   // Sender Email State (Default to designated test sender rafiaquafqu@gmail.com)
   const [senderEmail, setSenderEmail] = useState<string>(() => {
-    return localStorage.getItem('ila_gmail_sender_email') || 'rafiaquafqu@gmail.com';
+    return (
+      localStorage.getItem('ila_emailjs_sender_email') ||
+      (import.meta as any).env?.VITE_EMAILJS_SENDER_EMAIL ||
+      localStorage.getItem('ila_gmail_sender_email') ||
+      'rafiaquafqu@gmail.com'
+    );
   });
-  const [gmailAppPassword, setGmailAppPassword] = useState<string>(() => {
-    return localStorage.getItem('ila_gmail_app_password') || '';
+  // EmailJS Dispatch Transporter Configuration State
+  const [emailjsServiceId, setEmailjsServiceId] = useState<string>(() => {
+    return (
+      localStorage.getItem('ila_emailjs_service_id') ||
+      (import.meta as any).env?.VITE_EMAILJS_SERVICE_ID ||
+      ''
+    );
   });
-  const [showAppPassword, setShowAppPassword] = useState<boolean>(false);
-  const [isVerifyingSmtp, setIsVerifyingSmtp] = useState<boolean>(false);
-  const [smtpVerifyStatus, setSmtpVerifyStatus] = useState<{
+  const [emailjsTemplateId, setEmailjsTemplateId] = useState<string>(() => {
+    return (
+      localStorage.getItem('ila_emailjs_template_id') ||
+      (import.meta as any).env?.VITE_EMAILJS_TEMPLATE_ID ||
+      ''
+    );
+  });
+  const [emailjsPublicKey, setEmailjsPublicKey] = useState<string>(() => {
+    return (
+      localStorage.getItem('ila_emailjs_public_key') ||
+      (import.meta as any).env?.VITE_EMAILJS_PUBLIC_KEY ||
+      ''
+    );
+  });
+  const [showPublicKey, setShowPublicKey] = useState<boolean>(false);
+  const [showEmailJsGuide, setShowEmailJsGuide] = useState<boolean>(false);
+  const [isVerifyingEmailJs, setIsVerifyingEmailJs] = useState<boolean>(false);
+  const [emailjsVerifyStatus, setEmailjsVerifyStatus] = useState<{
     success: boolean;
     message: string;
-    simulated?: boolean;
-    connected?: boolean;
-    statusCode?: number;
-    details?: any;
-    diagnosis?: any;
   } | null>(null);
 
-  // Test & Verify Gmail SMTP Connection Handler
-  const handleVerifyGmailSmtp = async () => {
-    setIsVerifyingSmtp(true);
-    setSmtpVerifyStatus(null);
+  // Test & Verify EmailJS Connection Handler
+  const handleVerifyEmailJs = async () => {
+    setIsVerifyingEmailJs(true);
+    setEmailjsVerifyStatus(null);
+    const cleanService = (emailjsServiceId || '').trim();
+    const cleanTemplate = (emailjsTemplateId || '').trim();
+    const cleanPublic = (emailjsPublicKey || '').trim();
     const cleanEmail = (senderEmail || '').trim();
-    const cleanPass = (gmailAppPassword || '').replace(/\s+/g, '').trim();
+
+    if (cleanService !== emailjsServiceId) setEmailjsServiceId(cleanService);
+    if (cleanTemplate !== emailjsTemplateId) setEmailjsTemplateId(cleanTemplate);
+    if (cleanPublic !== emailjsPublicKey) setEmailjsPublicKey(cleanPublic);
     if (cleanEmail !== senderEmail) setSenderEmail(cleanEmail);
-    if (cleanPass !== gmailAppPassword) setGmailAppPassword(cleanPass);
 
     try {
-      localStorage.setItem('ila_gmail_sender_email', cleanEmail);
-      if (cleanPass) {
-        localStorage.setItem('ila_gmail_app_password', cleanPass);
-      }
-      const res = await verifyGmailSmtp(cleanEmail, cleanPass);
-      if (res.success) {
-        setSmtpVerifyStatus({
-          success: true,
-          connected: true,
-          message: res.message || `✓ Connected to Gmail SMTP as ${cleanEmail}. Ready for live bulk dispatch!`
-        });
-      } else if (res.simulated) {
-        setSmtpVerifyStatus({
-          success: true,
-          simulated: true,
-          message: res.message || 'ℹ Test Mode Active: Simulated dispatch ready. Enter 16-char App Password for live inbox delivery.'
-        });
-      } else {
-        setSmtpVerifyStatus({
-          success: false,
-          message: res.error || 'Connection failed. Please check your Gmail address and 16-character App Password.',
-          statusCode: res.statusCode,
-          details: res.details,
-          diagnosis: res.diagnosis,
-        });
-      }
+      localStorage.setItem('ila_emailjs_service_id', cleanService);
+      localStorage.setItem('ila_emailjs_template_id', cleanTemplate);
+      localStorage.setItem('ila_emailjs_public_key', cleanPublic);
+      localStorage.setItem('ila_emailjs_sender_email', cleanEmail);
+
+      const res = await verifyEmailJsConnection(
+        {
+          serviceId: cleanService,
+          templateId: cleanTemplate,
+          publicKey: cleanPublic,
+          senderEmail: cleanEmail,
+        },
+        cleanEmail
+      );
+      setEmailjsVerifyStatus(res);
     } catch (err: any) {
-      setSmtpVerifyStatus({
+      setEmailjsVerifyStatus({
         success: false,
-        message: err.message || 'Error communicating with SMTP verification service.'
+        message: err.message || 'Error communicating with EmailJS API service.',
       });
     } finally {
-      setIsVerifyingSmtp(false);
+      setIsVerifyingEmailJs(false);
     }
   };
 
@@ -2001,76 +2030,178 @@ export default function TieupResearchEngineView({
     });
   }, [sessionLeads, sortBy, ieltsFilter, germanLevelFilter, tuitionFilter, scholarshipFilter, minCommissionFilter]);
 
-  // Phase 1: Simultaneous Bulk Send Outreach Action with Configured Gmail SMTP Transporter
+  // Phase 1: Simultaneous Bulk Send Outreach Action with Configured EmailJS Transporter
   const handleSendBulkOutreach = async () => {
     const selectedIds = Array.from(phase1SelectedLeadIds);
-    if (selectedIds.length === 0) return;
+    if (selectedIds.length === 0) {
+      setBulkSendNotice(
+        '⚠ No Leads Selected: Please check one or more institutional leads in Section 1 above before dispatching.'
+      );
+      setTimeout(() => setBulkSendNotice(null), 6000);
+      return;
+    }
+
+    const cleanService = (
+      emailjsServiceId ||
+      (import.meta as any).env?.VITE_EMAILJS_SERVICE_ID ||
+      ''
+    ).trim();
+    const cleanTemplate = (
+      emailjsTemplateId ||
+      (import.meta as any).env?.VITE_EMAILJS_TEMPLATE_ID ||
+      ''
+    ).trim();
+    const cleanPublic = (
+      emailjsPublicKey ||
+      (import.meta as any).env?.VITE_EMAILJS_PUBLIC_KEY ||
+      ''
+    ).trim();
+    const fromAddress = senderEmail.trim() || 'rafiaquafqu@gmail.com';
+
+    if (!cleanService || !cleanTemplate || !cleanPublic) {
+      setBulkSendNotice(
+        '⚠ EmailJS Credentials Required: Please enter your Service ID, Template ID, and Public Key in the configuration card above.'
+      );
+      setTimeout(() => setBulkSendNotice(null), 8000);
+      return;
+    }
+
     setIsBulkSending(true);
 
-    const fromAddress = senderEmail.trim() || 'rafiaquafqu@gmail.com';
-    const selectedLeadItems = selectedIds
-      .map((id) => allResourcesLeads.find((l) => l.id === id) || sessionLeads.find((l) => l.id === id))
-      .filter((l): l is TieupLeadItem => Boolean(l && (l.contactEmail || (l as any).email)));
-
     try {
-      const cleanAppPassword = (gmailAppPassword || '').replace(/\s+/g, '').trim();
       // Save credentials preference in browser storage
-      localStorage.setItem('ila_gmail_sender_email', fromAddress);
-      if (cleanAppPassword) {
-        localStorage.setItem('ila_gmail_app_password', cleanAppPassword);
+      localStorage.setItem('ila_emailjs_service_id', cleanService);
+      localStorage.setItem('ila_emailjs_template_id', cleanTemplate);
+      localStorage.setItem('ila_emailjs_public_key', cleanPublic);
+      localStorage.setItem('ila_emailjs_sender_email', fromAddress);
+
+      // Search in processLeads FIRST, then allResourcesLeads and sessionLeads
+      const selectedLeadItems = selectedIds
+        .map((id) => processLeads.find((l) => l.id === id) || allResourcesLeads.find((l) => l.id === id) || sessionLeads.find((l) => l.id === id))
+        .filter((l): l is TieupLeadItem => Boolean(l && (l.contactEmail || (l as any).email || (l as any).contact_email)));
+
+      if (selectedLeadItems.length === 0) {
+        setBulkSendNotice('⚠ No valid target lead email addresses found in selection. Please check lead contact details.');
+        setIsBulkSending(false);
+        setTimeout(() => setBulkSendNotice(null), 6500);
+        return;
       }
 
-      // Dispatch via backend Gmail SMTP service
-      const dispatchResult = await dispatchSmtpBulkOutreach({
-        senderEmail: fromAddress,
-        appPassword: cleanAppPassword,
-        subject: phase1EmailSubject,
-        bodyTemplate: phase1EmailBody,
-        leads: selectedLeadItems,
-      });
+      let deliveredCount = 0;
+      let failedCount = 0;
+      let lastErrorMessage = '';
+      const newLogs: OutreachStatusLogItem[] = [];
 
-      if (dispatchResult.logs && dispatchResult.logs.length > 0) {
-        setOutreachLogs((prev) => [...dispatchResult.logs, ...prev]);
+      for (const lead of selectedLeadItems) {
+        const targetEmail = (lead.contactEmail || (lead as any).email || (lead as any).contact_email || '').trim();
+        if (!targetEmail) continue;
+
+        const isGeneric = targetEmail.includes('noreply') || targetEmail.includes('info@');
+        const populatedSubject = substituteEmailTokens(phase1EmailSubject, lead);
+        const populatedBody = substituteEmailTokens(phase1EmailBody, lead);
+
+        const res = await sendEmailJsSingle({
+          config: {
+            serviceId: cleanService,
+            templateId: cleanTemplate,
+            publicKey: cleanPublic,
+            senderEmail: fromAddress,
+          },
+          recipientEmail: targetEmail,
+          recipientName: lead.contactPerson || lead.name,
+          subject: populatedSubject,
+          body: populatedBody,
+          institutionName: lead.name,
+          commissionPercent: lead.commissionPercent,
+          courses: lead.courseList?.join(', ') || (lead as any)?.programs || 'Undergraduate & Graduate Articulation',
+        });
+
+        const isSuccess = res.success;
+        if (isSuccess) {
+          deliveredCount++;
+        } else {
+          failedCount++;
+          lastErrorMessage = res.error || `Status ${res.status || 'failed'}`;
+        }
+
+        const logItem: OutreachStatusLogItem = {
+          id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          leadId: lead.id,
+          institutionName: lead.name,
+          recipientEmail: targetEmail,
+          recipientName: lead.contactPerson || lead.name,
+          senderEmail: fromAddress,
+          subject: populatedSubject,
+          status: isGeneric ? 'flagged_generic' : isSuccess ? 'delivered' : 'bounced',
+          phase: isGeneric ? 'outreach' : isSuccess ? 'followup' : 'outreach',
+          sentAt: Date.now(),
+          lastChecked: Date.now(),
+          spamScore: isGeneric ? 80 : isSuccess ? 5 : 85,
+          flagReason: isGeneric
+            ? 'Generic alias detected. Transferred to generic sandbox.'
+            : !isSuccess
+            ? (res.error || 'EmailJS delivery error')
+            : undefined,
+          leadDataSnapshot: lead,
+        };
+
+        await saveOutreachLog(logItem);
+        newLogs.push(logItem);
       }
 
-      setPhase1SelectedLeadIds(new Set());
+      if (newLogs.length > 0) {
+        setOutreachLogs((prev) => [...newLogs, ...prev]);
+      }
 
-      if (dispatchResult.deliveredCount > 0) {
+      if (deliveredCount > 0) {
+        setPhase1SelectedLeadIds(new Set());
         setBulkSendNotice(
-          `✓ LIVE GMAIL SMTP DISPATCH SUCCESS: Successfully sent ${dispatchResult.deliveredCount} personalized outreach email(s) from ${fromAddress} to target test inboxes in real-time!`
+          `✓ LIVE EMAILJS DISPATCH SUCCESS: Successfully sent ${deliveredCount} personalized outreach email(s) from ${fromAddress} via EmailJS!`
         );
-      } else if (dispatchResult.simulatedCount > 0) {
+      } else if (failedCount > 0) {
         setBulkSendNotice(
-          `ℹ TEST DISPATCH COMPLETED: Generated ${dispatchResult.simulatedCount} personalized outreach email(s). (To send live emails to inboxes, enter your 16-character Google App Password in the SMTP Transporter panel).`
+          `⚠ Outreach dispatch failed for ${failedCount} lead(s): ${lastErrorMessage}. Please verify your EmailJS Service ID, Template ID, and Public Key.`
         );
       } else {
-        setBulkSendNotice(
-          `⚠ Outreach dispatch completed with ${dispatchResult.failedCount} issue(s). Check logs for details.`
-        );
+        setBulkSendNotice('ℹ No valid target lead email addresses found in selection.');
       }
     } catch (err: any) {
-      console.error('Outreach dispatch error:', err);
-      setBulkSendNotice(`❌ Dispatch error: ${err.message || 'Failed to dispatch emails.'}`);
+      console.error('EmailJS outreach dispatch error:', err);
+      setBulkSendNotice(`❌ Dispatch error: ${err.message || 'Failed to dispatch emails via EmailJS.'}`);
     } finally {
       setIsBulkSending(false);
-      setTimeout(() => setBulkSendNotice(null), 6500);
+      setTimeout(() => setBulkSendNotice(null), 8000);
     }
   };
 
-  // Phase 1 & 2: Re-trigger / Retry Outreach Record Immediately with Live SMTP
+  // Phase 1 & 2: Re-trigger / Retry Outreach Record Immediately with EmailJS
   const handleRetriggerDelivery = async (log: OutreachStatusLogItem, overrideEmail?: string) => {
     const targetEmail = (overrideEmail || log.recipientEmail).trim();
     const fromAddress = senderEmail.trim() || 'rafiaquafqu@gmail.com';
-    const cleanAppPassword = (gmailAppPassword || '').replace(/\s+/g, '').trim();
+    const cleanService = (emailjsServiceId || '').trim();
+    const cleanTemplate = (emailjsTemplateId || '').trim();
+    const cleanPublic = (emailjsPublicKey || '').trim();
     const isGeneric = targetEmail.includes('noreply') || targetEmail.includes('info@');
 
+    if (!cleanService || !cleanTemplate || !cleanPublic) {
+      setBulkSendNotice('⚠ EmailJS credentials missing. Please enter Service ID, Template ID, and Public Key above.');
+      setTimeout(() => setBulkSendNotice(null), 4500);
+      return;
+    }
+
     try {
-      const res = await dispatchSingleSmtpOutreach({
-        senderEmail: fromAddress,
-        appPassword: cleanAppPassword,
+      const res = await sendEmailJsSingle({
+        config: {
+          serviceId: cleanService,
+          templateId: cleanTemplate,
+          publicKey: cleanPublic,
+          senderEmail: fromAddress,
+        },
         recipientEmail: targetEmail,
+        recipientName: log.recipientName || log.institutionName,
         subject: log.subject,
         body: phase1EmailBody,
+        institutionName: log.institutionName,
       });
 
       const updatedLog: OutreachStatusLogItem = {
@@ -2089,10 +2220,10 @@ export default function TieupResearchEngineView({
 
       await saveOutreachLog(updatedLog);
       setOutreachLogs((prev) => prev.map((l) => (l.id === updatedLog.id ? updatedLog : l)));
-      setBulkSendNotice(`✓ Re-triggered delivery sequence for ${log.institutionName} (${targetEmail}). Dispatched.`);
+      setBulkSendNotice(`✓ Dispatched retry delivery sequence for ${log.institutionName} (${targetEmail}) via EmailJS.`);
       setTimeout(() => setBulkSendNotice(null), 4000);
-    } catch (err) {
-      console.error('Single SMTP retrigger error:', err);
+    } catch (err: any) {
+      console.error('Single EmailJS retrigger error:', err);
     }
   };
 
@@ -2171,6 +2302,27 @@ export default function TieupResearchEngineView({
   // Phase 2: Send AI-Drafted Auto-Reply
   const handleSendAiReply = async () => {
     if (!aiReplyModalLog) return;
+
+    if (emailjsServiceId.trim() && emailjsTemplateId.trim() && emailjsPublicKey.trim() && aiReplyModalLog.recipientEmail) {
+      try {
+        await sendEmailJsSingle({
+          config: {
+            serviceId: emailjsServiceId.trim(),
+            templateId: emailjsTemplateId.trim(),
+            publicKey: emailjsPublicKey.trim(),
+            senderEmail: senderEmail.trim(),
+          },
+          recipientEmail: aiReplyModalLog.recipientEmail,
+          recipientName: aiReplyModalLog.recipientName || aiReplyModalLog.institutionName,
+          subject: aiDraftedSubject,
+          body: aiDraftedBody,
+          institutionName: aiReplyModalLog.institutionName,
+        });
+      } catch (err) {
+        console.warn('AI reply EmailJS sending notice:', err);
+      }
+    }
+
     const updated: OutreachStatusLogItem = {
       ...aiReplyModalLog,
       status: 'replied',
@@ -7099,7 +7251,7 @@ export default function TieupResearchEngineView({
                   </div>
                 </div>
 
-                {/* Dedicated Gmail SMTP Dispatch Transporter Configuration Card */}
+                {/* Dedicated EmailJS Dispatch Transporter Configuration Card */}
                 <div
                   style={{
                     background: 'var(--bg-secondary)',
@@ -7113,9 +7265,9 @@ export default function TieupResearchEngineView({
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                      <Key size={16} color="var(--accent-primary)" />
+                      <Mail size={16} color="var(--accent-primary)" />
                       <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                        Gmail SMTP Transporter Hook
+                        EmailJS Dispatch Transporter
                       </span>
                       <span
                         style={{
@@ -7128,15 +7280,36 @@ export default function TieupResearchEngineView({
                           border: '1px solid rgba(16, 185, 129, 0.3)',
                         }}
                       >
-                        smtp.gmail.com:465 (SSL)
+                        emailjs-browser (Direct TLS Relay)
                       </span>
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <button
                         type="button"
-                        onClick={handleVerifyGmailSmtp}
-                        disabled={isVerifyingSmtp}
+                        onClick={() => setShowEmailJsGuide(!showEmailJsGuide)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          padding: '0.32rem 0.65rem',
+                          borderRadius: '0.45rem',
+                          background: 'var(--bg-card)',
+                          border: '1px solid var(--border-medium)',
+                          color: 'var(--text-main)',
+                          fontSize: '0.76rem',
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <Sparkles size={12} color="var(--accent-primary)" />
+                        <span>{showEmailJsGuide ? 'Hide Setup Guide' : 'How to Setup (Free)'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleVerifyEmailJs}
+                        disabled={isVerifyingEmailJs}
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -7148,20 +7321,157 @@ export default function TieupResearchEngineView({
                           color: '#ffffff',
                           fontSize: '0.78rem',
                           fontWeight: 600,
-                          cursor: isVerifyingSmtp ? 'not-allowed' : 'pointer',
+                          cursor: isVerifyingEmailJs ? 'not-allowed' : 'pointer',
                           transition: 'all 0.15s ease',
                         }}
                       >
-                        {isVerifyingSmtp ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
-                        <span>{isVerifyingSmtp ? 'Verifying...' : 'Test SMTP Connection'}</span>
+                        {isVerifyingEmailJs ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
+                        <span>{isVerifyingEmailJs ? 'Verifying...' : 'Test EmailJS Connection'}</span>
                       </button>
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem' }}>
+                  {/* Collapsible EmailJS Setup Guide */}
+                  {showEmailJsGuide && (
+                    <div
+                      style={{
+                        padding: '0.75rem 0.9rem',
+                        borderRadius: '0.5rem',
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border-medium)',
+                        fontSize: '0.76rem',
+                        lineHeight: 1.5,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.4rem',
+                      }}
+                    >
+                      <div style={{ fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Sparkles size={14} color="var(--accent-primary)" />
+                        <span>Quick 2-Minute EmailJS Setup Guide (Free 200 emails/month):</span>
+                      </div>
+                      <ol style={{ margin: 0, paddingLeft: '1.2rem', color: 'var(--text-muted)' }}>
+                        <li>
+                          Sign up at{' '}
+                          <a
+                            href="https://www.emailjs.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: 'var(--accent-primary)', textDecoration: 'underline', fontWeight: 600 }}
+                          >
+                            emailjs.com
+                          </a>{' '}
+                          (free tier, no credit card required).
+                        </li>
+                        <li>
+                          In <strong>Email Services</strong>, click <em>Add New Service</em> (select Gmail, Outlook, or your preferred provider) and copy your <strong>Service ID</strong>.
+                        </li>
+                        <li>
+                          In <strong>Email Templates</strong>, click <em>Create New Template</em>. Use variables <code>{'{{to_email}}'}</code>, <code>{'{{subject}}'}</code>, <code>{'{{message}}'}</code>, <code>{'{{to_name}}'}</code>, save and copy your <strong>Template ID</strong>.
+                        </li>
+                        <li>
+                          In <strong>Account &gt; Security</strong>, copy your <strong>Public Key</strong>.
+                        </li>
+                        <li>
+                          Paste the 3 keys below and click <strong>"Test EmailJS Connection"</strong>. No Google App Passwords or server port configurations needed!
+                        </li>
+                      </ol>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
-                        Designated Sender Gmail Address:
+                        EmailJS Service ID:
+                      </label>
+                      <input
+                        type="text"
+                        value={emailjsServiceId}
+                        onChange={(e) => setEmailjsServiceId(e.target.value)}
+                        onBlur={(e) => setEmailjsServiceId(e.target.value.trim())}
+                        placeholder="e.g. service_xxxxxxx"
+                        style={{
+                          width: '100%',
+                          padding: '0.45rem 0.65rem',
+                          borderRadius: '0.45rem',
+                          background: 'var(--bg-card)',
+                          border: '1px solid var(--border-medium)',
+                          color: 'var(--text-main)',
+                          fontSize: '0.84rem',
+                          outline: 'none',
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
+                        EmailJS Template ID:
+                      </label>
+                      <input
+                        type="text"
+                        value={emailjsTemplateId}
+                        onChange={(e) => setEmailjsTemplateId(e.target.value)}
+                        onBlur={(e) => setEmailjsTemplateId(e.target.value.trim())}
+                        placeholder="e.g. template_xxxxxxx"
+                        style={{
+                          width: '100%',
+                          padding: '0.45rem 0.65rem',
+                          borderRadius: '0.45rem',
+                          background: 'var(--bg-card)',
+                          border: '1px solid var(--border-medium)',
+                          color: 'var(--text-main)',
+                          fontSize: '0.84rem',
+                          outline: 'none',
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
+                        EmailJS Public Key:
+                      </label>
+                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                        <input
+                          type={showPublicKey ? 'text' : 'password'}
+                          value={emailjsPublicKey}
+                          onChange={(e) => setEmailjsPublicKey(e.target.value)}
+                          onBlur={(e) => setEmailjsPublicKey(e.target.value.trim())}
+                          placeholder="e.g. xxxxxxxxxxxxxxx"
+                          style={{
+                            width: '100%',
+                            padding: '0.45rem 2.2rem 0.45rem 0.65rem',
+                            borderRadius: '0.45rem',
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border-medium)',
+                            color: 'var(--text-main)',
+                            fontSize: '0.84rem',
+                            letterSpacing: showPublicKey ? 'normal' : '0.1em',
+                            outline: 'none',
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPublicKey(!showPublicKey)}
+                          style={{
+                            position: 'absolute',
+                            right: '0.5rem',
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--text-subtle)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                          }}
+                          title={showPublicKey ? 'Hide public key' : 'Show public key'}
+                        >
+                          {showPublicKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
+                        Designated Sender / Reply-To Email:
                       </label>
                       <input
                         type="email"
@@ -7181,153 +7491,37 @@ export default function TieupResearchEngineView({
                         }}
                       />
                     </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
-                        Gmail App Password (16-character):
-                      </label>
-                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                        <input
-                          type={showAppPassword ? 'text' : 'password'}
-                          value={gmailAppPassword}
-                          onChange={(e) => setGmailAppPassword(e.target.value)}
-                          onBlur={(e) => setGmailAppPassword(e.target.value.trim())}
-                          placeholder="e.g. abcd efgh ijkl mnop"
-                          style={{
-                            width: '100%',
-                            padding: '0.45rem 2.2rem 0.45rem 0.65rem',
-                            borderRadius: '0.45rem',
-                            background: 'var(--bg-card)',
-                            border: '1px solid var(--border-medium)',
-                            color: 'var(--text-main)',
-                            fontSize: '0.84rem',
-                            letterSpacing: showAppPassword ? 'normal' : '0.1em',
-                            outline: 'none',
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowAppPassword(!showAppPassword)}
-                          style={{
-                            position: 'absolute',
-                            right: '0.5rem',
-                            background: 'transparent',
-                            border: 'none',
-                            color: 'var(--text-subtle)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                          }}
-                          title={showAppPassword ? 'Hide password' : 'Show password'}
-                        >
-                          {showAppPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                        </button>
-                      </div>
-                    </div>
                   </div>
 
                   {/* Verification Status Notification Pill */}
-                  {smtpVerifyStatus && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <div
-                        style={{
-                          padding: '0.45rem 0.75rem',
-                          borderRadius: '0.45rem',
-                          fontSize: '0.78rem',
-                          fontWeight: 500,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.4rem',
-                          background: smtpVerifyStatus.connected
-                            ? 'rgba(16, 185, 129, 0.12)'
-                            : smtpVerifyStatus.simulated
-                            ? 'rgba(59, 130, 246, 0.12)'
-                            : 'rgba(239, 68, 68, 0.12)',
-                          border: `1px solid ${
-                            smtpVerifyStatus.connected
-                              ? 'rgba(16, 185, 129, 0.35)'
-                              : smtpVerifyStatus.simulated
-                              ? 'rgba(59, 130, 246, 0.35)'
-                              : 'rgba(239, 68, 68, 0.35)'
-                          }`,
-                          color: smtpVerifyStatus.connected
-                            ? '#10b981'
-                            : smtpVerifyStatus.simulated
-                            ? '#3b82f6'
-                            : '#ef4444',
-                        }}
-                      >
-                        {smtpVerifyStatus.connected ? (
-                          <CheckCircle2 size={14} />
-                        ) : smtpVerifyStatus.simulated ? (
-                          <Sparkles size={14} />
-                        ) : (
-                          <AlertCircle size={14} />
-                        )}
-                        <span>{smtpVerifyStatus.message}</span>
-                      </div>
-
-                      {/* Detailed 535 Remediation Card */}
-                      {smtpVerifyStatus.statusCode === 535 && (
-                        <div
-                          style={{
-                            padding: '0.75rem 0.9rem',
-                            borderRadius: '0.5rem',
-                            fontSize: '0.76rem',
-                            background: 'rgba(239, 68, 68, 0.05)',
-                            border: '1px solid rgba(239, 68, 68, 0.25)',
-                            color: 'var(--text-main)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '0.4rem',
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span style={{ fontWeight: 700, color: '#ef4444' }}>
-                              ⚠️ Google SMTP Handshake: Successful | Credentials: BadCredentials (535)
-                            </span>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>
-                              Host: smtp.gmail.com:465 (SSL)
-                            </span>
-                          </div>
-                          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                            Google's SMTP server answered and completed the SSL handshake, but rejected this App Password for <strong>{senderEmail}</strong>. To resolve this:
-                          </div>
-                          <ul style={{ margin: 0, paddingLeft: '1.2rem', color: 'var(--text-subtle)', lineHeight: 1.5 }}>
-                            <li>
-                              <strong>Account Mismatch Check:</strong> If you are logged into multiple Google Accounts in your browser, make sure you generated the App Password under <strong>{senderEmail}</strong> (check the account profile circle at the top-right of the Google tab).
-                            </li>
-                            <li>
-                              <strong>2-Step Verification:</strong> Must remain <strong>turned ON</strong> for <em>{senderEmail}</em>. If 2FA was toggled off, existing App Passwords are automatically deleted by Google.
-                            </li>
-                            <li>
-                              <strong>Generate Fresh App Password:</strong> Open{' '}
-                              <a
-                                href="https://myaccount.google.com/apppasswords"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{ color: 'var(--accent-primary)', textDecoration: 'underline', fontWeight: 600 }}
-                              >
-                                myaccount.google.com/apppasswords
-                              </a>
-                              , create a new 16-letter password (e.g. named "Ila Outreach"), copy all 16 characters, and paste them above.
-                            </li>
-                          </ul>
-                        </div>
-                      )}
+                  {emailjsVerifyStatus && (
+                    <div
+                      style={{
+                        padding: '0.45rem 0.75rem',
+                        borderRadius: '0.45rem',
+                        fontSize: '0.78rem',
+                        fontWeight: 500,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        background: emailjsVerifyStatus.success
+                          ? 'rgba(16, 185, 129, 0.12)'
+                          : 'rgba(239, 68, 68, 0.12)',
+                        border: `1px solid ${
+                          emailjsVerifyStatus.success
+                            ? 'rgba(16, 185, 129, 0.35)'
+                            : 'rgba(239, 68, 68, 0.35)'
+                        }`,
+                        color: emailjsVerifyStatus.success ? '#10b981' : '#ef4444',
+                      }}
+                    >
+                      {emailjsVerifyStatus.success ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+                      <span>{emailjsVerifyStatus.message}</span>
                     </div>
                   )}
 
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', lineHeight: 1.4 }}>
-                    🔒 Zero paid gateway fees. Connects directly to Google's authenticated SMTP server. If 2FA is active on your Google account, generate a free 16-character App Password at{' '}
-                    <a
-                      href="https://myaccount.google.com/apppasswords"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ color: 'var(--accent-primary)', textDecoration: 'underline' }}
-                    >
-                      Google Account &gt; Security &gt; App Passwords
-                    </a>.
+                    ⚡ 100% Client-side EmailJS integration. Emails dispatch directly via official EmailJS API with zero Google SMTP port or App Password restrictions.
                   </div>
                 </div>
 
@@ -7380,10 +7574,44 @@ export default function TieupResearchEngineView({
                   />
                 </div>
 
-                {/* Dispatch Button */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', paddingTop: '0.35rem' }}>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 400 }}>
-                    Simultaneously fires to all selected leads using authenticated relay with live delivery logging.
+                {/* Inline Notice Banner (Visible directly at dispatch location) */}
+                {bulkSendNotice && (
+                  <div
+                    style={{
+                      marginTop: '0.75rem',
+                      padding: '0.65rem 0.95rem',
+                      borderRadius: '0.55rem',
+                      background: bulkSendNotice.startsWith('✓') ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                      border: `1px solid ${bulkSendNotice.startsWith('✓') ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`,
+                      color: bulkSendNotice.startsWith('✓') ? '#10b981' : '#f87171',
+                      fontSize: '0.84rem',
+                      fontWeight: 500,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                    }}
+                  >
+                    {bulkSendNotice.startsWith('✓') ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+                    <span>{bulkSendNotice}</span>
+                  </div>
+                )}
+
+                {/* Dispatch Button Row */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', paddingTop: '0.65rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 400 }}>
+                      Simultaneously fires to all selected leads using authenticated relay with live delivery logging.
+                    </div>
+                    {phase1SelectedLeadIds.size === 0 && (
+                      <div style={{ fontSize: '0.76rem', color: 'var(--accent-primary)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <span>👉 Select one or more leads in <strong>1. Select Filtered Institutional Leads</strong> above to enable dispatch.</span>
+                      </div>
+                    )}
+                    {(!emailjsServiceId.trim() || !emailjsTemplateId.trim() || !emailjsPublicKey.trim()) && (
+                      <div style={{ fontSize: '0.75rem', color: '#f59e0b', fontWeight: 500 }}>
+                        ⚠ EmailJS credentials not fully entered in configuration card above.
+                      </div>
+                    )}
                   </div>
 
                   <button
@@ -7394,16 +7622,16 @@ export default function TieupResearchEngineView({
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '0.45rem',
-                      padding: '0.5rem 1.25rem',
+                      padding: '0.55rem 1.35rem',
                       borderRadius: '0.55rem',
-                      background: 'var(--accent-primary)',
-                      border: 'none',
-                      color: '#ffffff',
+                      background: phase1SelectedLeadIds.size > 0 ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                      border: phase1SelectedLeadIds.size > 0 ? 'none' : '1px solid var(--border-medium)',
+                      color: phase1SelectedLeadIds.size > 0 ? '#ffffff' : 'var(--text-subtle)',
                       fontSize: '0.86rem',
                       fontWeight: 600,
                       cursor: isBulkSending || phase1SelectedLeadIds.size === 0 ? 'not-allowed' : 'pointer',
-                      boxShadow: 'var(--shadow-sm)',
-                      opacity: isBulkSending || phase1SelectedLeadIds.size === 0 ? 0.6 : 1,
+                      boxShadow: phase1SelectedLeadIds.size > 0 ? 'var(--shadow-sm)' : 'none',
+                      opacity: isBulkSending ? 0.7 : phase1SelectedLeadIds.size === 0 ? 0.65 : 1,
                       transition: 'all 0.15s ease',
                     }}
                   >
@@ -7434,7 +7662,7 @@ export default function TieupResearchEngineView({
                       <span>3. Delivery Status & Flagged Generic / Bounced Mailbox Audit</span>
                     </h4>
                     <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 400 }}>
-                      Monitors authenticated SMTP relay delivery and identifies dropped generic aliases.
+                      Monitors authenticated EmailJS relay delivery and identifies dropped generic aliases.
                     </span>
                   </div>
 
